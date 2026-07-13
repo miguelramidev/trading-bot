@@ -214,22 +214,26 @@ class CryptoGridBot:
                 
         if trigger_close:
             logger.warning(f"[{symbol}] {reason} a {current_price:.4f}")
-            # 1. Cancelar todas las órdenes abiertas
+            logger.info("Esperando 3s para que Binance ejecute el Hard Stop nativo...")
+            await asyncio.sleep(3)
+            
+            # 1. Limpieza de Hanging Orders (Cancela el Grid y el SL/TP contrario)
             try:
                 await self.exchange.cancel_all_orders(symbol)
-                logger.info("Órdenes pendientes canceladas.")
+                logger.info("Hanging orders (órdenes colgadas) canceladas exitosamente.")
                 
-                # 2. Cerrar cualquier posición abierta a precio de mercado
+                # 2. Fallback de Emergencia: Verificar si quedó posición abierta
                 positions = await self.exchange.fetch_positions([symbol])
                 for pos in positions:
                     if pos['symbol'] == symbol and float(pos['contracts']) > 0:
+                        logger.warning("¡Posición aún abierta tras Hard Stop! Ejecutando cierre manual de emergencia...")
                         side = 'sell' if pos['side'] == 'long' else 'buy'
                         await self.exchange.create_market_order(symbol, side, pos['contracts'], params={'reduceOnly': True})
-                        logger.info(f"Posición de {pos['contracts']} cerrada a mercado.")
+                        logger.info(f"Posición de emergencia de {pos['contracts']} cerrada a mercado.")
             except Exception as e:
-                logger.error(f"Error cerrando posiciones/órdenes en {symbol}: {e}")
+                logger.error(f"Error en limpieza post-sesión en {symbol}: {e}")
                 
-            await notifier.send_message(f"🚨 <b>Sesión de Grid Finalizada</b>\n\n🎯 <b>Moneda:</b> {symbol}\n📊 <b>Razón:</b> {reason}\n💲 <b>Precio Salida:</b> {current_price:.4f}\n\n<i>Buscando nueva oportunidad en 5 minutos...</i>")
+            await notifier.send_message(f"🚨 <b>Sesión de Grid Finalizada (Hard Stop ejecutado)</b>\n\n🎯 <b>Moneda:</b> {symbol}\n📊 <b>Razón:</b> {reason}\n💲 <b>Precio Salida:</b> {current_price:.4f}\n\n<i>Buscando nueva oportunidad en 5 minutos...</i>")
             
             # 3. Borrar el estado para permitir la autorenovación
             if os.path.exists(self.state_file):
@@ -272,12 +276,12 @@ class CryptoGridBot:
         
         # Determinar Tendencia Macro
         trend = await self.get_macro_trend(symbol)
-        # Rango basado en ATR
+        # Rango basado en ATR (Opción B: Direccional, solo cubrimos 1 lado)
         atr_value = atr.iloc[-1]
-        grid_range = atr_value * 3.0 # +/- 1.5 ATR
+        directional_range = atr_value * 1.5
         
-        upper_price = current_price + (grid_range / 2)
-        lower_price = current_price - (grid_range / 2)
+        upper_price = current_price + directional_range
+        lower_price = current_price - directional_range
         
         # Stop loss y Take Profit dependen de la dirección (Opción B)
         if trend == 'BULLISH':
@@ -296,8 +300,8 @@ class CryptoGridBot:
         ideal_gap_pct = 0.004 # 0.4%
         ideal_gap = current_price * ideal_gap_pct
         
-        # 2. Determinamos la cantidad de grillas usando el gap ideal (Mínimo 10)
-        grid_levels = max(10, int(grid_range / ideal_gap))
+        # 2. Determinamos la cantidad de grillas usando el gap ideal para el rango direccional (Mínimo 10)
+        grid_levels = max(10, int(directional_range / ideal_gap))
         
         # 3. Consultar el límite mínimo dinámico de la moneda en Binance
         market = self.exchange.markets.get(symbol, {})
@@ -332,8 +336,8 @@ class CryptoGridBot:
                 logger.warning(f"Capital insuficiente. Reduciendo de {grid_levels} a {new_grid_levels} grillas.")
                 grid_levels = new_grid_levels
         
-        # Recalcular tamaño y gap final tras ajustes
-        actual_gap = grid_range / grid_levels
+        # Recalcular tamaño y gap final tras ajustes direccionales
+        actual_gap = directional_range / grid_levels
         actual_gap_pct = (actual_gap / current_price) * 100
         capital_per_grid = trade_size / grid_levels
         leveraged_size = capital_per_grid * leverage
@@ -446,6 +450,27 @@ class CryptoGridBot:
                             logger.info(f"✅ Orden SELL colocada -> Monto: {amount} | Precio: {price}")
                     except Exception as e:
                         logger.error(f"❌ Error al colocar orden SELL: {e}")
+        
+        # INYECCIÓN DE HARD STOPS (Protección Anti-Crash) en Binance
+        logger.warning("🛡️ Inyectando Hard Stops en Binance (closePosition=True)...")
+        try:
+            # Determinamos el lado opuesto para cerrar la posición
+            close_side = 'sell' if trend == 'BULLISH' else 'buy'
+            
+            # Formateo de precios para los stops
+            formatted_sl = float(self.exchange.price_to_precision(symbol, stop_loss_price))
+            formatted_tp = float(self.exchange.price_to_precision(symbol, take_profit_price))
+            
+            # Usamos amount_min para satisfacer a CCXT, pero closePosition=True instruye a Binance a cerrar TODO.
+            sl_params = {'stopPrice': formatted_sl, 'closePosition': True}
+            await self.exchange.create_order(symbol, 'STOP_MARKET', close_side, amount=amount_min, price=None, params=sl_params)
+            logger.info(f"🛡️ Hard Stop Loss inyectado en Binance a {formatted_sl}")
+            
+            tp_params = {'stopPrice': formatted_tp, 'closePosition': True}
+            await self.exchange.create_order(symbol, 'TAKE_PROFIT_MARKET', close_side, amount=amount_min, price=None, params=tp_params)
+            logger.info(f"🎯 Hard Take Profit inyectado en Binance a {formatted_tp}")
+        except Exception as e:
+            logger.error(f"❌ Error crítico al inyectar Hard Stops: {e}")
         
         await notifier.send_message(
             f"📈 <b>Grid Calculado ({symbol})</b>\n\n"

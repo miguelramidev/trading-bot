@@ -24,16 +24,16 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] Autorenovación 24/7: Cierre por TP/SL y búsqueda de nueva moneda automática.
 - [x] *Hito Demostrable:* Ver las órdenes del grid colocadas y ejecutándose en vivo autónomamente.
 
-## Fase 4: Módulo Tradicional - Conexión Broker
-- [ ] Creación de cuenta demo en el broker elegido (ej. Exness) y obtención de credenciales API.
-- [ ] Conexión a la API REST del broker.
-- [ ] Función para descargar datos históricos de índices (ej. S&P 500) en 4h, 1h, 15m.
+## Fase 4: Módulo Tradicional - Conexión Broker (MT5)
+- [x] Obtención de credenciales de cuenta Demo en Exness (Login, Password, Servidor).
+- [x] Conexión local al terminal MetaTrader 5 (`MetaTrader5` package).
+- [x] Función para descargar datos históricos de MetaTrader 5 (velas 4h, 1h, 15m).
 
 ## Fase 5: Módulo Tradicional - Lógica Triple Pantalla
-- [ ] Programación precisa de las 3 pantallas (MACD, Force Index/Estocástico).
-- [ ] Lógica de validación de los 3 criterios de Alexander.
-- [ ] Ejecución de órdenes Demo basadas en las señales.
-- [ ] *Hito Demostrable:* El bot tradicional envía una alerta a Telegram cuando detecta una configuración válida de la Triple Pantalla y ejecuta el trade en la cuenta demo.
+- [x] Programación estricta de las 3 pantallas de Alexander Elder (EMA 13/26, Force Index, Trailing Stop a 15m).
+- [x] Cálculo de Risk Management dinámico (Lot Size) limitando el riesgo al 1% del balance de MT5.
+- [x] Inyección de órdenes pendientes (Buy Stop / Sell Stop) nativas a MT5 con ratio Riesgo:Recompensa estricto de 1:2.
+- [x] *Hito Demostrable:* El bot tradicional notifica a Telegram los setups encontrados y los ejecuta simulados en Mac (o nativos en Windows).
 
 ## Fase 6: Despliegue en AWS Lightsail
 - [ ] Contratación de instancia (2 vCPU, 2GB RAM).

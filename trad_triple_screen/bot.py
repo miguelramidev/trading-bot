@@ -3,6 +3,7 @@ import time
 import math
 import asyncio
 import logging
+from datetime import datetime
 import pandas as pd
 import pandas_ta as ta
 from dotenv import load_dotenv
@@ -32,10 +33,54 @@ class TradTripleScreenBot:
         self.password = os.getenv('EXNESS_PASSWORD', '')
         self.server = os.getenv('EXNESS_SERVER', '')
         
-        # Símbolos a operar (Ejemplo)
-        self.symbols = ["EURUSDm", "US30m", "XAUUSDm"] 
+        # Símbolos a operar (Cuenta Exness con sufijo 'm' - 10 Activos)
+        self.symbols = [
+            "EURUSDm", "GBPUSDm", "USDJPYm", "XAUUSDm", "US30m", "US500m",
+            "USTECm", "USDCADm", "AUDUSDm", "GBPJPYm"
+        ] 
         self.risk_percent = 1.0 # Arriesgar 1% por operación
+        self.active_trades = {} # Para simulación de estado en Mac
         
+    def has_active_trade(self, symbol):
+        """Verifica si ya hay una posición abierta o una orden pendiente para este símbolo"""
+        if not MT5_AVAILABLE:
+            return self.active_trades.get(symbol, False)
+            
+        # Revisar posiciones abiertas (trades activos)
+        positions = mt5.positions_get(symbol=symbol)
+        if positions is not None and len(positions) > 0:
+            return True
+            
+        # Revisar órdenes pendientes (limit / stop orders)
+        orders = mt5.orders_get(symbol=symbol)
+        if orders is not None and len(orders) > 0:
+            return True
+            
+        return False
+        
+    def is_trading_allowed(self, symbol):
+        """Verifica si el horario actual del servidor permite operar (Filtro diario y fin de semana)"""
+        if not MT5_AVAILABLE:
+            return True
+            
+        tick = mt5.symbol_info_tick(symbol)
+        if not tick:
+            return False
+            
+        server_time = datetime.fromtimestamp(tick.time)
+        
+        # Filtro Diario: No operar entre las 23:00 y las 01:00
+        if server_time.hour == 23 or server_time.hour == 0:
+            return False
+            
+        # Filtro Fin de Semana: No operar desde Viernes 20:00 hasta Domingo
+        if server_time.weekday() == 4 and server_time.hour >= 20: # Viernes
+            return False
+        if server_time.weekday() in (5, 6): # Sábado y Domingo
+            return False
+            
+        return True
+
     def connect(self):
         """Inicializa la conexión con el terminal de MetaTrader 5"""
         if not MT5_AVAILABLE:
@@ -71,6 +116,11 @@ class TradTripleScreenBot:
             '4h': mt5.TIMEFRAME_H4
         }
         
+        # Activar el símbolo en Observación del Mercado
+        if not mt5.symbol_select(symbol, True):
+            logger.error(f"Símbolo '{symbol}' no existe o está oculto. ¿Tal vez lleva un sufijo como 'm' (EURUSDm)?")
+            return None
+            
         mt5_tf = tf_map.get(timeframe)
         rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, num_candles)
         
@@ -128,18 +178,32 @@ class TradTripleScreenBot:
         Pantalla 3: El Disparo (15 Minutos)
         Calcula el punto exacto para colocar la orden Buy Stop o Sell Stop.
         """
+        # Calcular ATR para usarlo como buffer de respiro
+        df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        
         last_candle = df.iloc[-1]
+        atr = last_candle['atr'] if not pd.isna(last_candle['atr']) else 0
+        buffer = atr * 0.2 if atr > 0 else 0
+        min_sl_distance = atr if atr > 0 else 0
         
         if trend_screen_1 == 'BULLISH':
-            # Buy Stop 1 pip (ej. 0.0001) por encima del máximo anterior
-            entry_price = last_candle['high']
-            stop_loss = last_candle['low'] # SL debajo del mínimo
+            entry_price = last_candle['high'] + buffer
+            stop_loss = last_candle['low'] - buffer
+            
+            # Asegurar distancia mínima de Stop Loss para evitar lotes absurdos
+            if (entry_price - stop_loss) < min_sl_distance:
+                stop_loss = entry_price - min_sl_distance
+                
             return {'side': 'buy_stop', 'entry': entry_price, 'sl': stop_loss}
             
         elif trend_screen_1 == 'BEARISH':
-            # Sell Stop 1 pip por debajo del mínimo anterior
-            entry_price = last_candle['low']
-            stop_loss = last_candle['high'] # SL encima del máximo
+            entry_price = last_candle['low'] - buffer
+            stop_loss = last_candle['high'] + buffer
+            
+            # Asegurar distancia mínima de Stop Loss
+            if (stop_loss - entry_price) < min_sl_distance:
+                stop_loss = entry_price + min_sl_distance
+                
             return {'side': 'sell_stop', 'entry': entry_price, 'sl': stop_loss}
             
         return None
@@ -179,8 +243,10 @@ class TradTripleScreenBot:
         step = symbol_info.volume_step
         lot_size = math.floor(lot_size / step) * step
         
-        # Respetar mínimos y máximos
-        lot_size = max(symbol_info.volume_min, min(lot_size, symbol_info.volume_max))
+        # Respetar mínimos y máximos, y añadir un TOPE ABSOLUTO DE SEGURIDAD (MAX_LOTS)
+        MAX_LOTS = 3.0
+        max_allowed = min(symbol_info.volume_max, MAX_LOTS)
+        lot_size = max(symbol_info.volume_min, min(lot_size, max_allowed))
         
         return lot_size
 
@@ -205,7 +271,14 @@ class TradTripleScreenBot:
         
         if not MT5_AVAILABLE:
             logger.warning(f"Simulando ejecución en Mac: {side.upper()} {lot_size} lotes de {symbol}")
+            self.active_trades[symbol] = True # Guardar estado simulado
             return {'status': 'simulated', 'lot': lot_size, 'tp': tp}
+            
+        # Calcular tiempo de expiración (1 hora = 3600 segundos) usando la hora del servidor
+        expiration = 0
+        tick = mt5.symbol_info_tick(symbol)
+        if tick:
+            expiration = int(tick.time) + 3600
             
         request = {
             "action": mt5.TRADE_ACTION_PENDING,
@@ -218,7 +291,8 @@ class TradTripleScreenBot:
             "deviation": 20,
             "magic": 777777,
             "comment": "TripleScreen",
-            "type_time": mt5.ORDER_TIME_GTC,
+            "type_time": mt5.ORDER_TIME_SPECIFIED,
+            "expiration": expiration,
             "type_filling": mt5.ORDER_FILLING_IOC,
         }
         
@@ -239,6 +313,16 @@ class TradTripleScreenBot:
         while True:
             for symbol in self.symbols:
                 logger.info(f"Analizando {symbol}...")
+                
+                # VERIFICACIÓN DE ESTADO PREVIO
+                if self.has_active_trade(symbol):
+                    logger.info(f"[{symbol}] Operación o orden activa encontrada. Saltando análisis para evitar duplicados.")
+                    continue
+                    
+                # FILTRO DE TIEMPO
+                if not self.is_trading_allowed(symbol):
+                    logger.info(f"[{symbol}] Fuera del horario de trading permitido. Saltando.")
+                    continue
                 
                 # 1. Analizar Marea (4H)
                 df_4h = self.fetch_data(symbol, '4h')
@@ -287,7 +371,8 @@ class TradTripleScreenBot:
                                f"💰 <b>Lotes:</b> {lot}\n"
                                f"📍 <b>Entrada (Stop Order):</b> {trade_setup['entry']}\n"
                                f"🛡️ <b>Stop Loss:</b> {trade_setup['sl']}\n"
-                               f"🤑 <b>Take Profit (1:2):</b> {tp_price:.4f}")
+                               f"🤑 <b>Take Profit (1:2):</b> {tp_price:.4f}\n\n"
+                               f"⏱️ <i>Nota: La orden expirará automáticamente en 1 hora si no se activa.</i>")
                         await notifier.send_message(msg)
                     
             logger.info("Ciclo terminado. Durmiendo 15 minutos...")

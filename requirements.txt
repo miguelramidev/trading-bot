@@ -1,0 +1,7 @@
+ccxt
+pandas
+websockets
+python-dotenv
+requests
+pandas_ta
+MetaTrader5

@@ -62,6 +62,27 @@ class CryptoGridBot:
         except Exception as e:
             logger.error(f"Error guardando el estado: {e}")
 
+    async def fetch_position_native(self, raw_symbol):
+        import time
+        import hmac
+        import hashlib
+        import aiohttp
+        from shared.config import BINANCE_API_KEY, BINANCE_SECRET_KEY
+        
+        timestamp = int(time.time() * 1000)
+        query = f"symbol={raw_symbol}&timestamp={timestamp}&recvWindow=10000"
+        signature = hmac.new(BINANCE_SECRET_KEY.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
+        
+        url = f"https://fapi.binance.com/fapi/v2/positionRisk?{query}&signature={signature}"
+        headers = {'X-MBX-APIKEY': BINANCE_API_KEY}
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"Binance Error {response.status}: {await response.text()}")
+
     async def get_dynamic_trade_size(self):
         """Calculates 90% of the available USDT balance in the futures account"""
         try:
@@ -182,7 +203,7 @@ class CryptoGridBot:
                             last_position_check = time.time()
                             try:
                                 raw_symbol = symbol.replace('/', '').replace(':USDT', '')
-                                positions_data = await self.exchange.fapiPrivateV2GetPositionRisk({'symbol': raw_symbol.upper()})
+                                positions_data = await self.fetch_position_native(raw_symbol.upper())
                                 is_open = False
                                 for pos in positions_data:
                                     if float(pos.get('positionAmt', 0)) != 0.0:
@@ -257,7 +278,7 @@ class CryptoGridBot:
                 
                 # 2. Fallback de Emergencia: Verificar si quedó posición abierta
                 raw_symbol = symbol.replace('/', '').replace(':USDT', '')
-                positions_data = await self.exchange.fapiPrivateV2GetPositionRisk({'symbol': raw_symbol.upper()})
+                positions_data = await self.fetch_position_native(raw_symbol.upper())
                 for pos in positions_data:
                     amt = float(pos.get('positionAmt', 0))
                     if amt != 0.0:

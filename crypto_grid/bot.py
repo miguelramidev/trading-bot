@@ -66,7 +66,8 @@ class CryptoGridBot:
         import time
         import hmac
         import hashlib
-        import aiohttp
+        import requests
+        import asyncio
         from shared.config import BINANCE_API_KEY, BINANCE_SECRET_KEY
         
         timestamp = int(time.time() * 1000)
@@ -76,12 +77,14 @@ class CryptoGridBot:
         url = f"https://fapi.binance.com/fapi/v2/positionRisk?{query}&signature={signature}"
         headers = {'X-MBX-APIKEY': BINANCE_API_KEY}
         
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    raise Exception(f"Binance Error {response.status}: {await response.text()}")
+        def _make_request():
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise Exception(f"Binance Error {response.status_code}: {response.text}")
+                
+        return await asyncio.to_thread(_make_request)
 
     async def get_dynamic_trade_size(self):
         """Calculates 90% of the available USDT balance in the futures account"""

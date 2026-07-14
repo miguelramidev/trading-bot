@@ -31,9 +31,12 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 
 ## Fase 5: Módulo Tradicional - Lógica Triple Pantalla
 - [x] Programación estricta de las 3 pantallas de Alexander Elder (EMA 13/26, Force Index, Trailing Stop a 15m).
-- [x] Cálculo de Risk Management dinámico (Lot Size) limitando el riesgo al 1% del balance de MT5.
-- [x] Inyección de órdenes pendientes (Buy Stop / Sell Stop) nativas a MT5 con ratio Riesgo:Recompensa estricto de 1:2.
-- [x] *Hito Demostrable:* El bot tradicional notifica a Telegram los setups encontrados y los ejecuta simulados en Mac (o nativos en Windows).
+- [x] Gestión de estado para prevenir órdenes duplicadas (`has_active_trade`).
+- [x] Filtros horarios (bloqueo en cierres diarios y fines de semana para evitar Gaps/Spreads).
+- [x] Cálculo de Risk Management dinámico limitando el riesgo al 1% con techo máximo de 3.0 lotes.
+- [x] Seguridad anti-ruido con distancia mínima de Stop Loss basada en volatilidad (ATR).
+- [x] Inyección de órdenes pendientes en MT5 con expiración a 1 hora y ratio Riesgo:Recompensa estricto de 1:2.
+- [x] *Hito Demostrable:* El bot tradicional escanea 10 activos, notifica a Telegram y gestiona las órdenes en MetaTrader 5 en vivo.
 
 ## Fase 6: Despliegue en AWS Lightsail
 - [ ] Contratación de instancia (2 vCPU, 2GB RAM).

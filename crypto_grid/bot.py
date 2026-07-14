@@ -3,10 +3,10 @@ import ccxt.async_support as ccxt
 import pandas as pd
 import json
 import logging
-import asyncio
 import websockets
 import math
 import os
+import time
 from shared.config import BINANCE_API_KEY, BINANCE_SECRET_KEY, BINANCE_TESTNET, MAX_LEVERAGE
 from shared.notifier import notifier
 
@@ -170,23 +170,55 @@ class CryptoGridBot:
         ws_symbol = symbol.replace('/', '').replace(':USDT', '').lower()
         ws_url = f"wss://fstream.binance.com/ws/{ws_symbol}@ticker"
         
+        last_position_check = time.time()
+        
         while True:
             try:
                 async with websockets.connect(ws_url) as ws:
                     logger.info(f"Connected to Binance Futures WebSocket for {ws_symbol}")
                     while True:
-                        response = await ws.recv()
-                        data = json.loads(response)
-                        
-                        # 'c' is the close price (current price) in the ticker stream
-                        if 'c' in data:
-                            current_price = float(data['c'])
+                        # 1. Heartbeat de Reconciliación Manual (cada 60s)
+                        if time.time() - last_position_check > 60:
+                            last_position_check = time.time()
+                            try:
+                                positions = await self.exchange.fetch_positions([symbol])
+                                is_open = False
+                                for pos in positions:
+                                    if pos['symbol'] == symbol and float(pos.get('contracts', 0)) > 0:
+                                        is_open = True
+                                        break
+                                        
+                                if not is_open:
+                                    logger.warning(f"🚨 [{symbol}] Cierre Manual Detectado (Posición en 0). Iniciando limpieza...")
+                                    try:
+                                        await self.exchange.cancel_all_orders(symbol)
+                                    except Exception as e:
+                                        logger.error(f"Error cancelando hanging orders: {e}")
+                                        
+                                    if os.path.exists(self.state_file):
+                                        os.remove(self.state_file)
+                                        
+                                    await notifier.send_message(f"🚨 <b>Intervención Manual Detectada</b>\n\nLa posición de {symbol} fue cerrada manualmente o liquidada.\n\nEl bot ha limpiado la red y buscará una nueva moneda.")
+                                    return # Romper el websocket y reiniciar el ciclo
+                            except Exception as e:
+                                logger.error(f"Error en el chequeo de posición manual: {e}")
+
+                        # 2. Lectura del Precio en Tiempo Real (Timeout de 5s para no bloquear el Heartbeat)
+                        try:
+                            response = await asyncio.wait_for(ws.recv(), timeout=5.0)
+                            data = json.loads(response)
                             
-                            # Revisar si se alcanzó el TP o SL global
-                            session_ended = await self.check_grid_triggers(symbol, current_price, state)
-                            if session_ended:
-                                logger.info(f"Sesión finalizada para {symbol}. Saliendo del WebSocket.")
-                                return # Rompe el ciclo del websocket para que el bot principal busque otra moneda
+                            if 'c' in data:
+                                current_price = float(data['c'])
+                                
+                                # Revisar si se alcanzó el TP o SL global
+                                session_ended = await self.check_grid_triggers(symbol, current_price, state)
+                                if session_ended:
+                                    logger.info(f"Sesión finalizada para {symbol}. Saliendo del WebSocket.")
+                                    return 
+                        except asyncio.TimeoutError:
+                            # Timeout esperado, permite que el bucle evalúe el heartbeat
+                            continue
                             
             except Exception as e:
                 logger.error(f"Websocket error for {symbol}: {e}. Reconnecting in 5s...")

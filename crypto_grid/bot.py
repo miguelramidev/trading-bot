@@ -65,7 +65,7 @@ class CryptoGridBot:
     async def get_dynamic_trade_size(self):
         """Calculates 90% of the available USDT balance in the futures account"""
         try:
-            balance = await self.exchange.fetch_balance()
+            balance = await self.exchange.fetch_balance(params={'type': 'future'})
             if 'USDT' in balance and 'free' in balance['USDT']:
                 free_usdt = balance['USDT']['free']
                 trade_size = free_usdt * 0.90
@@ -181,7 +181,7 @@ class CryptoGridBot:
                         if time.time() - last_position_check > 60:
                             last_position_check = time.time()
                             try:
-                                positions = await self.exchange.fetch_positions([symbol])
+                                positions = await self.exchange.fetch_positions([symbol], params={'type': 'future'})
                                 is_open = False
                                 for pos in positions:
                                     if pos['symbol'] == symbol and float(pos.get('contracts', 0)) > 0:
@@ -255,7 +255,7 @@ class CryptoGridBot:
                 logger.info("Hanging orders (órdenes colgadas) canceladas exitosamente.")
                 
                 # 2. Fallback de Emergencia: Verificar si quedó posición abierta
-                positions = await self.exchange.fetch_positions([symbol])
+                positions = await self.exchange.fetch_positions([symbol], params={'type': 'future'})
                 for pos in positions:
                     if pos['symbol'] == symbol and float(pos['contracts']) > 0:
                         logger.warning("¡Posición aún abierta tras Hard Stop! Ejecutando cierre manual de emergencia...")

@@ -58,6 +58,22 @@ class TradTripleScreenBot:
             
         return False
         
+    def get_total_active_trades(self):
+        """Cuenta el total de operaciones (posiciones + órdenes) en TODA la cuenta"""
+        if not MT5_AVAILABLE:
+            return len(self.active_trades)
+            
+        total = 0
+        positions = mt5.positions_get()
+        if positions is not None:
+            total += len(positions)
+            
+        orders = mt5.orders_get()
+        if orders is not None:
+            total += len(orders)
+            
+        return total
+        
     def is_trading_allowed(self, symbol):
         """Verifica si el horario actual del servidor permite operar (Filtro diario y fin de semana)"""
         if not MT5_AVAILABLE:
@@ -111,9 +127,9 @@ class TradTripleScreenBot:
             
         # Mapeo de temporalidades de MT5
         tf_map = {
-            '15m': mt5.TIMEFRAME_M15,
             '1h': mt5.TIMEFRAME_H1,
-            '4h': mt5.TIMEFRAME_H4
+            '4h': mt5.TIMEFRAME_H4,
+            '1d': mt5.TIMEFRAME_D1
         }
         
         # Activar el símbolo en Observación del Mercado
@@ -134,7 +150,7 @@ class TradTripleScreenBot:
 
     def analyze_screen_1(self, df):
         """
-        Pantalla 1: Marea Macro (4 Horas)
+        Pantalla 1: Marea Macro (Diario 1D)
         Usa 2 EMAs (13 y 26) para determinar la tendencia pesada.
         """
         df['ema_fast'] = ta.ema(df['close'], length=13)
@@ -151,7 +167,7 @@ class TradTripleScreenBot:
 
     def analyze_screen_2(self, df, trend_screen_1):
         """
-        Pantalla 2: La Ola (1 Hora)
+        Pantalla 2: La Ola (4 Horas)
         Usa el Force Index (EMA 2) para identificar retrocesos contra la marea.
         """
         # Calcular Force Index = Volume * (Close - Close_previous)
@@ -175,8 +191,8 @@ class TradTripleScreenBot:
 
     def analyze_screen_3(self, df, trend_screen_1):
         """
-        Pantalla 3: El Disparo (15 Minutos)
-        Calcula el punto exacto para colocar la orden Buy Stop o Sell Stop.
+        Pantalla 3: El Disparo (1 Hora)
+        Stop Loss Híbrido: Breakout del máximo/mínimo anterior + Buffer ATR.
         """
         # Calcular ATR para usarlo como buffer de respiro
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
@@ -236,6 +252,11 @@ class TradTripleScreenBot:
         if risk_per_lot == 0:
             return symbol_info.volume_min
             
+        # ESCUDO DE CAPITAL: Rechazar operación si el lote mínimo arriesga más del 1.5%
+        if (symbol_info.volume_min * risk_per_lot) > (risk_amount * 1.5):
+            logger.warning(f"[{symbol}] ESCUDO DE CAPITAL: El lote mínimo ({symbol_info.volume_min}) arriesga ${symbol_info.volume_min * risk_per_lot:.2f} (Límite: ${risk_amount:.2f}). Abortando trade.")
+            return 0.0
+            
         # Calcular lote
         lot_size = risk_amount / risk_per_lot
         
@@ -267,6 +288,9 @@ class TradTripleScreenBot:
             
         lot_size = self.calculate_lot_size(symbol, entry, sl)
         
+        if lot_size <= 0.0:
+            return None # Trade abortado por el Escudo de Capital
+            
         logger.info(f"[{symbol}] Calculado Lote: {lot_size} | Entry: {entry} | SL: {sl} | TP: {tp}")
         
         if not MT5_AVAILABLE:
@@ -309,8 +333,14 @@ class TradTripleScreenBot:
         if not self.connect():
             return
             
-        # Bucle de análisis (se ejecutaría cada 15 minutos en producción)
+        # Bucle de análisis (se ejecutaría cada 1 Hora en producción)
         while True:
+            # FILTRO GLOBAL: Máximo 3 operaciones
+            if self.get_total_active_trades() >= 3:
+                logger.info("Límite global de 3 operaciones alcanzado. Pausando escaneo...")
+                await asyncio.sleep(900)
+                continue
+                
             for symbol in self.symbols:
                 logger.info(f"Analizando {symbol}...")
                 
@@ -324,32 +354,32 @@ class TradTripleScreenBot:
                     logger.info(f"[{symbol}] Fuera del horario de trading permitido. Saltando.")
                     continue
                 
-                # 1. Analizar Marea (4H)
-                df_4h = self.fetch_data(symbol, '4h')
-                if df_4h is None: continue
-                trend = self.analyze_screen_1(df_4h)
+                # 1. Analizar Marea (Diario)
+                df_1d = self.fetch_data(symbol, '1d')
+                if df_1d is None: continue
+                trend = self.analyze_screen_1(df_1d)
                 
                 if trend == 'NEUTRAL':
                     logger.info(f"[{symbol}] Marea neutral. Ignorando.")
                     continue
                     
-                logger.info(f"[{symbol}] Pantalla 1 (4H) - Tendencia: {trend}")
+                logger.info(f"[{symbol}] Pantalla 1 (1D) - Tendencia: {trend}")
                 
-                # 2. Analizar Ola (1H)
-                df_1h = self.fetch_data(symbol, '1h')
-                if df_1h is None: continue
-                wave_signal = self.analyze_screen_2(df_1h, trend)
+                # 2. Analizar Ola (4H)
+                df_4h = self.fetch_data(symbol, '4h')
+                if df_4h is None: continue
+                wave_signal = self.analyze_screen_2(df_4h, trend)
                 
                 if not wave_signal:
-                    logger.info(f"[{symbol}] Pantalla 2 (1H) - Sin retroceso (Force Index no alineado).")
+                    logger.info(f"[{symbol}] Pantalla 2 (4H) - Sin retroceso (Force Index no alineado).")
                     continue
                     
-                logger.info(f"[{symbol}] Pantalla 2 (1H) - Retroceso detectado. Preparando disparo...")
+                logger.info(f"[{symbol}] Pantalla 2 (4H) - Retroceso detectado. Preparando disparo...")
                 
-                # 3. Analizar Disparo (15m)
-                df_15m = self.fetch_data(symbol, '15m')
-                if df_15m is None: continue
-                trade_setup = self.analyze_screen_3(df_15m, trend)
+                # 3. Analizar Disparo (1H)
+                df_1h = self.fetch_data(symbol, '1h')
+                if df_1h is None: continue
+                trade_setup = self.analyze_screen_3(df_1h, trend)
                 
                 if trade_setup:
                     logger.warning(f"🚨 ALERTA TRIPLE PANTALLA: {symbol} 🚨")
@@ -365,9 +395,9 @@ class TradTripleScreenBot:
                         # Notificar a Telegram
                         msg = (f"🎯 <b>Señal Triple Pantalla ({symbol})</b>\n"
                                f"{mode}\n\n"
-                               f"🧭 <b>Marea (4H):</b> {trend}\n"
-                               f"🌊 <b>Ola (1H):</b> Retroceso Confirmado (Force Index)\n"
-                               f"🔫 <b>Disparo (15m):</b> {trade_setup['side'].upper()}\n\n"
+                               f"🧭 <b>Marea (1D):</b> {trend}\n"
+                               f"🌊 <b>Ola (4H):</b> Retroceso Confirmado (Force Index)\n"
+                               f"🔫 <b>Disparo (1H):</b> {trade_setup['side'].upper()}\n\n"
                                f"💰 <b>Lotes:</b> {lot}\n"
                                f"📍 <b>Entrada (Stop Order):</b> {trade_setup['entry']}\n"
                                f"🛡️ <b>Stop Loss:</b> {trade_setup['sl']}\n"

@@ -181,10 +181,11 @@ class CryptoGridBot:
                         if time.time() - last_position_check > 60:
                             last_position_check = time.time()
                             try:
-                                positions = await self.exchange.fetch_positions([symbol], params={'type': 'future'})
+                                raw_symbol = symbol.replace('/', '').replace(':USDT', '')
+                                positions_data = await self.exchange.fapiPrivateV2GetPositionRisk({'symbol': raw_symbol.upper()})
                                 is_open = False
-                                for pos in positions:
-                                    if pos['symbol'] == symbol and float(pos.get('contracts', 0)) > 0:
+                                for pos in positions_data:
+                                    if float(pos.get('positionAmt', 0)) != 0.0:
                                         is_open = True
                                         break
                                         
@@ -255,13 +256,16 @@ class CryptoGridBot:
                 logger.info("Hanging orders (órdenes colgadas) canceladas exitosamente.")
                 
                 # 2. Fallback de Emergencia: Verificar si quedó posición abierta
-                positions = await self.exchange.fetch_positions([symbol], params={'type': 'future'})
-                for pos in positions:
-                    if pos['symbol'] == symbol and float(pos['contracts']) > 0:
+                raw_symbol = symbol.replace('/', '').replace(':USDT', '')
+                positions_data = await self.exchange.fapiPrivateV2GetPositionRisk({'symbol': raw_symbol.upper()})
+                for pos in positions_data:
+                    amt = float(pos.get('positionAmt', 0))
+                    if amt != 0.0:
                         logger.warning("¡Posición aún abierta tras Hard Stop! Ejecutando cierre manual de emergencia...")
-                        side = 'sell' if pos['side'] == 'long' else 'buy'
-                        await self.exchange.create_market_order(symbol, side, pos['contracts'], params={'reduceOnly': True})
-                        logger.info(f"Posición de emergencia de {pos['contracts']} cerrada a mercado.")
+                        side = 'sell' if amt > 0 else 'buy'
+                        contracts = abs(amt)
+                        await self.exchange.create_market_order(symbol, side, contracts, params={'reduceOnly': True})
+                        logger.info(f"Posición de emergencia de {contracts} cerrada a mercado.")
             except Exception as e:
                 logger.error(f"Error en limpieza post-sesión en {symbol}: {e}")
                 

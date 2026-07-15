@@ -60,8 +60,11 @@ class CryptoGridBot:
                 logger.error(f"Error cargando el estado: {e}")
         return None
 
-    def save_state(self, symbol, trend, grid_levels, stop_loss, take_profit, leveraged_size):
+    def save_state(self, symbol, trend, grid_levels, stop_loss, take_profit, leveraged_size, start_time=None):
         """Save the active grid state to disk"""
+        if start_time is None:
+            start_time = time.time()
+            
         state = {
             'symbol': symbol,
             'trend': trend,
@@ -69,6 +72,7 @@ class CryptoGridBot:
             'stop_loss': stop_loss,
             'take_profit': take_profit,
             'leveraged_size': leveraged_size,
+            'start_time': start_time,
             'open_orders': [] # Aquí guardaremos los IDs reales de CCXT cuando se activen
         }
         try:
@@ -143,6 +147,69 @@ class CryptoGridBot:
                 raise Exception(f"Binance Error {response.status_code}: {response.text}")
                 
         return await asyncio.to_thread(_make_request)
+
+    async def fetch_income_native(self, symbol, start_time):
+        """Obtiene el historial de ingresos y comisiones directo de Binance API"""
+        import time
+        import hmac
+        import hashlib
+        import requests
+        import asyncio
+        from shared.config import BINANCE_API_KEY, BINANCE_SECRET_KEY
+        
+        timestamp = int(time.time() * 1000)
+        raw_symbol = symbol.replace('/', '').replace(':USDT', '').upper()
+        start_ts = int(start_time * 1000)
+        query = f"symbol={raw_symbol}&startTime={start_ts}&timestamp={timestamp}&recvWindow=10000"
+        signature = hmac.new(BINANCE_SECRET_KEY.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
+        
+        url = f"https://fapi.binance.com/fapi/v1/income?{query}&signature={signature}"
+        headers = {'X-MBX-APIKEY': BINANCE_API_KEY}
+        
+        def _make_request():
+            try:
+                response = requests.get(url, headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+            except Exception as e:
+                logger.error(f"Error fetching income: {e}")
+            return []
+                
+        return await asyncio.to_thread(_make_request)
+
+    async def calculate_pnl_summary(self, symbol, state):
+        """Calculates Net PnL and ROI using Binance Income API"""
+        start_time = state.get('start_time')
+        if not start_time:
+            return "⚠️ No se pudo calcular PnL (Falta start_time en memoria)"
+            
+        income_data = await self.fetch_income_native(symbol, start_time)
+        net_pnl = sum(float(item.get('income', 0)) for item in income_data)
+        
+        try:
+            balance = await self.exchange.fetch_balance(params={'type': 'future'})
+            total_balance = float(balance.get('USDT', {}).get('total', 0.0))
+        except Exception as e:
+            logger.error(f"Error fetching balance for ROI: {e}")
+            total_balance = 0.0
+            
+        roi_pct = (net_pnl / total_balance) * 100 if total_balance > 0 else 0
+        
+        if net_pnl > 0.05:
+            emoji = "✅"
+            outcome = "Ganancia Neta"
+        elif net_pnl < -0.05:
+            emoji = "❌"
+            outcome = "Pérdida Neta"
+        else:
+            emoji = "🛡️"
+            outcome = "Break-Even (Cero Riesgo / Comisiones cubiertas)"
+            
+        summary = (f"{emoji} <b>Resultado Financiero:</b> {outcome}\n"
+                   f"💰 <b>PnL Neto (Incluye Fees):</b> {net_pnl:.4f} USDT\n"
+                   f"📈 <b>ROI:</b> {roi_pct:.2f}%\n\n"
+                   f"💼 <b>Balance Restante:</b> {total_balance:.2f} USDT")
+        return summary
 
     async def get_dynamic_trade_size(self):
         """Calculates 90% of the available USDT balance in the futures account"""
@@ -270,9 +337,13 @@ class CryptoGridBot:
                                     if float(pos.get('positionAmt', 0)) != 0.0:
                                         is_open = True
                                         break
-                                        
                                 if not is_open:
                                     logger.warning(f"🚨 [{symbol}] Cierre Manual Detectado (Posición en 0). Iniciando limpieza...")
+                                    
+                                    # 1.1 Esperamos un par de segundos para asegurar que Binance asiente las transacciones en Income API
+                                    await asyncio.sleep(2)
+                                    pnl_summary = await self.calculate_pnl_summary(symbol, state)
+                                    
                                     try:
                                         await self.exchange.cancel_all_orders(symbol)
                                     except Exception as e:
@@ -281,7 +352,7 @@ class CryptoGridBot:
                                     if os.path.exists(self.state_file):
                                         os.remove(self.state_file)
                                         
-                                    await notifier.send_message(f"🚨 <b>Intervención Manual Detectada</b>\n\nLa posición de {symbol} fue cerrada manualmente o liquidada.\n\nEl bot ha limpiado la red y buscará una nueva moneda.")
+                                    await notifier.send_message(f"🚨 <b>Intervención Manual Detectada</b>\n\nLa posición de {symbol} fue cerrada manualmente o liquidada.\n\n{pnl_summary}\n\nEl bot ha limpiado la red y buscará una nueva moneda.")
                                     self.add_cooldown(symbol)
                                     return # Romper el websocket y reiniciar el ciclo
                             except Exception as e:
@@ -352,7 +423,10 @@ class CryptoGridBot:
             except Exception as e:
                 logger.error(f"Error en limpieza post-sesión en {symbol}: {e}")
                 
-            await notifier.send_message(f"🚨 <b>Sesión de Grid Finalizada (Hard Stop ejecutado)</b>\n\n🎯 <b>Moneda:</b> {symbol}\n📊 <b>Razón:</b> {reason}\n💲 <b>Precio Salida:</b> {current_price:.4f}\n\n<i>Buscando nueva oportunidad en 5 minutos...</i>")
+            # Calcular PnL Realizado antes de borrar estado
+            pnl_summary = await self.calculate_pnl_summary(symbol, state)
+                
+            await notifier.send_message(f"🚨 <b>Sesión de Grid Finalizada (Hard Stop ejecutado)</b>\n\n🎯 <b>Moneda:</b> {symbol}\n📊 <b>Razón:</b> {reason}\n💲 <b>Precio Salida:</b> {current_price:.4f}\n\n{pnl_summary}\n\n<i>Buscando nueva oportunidad en 5 minutos...</i>")
             
             # 3. Borrar el estado para permitir la autorenovación
             if os.path.exists(self.state_file):
@@ -611,7 +685,8 @@ class CryptoGridBot:
         )
         
         # Guardar estado para auto-recuperación
-        self.save_state(symbol, trend, grid_levels, stop_loss_price, take_profit_price, leveraged_size)
+        current_time = time.time()
+        self.save_state(symbol, trend, grid_levels, stop_loss_price, take_profit_price, leveraged_size, start_time=current_time)
         
         return {
             'symbol': symbol,
@@ -620,6 +695,7 @@ class CryptoGridBot:
             'stop_loss': stop_loss_price,
             'take_profit': take_profit_price,
             'leveraged_size': leveraged_size,
+            'start_time': current_time,
             'open_orders': []
         }
 

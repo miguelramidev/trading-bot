@@ -45,6 +45,8 @@ class CryptoGridBot:
         self.exchange = AsyncCCXTPatcher(exchange_sync)
         self.active_grids = {} # Keep track of grids
         self.state_file = 'data/state.json'
+        self.cooldown_file = 'data/cooldowns.json'
+        self.cooldown_hours = 12
 
     def load_state(self):
         """Load grid state from disk to recover from crashes"""
@@ -75,6 +77,48 @@ class CryptoGridBot:
             logger.info("💾 Estado del Grid guardado en el disco (Persistencia activa).")
         except Exception as e:
             logger.error(f"Error guardando el estado: {e}")
+
+    def load_cooldowns(self):
+        """Loads and cleans up expired cooldowns"""
+        if not os.path.exists(self.cooldown_file):
+            return {}
+            
+        try:
+            with open(self.cooldown_file, 'r') as f:
+                cooldowns = json.load(f)
+                
+            # Limpiar expirados
+            current_time = time.time()
+            active_cooldowns = {}
+            for symbol, unlock_time in cooldowns.items():
+                if current_time < unlock_time:
+                    active_cooldowns[symbol] = unlock_time
+                else:
+                    logger.info(f"🔓 {symbol} ha salido de cuarentena y puede volver a operarse.")
+                    
+            # Guardar si hubo limpieza
+            if len(cooldowns) != len(active_cooldowns):
+                with open(self.cooldown_file, 'w') as f:
+                    json.dump(active_cooldowns, f, indent=4)
+                    
+            return active_cooldowns
+        except Exception as e:
+            logger.error(f"Error gestionando cooldowns: {e}")
+            return {}
+
+    def add_cooldown(self, symbol):
+        """Puts a symbol in quarantine for X hours"""
+        cooldowns = self.load_cooldowns()
+        # Agregar horas (en segundos)
+        unlock_time = time.time() + (self.cooldown_hours * 3600)
+        cooldowns[symbol] = unlock_time
+        
+        try:
+            with open(self.cooldown_file, 'w') as f:
+                json.dump(cooldowns, f, indent=4)
+            logger.info(f"⏳ {symbol} puesto en cuarentena por {self.cooldown_hours}h.")
+        except Exception as e:
+            logger.error(f"Error guardando cooldown: {e}")
 
     async def fetch_position_native(self, raw_symbol):
         import time
@@ -238,6 +282,7 @@ class CryptoGridBot:
                                         os.remove(self.state_file)
                                         
                                     await notifier.send_message(f"🚨 <b>Intervención Manual Detectada</b>\n\nLa posición de {symbol} fue cerrada manualmente o liquidada.\n\nEl bot ha limpiado la red y buscará una nueva moneda.")
+                                    self.add_cooldown(symbol)
                                     return # Romper el websocket y reiniciar el ciclo
                             except Exception as e:
                                 logger.error(f"Error en el chequeo de posición manual: {e}")
@@ -313,6 +358,7 @@ class CryptoGridBot:
             if os.path.exists(self.state_file):
                 os.remove(self.state_file)
                 
+            self.add_cooldown(symbol)
             return True
             
         return False
@@ -589,6 +635,17 @@ class CryptoGridBot:
 
             # 1. Fetch Top Coins (Top 20)
             top_coins = await self.fetch_top_volume_coins(limit=20)
+            
+            # 1.5 Filtro de Cooldowns
+            active_cooldowns = self.load_cooldowns()
+            if active_cooldowns:
+                logger.info(f"Monedas en cuarentena ignoradas: {list(active_cooldowns.keys())}")
+                top_coins = [c for c in top_coins if c not in active_cooldowns]
+                
+            if not top_coins:
+                logger.warning("Todas las top coins están en cuarentena. Durmiendo 5m...")
+                await asyncio.sleep(300)
+                continue
             
             # 2. Analizar Monedas y Obtener Lista de Mejores Opciones
             ranked_coins = await self.analyze_and_pick_best_coin(top_coins)

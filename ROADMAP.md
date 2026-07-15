@@ -38,8 +38,17 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] Inyección de órdenes pendientes en MT5 con expiración a 1 hora y ratio Riesgo:Recompensa estricto de 1:2.
 - [x] *Hito Demostrable:* El bot tradicional escanea 10 activos, notifica a Telegram y gestiona las órdenes en MetaTrader 5 en vivo.
 
-## Fase 6: Despliegue en AWS Lightsail
-- [ ] Contratación de instancia (2 vCPU, 2GB RAM).
-- [ ] Configuración del servidor Ubuntu (seguridad, dependencias, Git).
+## Fase 6: Seguridad, Gestión Avanzada y PnL Tracking
+- [x] Límite global concurrente en MT5 (Máx. 3 operaciones).
+- [x] Escudo de Capital Estricto en MT5 (Riesgo máximo 1.5% ante lote mínimo).
+- [x] Gestión de Break-Even dinámico en MT5 (Free Ride al alcanzar +1R).
+- [x] Sincronización de estado Cripto con WebSockets y cierres manuales en Binance.
+- [x] Cuarentena (Cooldown) de 12 horas en Cripto para evitar operar repetidamente la misma moneda.
+- [x] Filtro de tendencias `NEUTRAL` en Cripto para evitar errores de Hard Stop sin posición.
+- [x] Rastreador de PnL en MT5: Notificaciones a Telegram con ganancias netas y ROI de operaciones cerradas.
+- [x] Rastreador de PnL en Cripto: Uso de la API nativa de "Income" de Binance para cálculos exactos de PnL y ROI (incluyendo fees).
+
+## Fase 7: Despliegue (En Pausa - Ejecución Local)
+- [ ] Exploración de alternativas a MetaApi para Linux o mantener ejecución en laptop (Windows/Mac).
 - [ ] Uso de gestores de procesos (ej. `pm2` o `systemd`) para mantener ambos bots corriendo 24/7.
-- [ ] *Hito Demostrable:* Sistema totalmente autónomo corriendo en la nube.
+- [ ] *Hito Demostrable:* Sistema totalmente autónomo corriendo ininterrumpidamente.

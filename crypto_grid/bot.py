@@ -1,5 +1,5 @@
 import asyncio
-import ccxt.async_support as ccxt
+import ccxt
 import pandas as pd
 import json
 import logging
@@ -7,15 +7,28 @@ import websockets
 import math
 import os
 import time
+from dotenv import load_dotenv
 from shared.config import BINANCE_API_KEY, BINANCE_SECRET_KEY, BINANCE_TESTNET, MAX_LEVERAGE
 from shared.notifier import notifier
+
+class AsyncCCXTPatcher:
+    def __init__(self, exchange):
+        self.exchange = exchange
+    
+    def __getattr__(self, name):
+        attr = getattr(self.exchange, name)
+        if callable(attr):
+            async def wrapper(*args, **kwargs):
+                return await asyncio.to_thread(attr, *args, **kwargs)
+            return wrapper
+        return attr
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CryptoGridBot")
 
 class CryptoGridBot:
     def __init__(self):
-        self.exchange = ccxt.binance({
+        exchange_sync = ccxt.binance({
             'apiKey': BINANCE_API_KEY,
             'secret': BINANCE_SECRET_KEY,
             'enableRateLimit': True,
@@ -24,11 +37,12 @@ class CryptoGridBot:
             }
         })
         if BINANCE_TESTNET:
-            self.exchange.set_sandbox_mode(True)
+            exchange_sync.set_sandbox_mode(True)
             logger.info("Running in TESTNET mode.")
         else:
             logger.warning("Running in LIVE mode with REAL CAPITAL.")
             
+        self.exchange = AsyncCCXTPatcher(exchange_sync)
         self.active_grids = {} # Keep track of grids
         self.state_file = 'data/state.json'
 

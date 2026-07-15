@@ -96,6 +96,82 @@ class TradTripleScreenBot:
             return False
             
         return True
+        
+    async def manage_open_positions(self):
+        """Vigila las posiciones activas y mueve el SL a Break-Even si alcanzan +1R"""
+        if not MT5_AVAILABLE:
+            return
+            
+        positions = mt5.positions_get()
+        if positions is None or len(positions) == 0:
+            return
+            
+        for pos in positions:
+            if pos.magic != 777777:
+                continue
+                
+            symbol = pos.symbol
+            open_price = pos.price_open
+            current_price = pos.price_current
+            sl = pos.sl
+            tp = pos.tp
+            pos_type = pos.type
+            
+            if sl == 0.0 or tp == 0.0:
+                continue
+                
+            # Distancia 1R es la mitad de la distancia al TP (ya que TP es 2R)
+            dist_1r = abs(tp - open_price) / 2.0
+            
+            symbol_info = mt5.symbol_info(symbol)
+            if not symbol_info:
+                continue
+                
+            tick_size = symbol_info.trade_tick_size
+            
+            # Compras (BUY)
+            if pos_type == mt5.ORDER_TYPE_BUY:
+                # Si el precio llegó a la mitad del camino (+1R)
+                if current_price >= (open_price + dist_1r):
+                    # Añadimos 2 ticks a favor para cubrir comisiones
+                    be_price = open_price + (tick_size * 2)
+                    if sl < be_price:
+                        request = {
+                            "action": mt5.TRADE_ACTION_SLTP,
+                            "position": pos.ticket,
+                            "symbol": symbol,
+                            "sl": float(be_price),
+                            "tp": float(tp),
+                            "magic": 777777
+                        }
+                        result = mt5.order_send(request)
+                        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                            logger.info(f"[{symbol}] 🛡️ Stop Loss movido a Break-Even ({be_price})")
+                            await notifier.send_message(f"🛡️ <b>Free Ride Activado ({symbol})</b>\n\nLa compra alcanzó +1R.\nEl Stop Loss está ahora en {be_price:.4f} (Cero Riesgo).")
+                        else:
+                            logger.error(f"[{symbol}] Error moviendo SL a Break-Even: {result.comment if result else 'Desconocido'}")
+                            
+            # Ventas (SELL)
+            elif pos_type == mt5.ORDER_TYPE_SELL:
+                # Si el precio llegó a la mitad del camino (+1R)
+                if current_price <= (open_price - dist_1r):
+                    # Restamos 2 ticks a favor para cubrir comisiones
+                    be_price = open_price - (tick_size * 2)
+                    if sl > be_price:
+                        request = {
+                            "action": mt5.TRADE_ACTION_SLTP,
+                            "position": pos.ticket,
+                            "symbol": symbol,
+                            "sl": float(be_price),
+                            "tp": float(tp),
+                            "magic": 777777
+                        }
+                        result = mt5.order_send(request)
+                        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                            logger.info(f"[{symbol}] 🛡️ Stop Loss movido a Break-Even ({be_price})")
+                            await notifier.send_message(f"🛡️ <b>Free Ride Activado ({symbol})</b>\n\nLa venta alcanzó +1R.\nEl Stop Loss está ahora en {be_price:.4f} (Cero Riesgo).")
+                        else:
+                            logger.error(f"[{symbol}] Error moviendo SL a Break-Even: {result.comment if result else 'Desconocido'}")
 
     def connect(self):
         """Inicializa la conexión con el terminal de MetaTrader 5"""
@@ -335,6 +411,9 @@ class TradTripleScreenBot:
             
         # Bucle de análisis (se ejecutaría cada 1 Hora en producción)
         while True:
+            # 0. GESTIÓN DE BREAK-EVEN
+            await self.manage_open_positions()
+            
             # FILTRO GLOBAL: Máximo 3 operaciones
             if self.get_total_active_trades() >= 3:
                 logger.info("Límite global de 3 operaciones alcanzado. Pausando escaneo...")

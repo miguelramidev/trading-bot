@@ -447,14 +447,14 @@ class CryptoGridBot:
                     # PRIMER GRID: Entrada Inmediata a Mercado
                     raw_price = current_price
                     raw_amount = leveraged_size / raw_price
-                    price = float(self.exchange.price_to_precision(symbol, raw_price))
+                    price = float(await self.exchange.price_to_precision(symbol, raw_price))
                     if raw_amount < amount_min:
                         raw_amount = amount_min
-                    amount = float(self.exchange.amount_to_precision(symbol, raw_amount))
+                    amount = float(await self.exchange.amount_to_precision(symbol, raw_amount))
                     
                     if (price * amount) < true_min_notional:
                         amount += amount_min
-                        amount = float(self.exchange.amount_to_precision(symbol, amount))
+                        amount = float(await self.exchange.amount_to_precision(symbol, amount))
                         
                     try:
                         if amount > 0:
@@ -466,15 +466,15 @@ class CryptoGridBot:
                     raw_price = current_price - (actual_gap * i)
                     raw_amount = leveraged_size / raw_price
                     
-                    price = float(self.exchange.price_to_precision(symbol, raw_price))
+                    price = float(await self.exchange.price_to_precision(symbol, raw_price))
                     if raw_amount < amount_min:
                         raw_amount = amount_min
-                    amount = float(self.exchange.amount_to_precision(symbol, raw_amount))
+                    amount = float(await self.exchange.amount_to_precision(symbol, raw_amount))
                     
                     # REPARACIÓN DE TRUNCAMIENTO: Asegurar que el notional redondeado cumpla con el mínimo
                     if (price * amount) < true_min_notional:
                         amount += amount_min
-                        amount = float(self.exchange.amount_to_precision(symbol, amount))
+                        amount = float(await self.exchange.amount_to_precision(symbol, amount))
                     
                     try:
                         if amount > 0:
@@ -489,14 +489,14 @@ class CryptoGridBot:
                     # PRIMER GRID: Entrada Inmediata a Mercado
                     raw_price = current_price
                     raw_amount = leveraged_size / raw_price
-                    price = float(self.exchange.price_to_precision(symbol, raw_price))
+                    price = float(await self.exchange.price_to_precision(symbol, raw_price))
                     if raw_amount < amount_min:
                         raw_amount = amount_min
-                    amount = float(self.exchange.amount_to_precision(symbol, raw_amount))
+                    amount = float(await self.exchange.amount_to_precision(symbol, raw_amount))
                     
                     if (price * amount) < true_min_notional:
                         amount += amount_min
-                        amount = float(self.exchange.amount_to_precision(symbol, amount))
+                        amount = float(await self.exchange.amount_to_precision(symbol, amount))
                         
                     try:
                         if amount > 0:
@@ -508,15 +508,15 @@ class CryptoGridBot:
                     raw_price = current_price + (actual_gap * i)
                     raw_amount = leveraged_size / raw_price
                     
-                    price = float(self.exchange.price_to_precision(symbol, raw_price))
+                    price = float(await self.exchange.price_to_precision(symbol, raw_price))
                     if raw_amount < amount_min:
                         raw_amount = amount_min
-                    amount = float(self.exchange.amount_to_precision(symbol, raw_amount))
+                    amount = float(await self.exchange.amount_to_precision(symbol, raw_amount))
                     
                     # REPARACIÓN DE TRUNCAMIENTO: Asegurar que el notional redondeado cumpla con el mínimo
                     if (price * amount) < true_min_notional:
                         amount += amount_min
-                        amount = float(self.exchange.amount_to_precision(symbol, amount))
+                        amount = float(await self.exchange.amount_to_precision(symbol, amount))
                     
                     try:
                         if amount > 0:
@@ -532,8 +532,8 @@ class CryptoGridBot:
             close_side = 'sell' if trend == 'BULLISH' else 'buy'
             
             # Formateo de precios para los stops
-            formatted_sl = float(self.exchange.price_to_precision(symbol, stop_loss_price))
-            formatted_tp = float(self.exchange.price_to_precision(symbol, take_profit_price))
+            formatted_sl = float(await self.exchange.price_to_precision(symbol, stop_loss_price))
+            formatted_tp = float(await self.exchange.price_to_precision(symbol, take_profit_price))
             
             # Usamos amount_min para satisfacer a CCXT, pero closePosition=True instruye a Binance a cerrar TODO.
             sl_params = {'stopPrice': formatted_sl, 'closePosition': True}

@@ -40,6 +40,7 @@ class TradTripleScreenBot:
         ] 
         self.risk_percent = 1.0 # Arriesgar 1% por operación
         self.active_trades = {} # Para simulación de estado en Mac
+        self.tracked_positions = {} # Para rastrear PnL y ROI de operaciones abiertas
         
     def has_active_trade(self, symbol):
         """Verifica si ya hay una posición abierta o una orden pendiente para este símbolo"""
@@ -172,6 +173,66 @@ class TradTripleScreenBot:
                             await notifier.send_message(f"🛡️ <b>Free Ride Activado ({symbol})</b>\n\nLa venta alcanzó +1R.\nEl Stop Loss está ahora en {be_price:.4f} (Cero Riesgo).")
                         else:
                             logger.error(f"[{symbol}] Error moviendo SL a Break-Even: {result.comment if result else 'Desconocido'}")
+
+    async def monitor_closed_positions(self):
+        """Detecta operaciones que se cerraron, calcula PnL/ROI y notifica"""
+        if not MT5_AVAILABLE:
+            return
+            
+        positions = mt5.positions_get()
+        current_tickets = []
+        if positions:
+            for p in positions:
+                if p.magic == 777777:
+                    current_tickets.append(p.ticket)
+                    # Registrar nueva posición si no estaba rastreada
+                    if p.ticket not in self.tracked_positions:
+                        self.tracked_positions[p.ticket] = {
+                            'symbol': p.symbol,
+                            'open_price': p.price_open,
+                            'volume': p.volume
+                        }
+                        
+        # Revisar cuáles posiciones rastreadas ya no están activas
+        closed_tickets = []
+        for ticket, data in self.tracked_positions.items():
+            if ticket not in current_tickets:
+                closed_tickets.append(ticket)
+                
+        for ticket in closed_tickets:
+            # Obtener el historial de "deals" (transacciones reales) para este ticket
+            deals = mt5.history_deals_get(position=ticket)
+            if deals:
+                # Sumar profit, swap y comisiones de todas las transacciones de esta posición
+                total_profit = sum([d.profit + d.swap + d.commission for d in deals])
+                symbol = self.tracked_positions[ticket]['symbol']
+                
+                # Obtener balance actual para ROI
+                account_info = mt5.account_info()
+                balance = account_info.balance if account_info else 0
+                roi_pct = (total_profit / balance) * 100 if balance > 0 else 0
+                
+                # Clasificar resultado (dejamos un margen de 5 centavos para Break-Even)
+                if total_profit > 0.05:
+                    emoji = "✅"
+                    outcome = "Ganancia (Take Profit)"
+                elif total_profit < -0.05:
+                    emoji = "❌"
+                    outcome = "Pérdida (Stop Loss)"
+                else:
+                    emoji = "🛡️"
+                    outcome = "Break-Even (Cero Riesgo)"
+                    
+                msg = (f"{emoji} <b>Operación Cerrada ({symbol})</b>\n\n"
+                       f"📊 <b>Resultado:</b> {outcome}\n"
+                       f"💰 <b>PnL Neto:</b> ${total_profit:.2f}\n"
+                       f"📈 <b>ROI:</b> {roi_pct:.2f}%\n\n"
+                       f"💼 <b>Balance Restante:</b> ${balance:.2f}")
+                       
+                await notifier.send_message(msg)
+                
+            # Eliminar del rastreador
+            del self.tracked_positions[ticket]
 
     def connect(self):
         """Inicializa la conexión con el terminal de MetaTrader 5"""
@@ -411,8 +472,9 @@ class TradTripleScreenBot:
             
         # Bucle de análisis (se ejecutaría cada 1 Hora en producción)
         while True:
-            # 0. GESTIÓN DE BREAK-EVEN
+            # 0. GESTIÓN DE BREAK-EVEN Y PnL TRACKER
             await self.manage_open_positions()
+            await self.monitor_closed_positions()
             
             # FILTRO GLOBAL: Máximo 3 operaciones
             if self.get_total_active_trades() >= 3:

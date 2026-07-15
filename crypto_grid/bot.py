@@ -396,6 +396,11 @@ class CryptoGridBot:
         
         # Determinar Tendencia Macro
         trend = await self.get_macro_trend(symbol)
+        
+        if trend == 'NEUTRAL':
+            logger.warning(f"[{symbol}] Tendencia Neutral detectada. Descartando moneda para grid direccional.")
+            return False
+            
         # Rango basado en ATR (Opción B: Direccional, solo cubrimos 1 lado)
         atr_value = atr.iloc[-1]
         directional_range = atr_value * 1.5

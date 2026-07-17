@@ -326,37 +326,37 @@ class TradTripleScreenBot:
             
         return False
 
-    def analyze_screen_3(self, df, trend_screen_1):
+    def analyze_screen_3(self, symbol, df, trend_screen_1):
         """
         Pantalla 3: El Disparo (1 Hora)
-        Stop Loss Híbrido: Breakout del máximo/mínimo anterior + Buffer ATR.
+        Estrategia Original de Alexander Elder: 
+        - Compra: 1 tick por encima del máximo de la vela señal. SL 1 tick por debajo del mínimo.
+        - Venta: 1 tick por debajo del mínimo de la vela señal. SL 1 tick por encima del máximo.
+        (Se elimina el ATR ya que en temporalidad de 1H el tamaño de la vela es suficiente).
         """
-        # Calcular ATR para usarlo como buffer de respiro
-        df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-        
         last_candle = df.iloc[-1]
-        atr = last_candle['atr'] if not pd.isna(last_candle['atr']) else 0
-        buffer = atr * 0.2 if atr > 0 else 0
-        min_sl_distance = atr if atr > 0 else 0
+        
+        # Obtener el tamaño de 1 tick real del broker
+        tick_size = 0.0001
+        if MT5_AVAILABLE:
+            symbol_info = mt5.symbol_info(symbol)
+            if symbol_info:
+                # tick_size o point, usaremos trade_tick_size que es el paso mínimo de precio
+                tick_size = symbol_info.trade_tick_size
+                if tick_size == 0:
+                    tick_size = symbol_info.point
+                    
+        # Usamos 2 ticks de "respiro" para asegurar la ruptura
+        buffer = tick_size * 2
         
         if trend_screen_1 == 'BULLISH':
             entry_price = last_candle['high'] + buffer
             stop_loss = last_candle['low'] - buffer
-            
-            # Asegurar distancia mínima de Stop Loss para evitar lotes absurdos
-            if (entry_price - stop_loss) < min_sl_distance:
-                stop_loss = entry_price - min_sl_distance
-                
             return {'side': 'buy_stop', 'entry': entry_price, 'sl': stop_loss}
             
         elif trend_screen_1 == 'BEARISH':
             entry_price = last_candle['low'] - buffer
             stop_loss = last_candle['high'] + buffer
-            
-            # Asegurar distancia mínima de Stop Loss
-            if (stop_loss - entry_price) < min_sl_distance:
-                stop_loss = entry_price + min_sl_distance
-                
             return {'side': 'sell_stop', 'entry': entry_price, 'sl': stop_loss}
             
         return None
@@ -520,7 +520,7 @@ class TradTripleScreenBot:
                 # 3. Analizar Disparo (1H)
                 df_1h = self.fetch_data(symbol, '1h')
                 if df_1h is None: continue
-                trade_setup = self.analyze_screen_3(df_1h, trend)
+                trade_setup = self.analyze_screen_3(symbol, df_1h, trend)
                 
                 if trade_setup:
                     logger.warning(f"🚨 ALERTA TRIPLE PANTALLA: {symbol} 🚨")

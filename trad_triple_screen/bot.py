@@ -88,7 +88,10 @@ class TradTripleScreenBot:
         if not MT5_AVAILABLE:
             return True
             
+        # IMPORTANTE: Seleccionar el símbolo primero, sino tick retorna None si no está en el Market Watch
+        mt5.symbol_select(symbol, True)
         tick = mt5.symbol_info_tick(symbol)
+        
         if not tick:
             return False
             

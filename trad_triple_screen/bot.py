@@ -8,6 +8,7 @@ import pandas as pd
 import pandas_ta as ta
 from dotenv import load_dotenv
 from shared.notifier import TelegramNotifier
+from shared.db import init_db, log_trade
 
 # Configuración de Logging
 logging.basicConfig(
@@ -45,6 +46,9 @@ class TradTripleScreenBot:
         self.risk_percent = 1.0 # Riesgo fijo institucional del 1%
         self.active_trades = {} # Para simulación de estado en Mac
         self.tracked_positions = {} # Para rastrear PnL y ROI de operaciones abiertas
+        
+        # Inicializar Base de Datos
+        init_db()
         
     def has_active_trade(self, symbol):
         """Verifica si ya hay una posición abierta o una orden pendiente para este símbolo"""
@@ -219,6 +223,19 @@ class TradTripleScreenBot:
                 account_info = mt5.account_info()
                 balance = account_info.balance if account_info else 0
                 roi_pct = (total_profit / balance) * 100 if balance > 0 else 0
+                
+                # Extraer datos de la base de datos
+                entry_deal = deals[0]
+                exit_deal = deals[-1]
+                direction = "Buy" if entry_deal.type == mt5.DEAL_TYPE_BUY else "Sell"
+                open_price = self.tracked_positions[ticket]['open_price']
+                lot_size = self.tracked_positions[ticket]['volume']
+                close_price = exit_deal.price
+                open_time = datetime.fromtimestamp(entry_deal.time).isoformat()
+                close_time = datetime.fromtimestamp(exit_deal.time).isoformat()
+                
+                # Guardar en SQLite
+                log_trade(symbol, direction, open_time, close_time, open_price, close_price, lot_size, total_profit, roi_pct)
                 
                 # Clasificar resultado (dejamos un margen de 5 centavos para Break-Even)
                 if total_profit > 0.05:

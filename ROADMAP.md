@@ -2,6 +2,10 @@
 
 Este documento divide el desarrollo del Trading Bot en fases demostrables para facilitar la validación y pruebas incrementales.
 
+## ⚠️ Estado Actual de los Módulos
+- **Módulo Tradicional (MT5):** 🟢 **ACTIVO** (Motor Principal). Operando con Triple Pantalla, gestión de riesgo del 1% y PnL Tracker.
+- **Módulo Cripto (Binance):** 🔴 **INACTIVO / DEPRECADO**. Por decisión estratégica, el trading activo de alta frecuencia en criptomonedas (Grid) ha sido desactivado. Las criptomonedas se manejarán manualmente a muy largo plazo (Modo Caja de Ahorro / HODL).
+
 ## Fase 1: Fundamentos y Notificaciones
 - [x] Inicialización del Monorepo y Entorno Virtual (`venv`).
 - [x] Instalación de dependencias core (`ccxt`, `pandas`, `python-dotenv`).

@@ -316,20 +316,26 @@ class TradTripleScreenBot:
     def analyze_screen_1(self, df):
         """
         Pantalla 1: Marea Macro (Diario 1D)
-        Usa 2 EMAs (13 y 26) para determinar la tendencia pesada.
+        Estrategia Original de Alexander Elder:
+        La tendencia se define por la pendiente (dirección) de la EMA de 13 períodos.
+        Si apunta hacia arriba (hoy > ayer) es BULLISH. Si apunta abajo es BEARISH.
         """
-        df['ema_fast'] = ta.ema(df['close'], length=13)
-        df['ema_slow'] = ta.ema(df['close'], length=26)
+        df['ema_13'] = ta.ema(df['close'], length=13)
         
+        if len(df) < 2:
+            return 'NEUTRAL'
+            
         last_row = df.iloc[-1]
+        prev_row = df.iloc[-2]
         
         # Validación de datos insuficientes (nuevas monedas sin suficiente historial)
-        if pd.isna(last_row.get('ema_fast')) or pd.isna(last_row.get('ema_slow')):
+        if pd.isna(last_row.get('ema_13')) or pd.isna(prev_row.get('ema_13')):
             return 'NEUTRAL'
         
-        if last_row['ema_fast'] > last_row['ema_slow']:
+        # Pendiente de la EMA 13
+        if last_row['ema_13'] > prev_row['ema_13']:
             return 'BULLISH'
-        elif last_row['ema_fast'] < last_row['ema_slow']:
+        elif last_row['ema_13'] < prev_row['ema_13']:
             return 'BEARISH'
         
         return 'NEUTRAL'

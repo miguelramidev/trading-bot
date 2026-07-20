@@ -38,7 +38,6 @@ class TradTripleScreenBot:
             "EURUSDm", "GBPUSDm", "USDJPYm", "XAUUSDm", "US30m", "US500m",
             "USTECm", "USDCADm", "AUDUSDm", "GBPJPYm"
         ] 
-        self.risk_percent = 1.0 # Arriesgar 1% por operación
         self.active_trades = {} # Para simulación de estado en Mac
         self.tracked_positions = {} # Para rastrear PnL y ROI de operaciones abiertas
         
@@ -362,7 +361,7 @@ class TradTripleScreenBot:
         return None
 
     def calculate_lot_size(self, symbol, entry_price, stop_loss_price):
-        """Calcula el tamaño del lote basado en un riesgo del 1% del balance"""
+        """Calcula el tamaño del lote basado en riesgo dinámico (Bola de Nieve) del balance"""
         if not MT5_AVAILABLE:
             return 0.01 # Lote mock para Mac
             
@@ -373,7 +372,22 @@ class TradTripleScreenBot:
             return 0.01
             
         balance = account_info.balance
-        risk_amount = balance * (self.risk_percent / 100.0)
+        
+        # --- GESTIÓN DE RIESGO DINÁMICA (Bola de Nieve) ---
+        if balance <= 50:
+            logger.info(f"[{symbol}] Balance Micro (${balance:.2f} <= $50). Ignorando riesgo y forzando lote mínimo: {symbol_info.volume_min}")
+            return symbol_info.volume_min
+        elif balance <= 100:
+            risk_percent = 5.0
+        elif balance <= 200:
+            risk_percent = 3.0
+        elif balance <= 500:
+            risk_percent = 2.0
+        else:
+            risk_percent = 1.0
+            
+        risk_amount = balance * (risk_percent / 100.0)
+        logger.info(f"[{symbol}] Balance: ${balance:.2f} -> Riesgo Dinámico: {risk_percent}% (${risk_amount:.2f})")
         
         # Distancia en ticks
         tick_size = symbol_info.trade_tick_size
@@ -389,9 +403,10 @@ class TradTripleScreenBot:
         if risk_per_lot == 0:
             return symbol_info.volume_min
             
-        # ESCUDO DE CAPITAL: Rechazar operación si el lote mínimo arriesga más del 1.5%
-        if (symbol_info.volume_min * risk_per_lot) > (risk_amount * 1.5):
-            logger.warning(f"[{symbol}] ESCUDO DE CAPITAL: El lote mínimo ({symbol_info.volume_min}) arriesga ${symbol_info.volume_min * risk_per_lot:.2f} (Límite: ${risk_amount:.2f}). Abortando trade.")
+        # ESCUDO DE CAPITAL: Tolerancia de 1.5x sobre el riesgo dinámico
+        max_allowed_risk = risk_amount * 1.5
+        if (symbol_info.volume_min * risk_per_lot) > max_allowed_risk:
+            logger.warning(f"[{symbol}] ESCUDO DE CAPITAL: El lote mínimo ({symbol_info.volume_min}) arriesga ${symbol_info.volume_min * risk_per_lot:.2f} (Límite dinámico 1.5x: ${max_allowed_risk:.2f}). Abortando trade.")
             return 0.0
             
         # Calcular lote

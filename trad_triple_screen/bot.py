@@ -485,14 +485,18 @@ class TradTripleScreenBot:
         if tick:
             expiration = int(tick.time) + 3600
             
+        # Obtener decimales requeridos por el símbolo
+        symbol_info = mt5.symbol_info(symbol)
+        digits = symbol_info.digits if symbol_info else 5
+            
         request = {
             "action": mt5.TRADE_ACTION_PENDING,
             "symbol": symbol,
             "volume": float(lot_size),
             "type": order_type,
-            "price": float(entry),
-            "sl": float(sl),
-            "tp": float(tp),
+            "price": round(float(entry), digits),
+            "sl": round(float(sl), digits),
+            "tp": round(float(tp), digits),
             "deviation": 20,
             "magic": 777777,
             "comment": "TripleScreen",

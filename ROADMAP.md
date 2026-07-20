@@ -51,6 +51,8 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] Filtro de tendencias `NEUTRAL` en Cripto para evitar errores de Hard Stop sin posición.
 - [x] Rastreador de PnL en MT5: Notificaciones a Telegram con ganancias netas y ROI de operaciones cerradas.
 - [x] Rastreador de PnL en Cripto: Uso de la API nativa de "Income" de Binance para cálculos exactos de PnL y ROI (incluyendo fees).
+- [x] Base de Datos Histórica (SQLite): Registro de operaciones (PnL, precios exactos, tiempos) para métricas a largo plazo.
+- [x] Escáner Híbrido 24/7: Bypass de calendario para cazar tendencias en Cripto (BTC, ETH) los fines de semana en MT5.
 
 ## Fase 7: Despliegue (En Pausa - Ejecución Local)
 - [ ] Exploración de alternativas a MetaApi para Linux o mantener ejecución en laptop (Windows/Mac).

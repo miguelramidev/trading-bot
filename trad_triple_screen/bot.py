@@ -40,7 +40,7 @@ class TradTripleScreenBot:
         self.symbols = [
             f"EURUSD{suffix}", f"GBPUSD{suffix}", f"USDJPY{suffix}", f"XAUUSD{suffix}", 
             f"US30{suffix}", f"US500{suffix}", f"USTEC{suffix}", f"USDCAD{suffix}", 
-            f"AUDUSD{suffix}", f"GBPJPY{suffix}"
+            f"AUDUSD{suffix}", f"GBPJPY{suffix}", f"BTCUSD{suffix}", f"ETHUSD{suffix}"
         ] 
         self.risk_percent = 1.0 # Riesgo fijo institucional del 1%
         self.active_trades = {} # Para simulación de estado en Mac
@@ -87,6 +87,10 @@ class TradTripleScreenBot:
         tick = mt5.symbol_info_tick(symbol)
         if not tick:
             return False
+            
+        # Bypass de horarios para Criptomonedas (Exness Cripto corre 24/7)
+        if symbol.startswith(("BTC", "ETH")):
+            return True
             
         server_time = datetime.fromtimestamp(tick.time)
         

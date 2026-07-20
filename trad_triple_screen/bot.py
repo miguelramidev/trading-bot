@@ -323,6 +323,10 @@ class TradTripleScreenBot:
         
         last_row = df.iloc[-1]
         
+        # Validación de datos insuficientes (nuevas monedas sin suficiente historial)
+        if pd.isna(last_row.get('ema_fast')) or pd.isna(last_row.get('ema_slow')):
+            return 'NEUTRAL'
+        
         if last_row['ema_fast'] > last_row['ema_slow']:
             return 'BULLISH'
         elif last_row['ema_fast'] < last_row['ema_slow']:
@@ -342,7 +346,11 @@ class TradTripleScreenBot:
         # Suavizar con EMA de 2 períodos (La fórmula de Elder)
         df['force_index'] = ta.ema(df['force_index_raw'], length=2)
         
-        last_fi = df['force_index'].iloc[-1]
+        last_fi = df.iloc[-1].get('force_index')
+        
+        # Validación de datos insuficientes
+        if pd.isna(last_fi):
+            return False
         
         # Si la marea es alcista, buscamos que el Force Index caiga por debajo de 0 (Retroceso)
         if trend_screen_1 == 'BULLISH' and last_fi < 0:

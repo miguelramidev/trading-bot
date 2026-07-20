@@ -316,11 +316,19 @@ class TradTripleScreenBot:
     def analyze_screen_1(self, df):
         """
         Pantalla 1: Marea Macro (Diario 1D)
-        Estrategia Original de Alexander Elder:
-        La tendencia se define por la pendiente (dirección) de la EMA de 13 períodos.
-        Si apunta hacia arriba (hoy > ayer) es BULLISH. Si apunta abajo es BEARISH.
+        Sistema de Impulso de Alexander Elder (La versión más estricta y moderna):
+        Combina la pendiente de la EMA de 13 y la pendiente del Histograma MACD.
+        - BULLISH: EMA 13 sube Y MACD Histograma sube. (Permitido comprar, prohibido vender)
+        - BEARISH: EMA 13 baja Y MACD Histograma baja. (Permitido vender, prohibido comprar)
+        - NEUTRAL: Las pendientes se contradicen. (Prohibido operar)
         """
         df['ema_13'] = ta.ema(df['close'], length=13)
+        macd = ta.macd(df['close'], fast=12, slow=26, signal=9)
+        
+        if macd is not None and not macd.empty:
+            df['macd_hist'] = macd['MACDh_12_26_9']
+        else:
+            df['macd_hist'] = None
         
         if len(df) < 2:
             return 'NEUTRAL'
@@ -329,13 +337,20 @@ class TradTripleScreenBot:
         prev_row = df.iloc[-2]
         
         # Validación de datos insuficientes (nuevas monedas sin suficiente historial)
-        if pd.isna(last_row.get('ema_13')) or pd.isna(prev_row.get('ema_13')):
+        if (pd.isna(last_row.get('ema_13')) or pd.isna(prev_row.get('ema_13')) or
+            pd.isna(last_row.get('macd_hist')) or pd.isna(prev_row.get('macd_hist'))):
             return 'NEUTRAL'
         
-        # Pendiente de la EMA 13
-        if last_row['ema_13'] > prev_row['ema_13']:
+        # Evaluar pendientes
+        ema_rising = last_row['ema_13'] > prev_row['ema_13']
+        ema_falling = last_row['ema_13'] < prev_row['ema_13']
+        macd_rising = last_row['macd_hist'] > prev_row['macd_hist']
+        macd_falling = last_row['macd_hist'] < prev_row['macd_hist']
+        
+        # Lógica del Impulse System
+        if ema_rising and macd_rising:
             return 'BULLISH'
-        elif last_row['ema_13'] < prev_row['ema_13']:
+        elif ema_falling and macd_falling:
             return 'BEARISH'
         
         return 'NEUTRAL'

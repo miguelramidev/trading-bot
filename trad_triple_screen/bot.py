@@ -34,8 +34,8 @@ class TradTripleScreenBot:
         self.password = os.getenv('EXNESS_PASSWORD', '')
         self.server = os.getenv('EXNESS_SERVER', '')
         
-        account_type = os.getenv('ACCOUNT_TYPE', 'CENT').upper()
-        suffix = "c" if account_type == "CENT" else "m"
+        self.account_type = os.getenv('ACCOUNT_TYPE', 'CENT').upper()
+        suffix = "c" if self.account_type == "CENT" else "m"
         
         # Símbolos a operar (Cuenta Exness)
         self.symbols = [
@@ -251,11 +251,19 @@ class TradTripleScreenBot:
                     emoji = "🛡️"
                     outcome = "Break-Even (Cero Riesgo)"
                     
+                # Formatear PnL y Balance según tipo de cuenta
+                if self.account_type == "CENT":
+                    pnl_display = f"{total_profit:.2f} USC (${total_profit / 100:.2f} USD)"
+                    balance_display = f"{balance:.2f} USC (${balance / 100:.2f} USD)"
+                else:
+                    pnl_display = f"${total_profit:.2f} USD"
+                    balance_display = f"${balance:.2f} USD"
+                    
                 msg = (f"{emoji} <b>Operación Cerrada ({symbol})</b>\n\n"
                        f"📊 <b>Resultado:</b> {outcome}\n"
-                       f"💰 <b>PnL Neto:</b> ${total_profit:.2f}\n"
+                       f"💰 <b>PnL Neto:</b> {pnl_display}\n"
                        f"📈 <b>ROI:</b> {roi_pct:.2f}%\n\n"
-                       f"💼 <b>Balance Restante:</b> ${balance:.2f}")
+                       f"💼 <b>Balance Restante:</b> {balance_display}")
                        
                 await notifier.send_message(msg)
                 

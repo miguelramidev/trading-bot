@@ -208,6 +208,15 @@ class TradTripleScreenBot:
                             'volume': p.volume
                         }
                         
+                        # NOTIFICAR ENTRADA A MERCADO
+                        direction_str = "COMPRA" if p.type == mt5.POSITION_TYPE_BUY else "VENTA"
+                        msg = (f"🚀 <b>¡Orden Ejecutada a Mercado! ({p.symbol})</b>\n\n"
+                               f"📈 <b>Dirección:</b> {direction_str}\n"
+                               f"💲 <b>Precio de Entrada:</b> {p.price_open:.5f}\n"
+                               f"📦 <b>Lotaje:</b> {p.volume:.2f}")
+                        asyncio.create_task(notifier.send_message(msg))
+                        
+                        
         # Revisar cuáles posiciones rastreadas ya no están activas
         closed_tickets = []
         for ticket, data in self.tracked_positions.items():

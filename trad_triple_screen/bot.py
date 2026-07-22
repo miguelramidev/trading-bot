@@ -333,12 +333,18 @@ class TradTripleScreenBot:
     def analyze_screen_1(self, df):
         """
         Pantalla 1: Marea Macro (Diario 1D)
-        Estrategia Original de Alexander Elder:
-        La tendencia se define por la pendiente (dirección) de la EMA de 13 períodos.
-        Si apunta hacia arriba (hoy > ayer) es BULLISH. Si apunta abajo es BEARISH.
+        Utilizamos la EMA de 13 períodos para la dirección de la tendencia.
+        Filtro ADX: Requerimos ADX > 25 para garantizar que NO es un mercado lateral.
         """
         df['ema_13'] = ta.ema(df['close'], length=13)
         
+        # Calcular ADX (14 periodos por defecto)
+        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
+        if adx_df is not None and not adx_df.empty:
+            df['adx'] = adx_df['ADX_14']
+        else:
+            df['adx'] = None
+            
         if len(df) < 2:
             return 'NEUTRAL'
             
@@ -346,7 +352,11 @@ class TradTripleScreenBot:
         prev_row = df.iloc[-2]
         
         # Validación de datos insuficientes
-        if pd.isna(last_row.get('ema_13')) or pd.isna(prev_row.get('ema_13')):
+        if pd.isna(last_row.get('ema_13')) or pd.isna(prev_row.get('ema_13')) or pd.isna(last_row.get('adx')):
+            return 'NEUTRAL'
+            
+        # Filtro de Mercado Lateral (Rango)
+        if last_row['adx'] < 25.0:
             return 'NEUTRAL'
         
         # Pendiente de la EMA 13
@@ -354,7 +364,7 @@ class TradTripleScreenBot:
             return 'BULLISH'
         elif last_row['ema_13'] < prev_row['ema_13']:
             return 'BEARISH'
-        
+            
         return 'NEUTRAL'
 
     def analyze_screen_2(self, df, trend_screen_1):

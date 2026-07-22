@@ -45,6 +45,13 @@ class TradTripleScreenBot:
             f"EURGBP{suffix}", f"EURJPY{suffix}", f"AUDJPY{suffix}", f"USDCHF{suffix}",
             f"XAGUSD{suffix}", f"XTIUSD{suffix}", f"DE30{suffix}", f"XRPUSD{suffix}", f"SOLUSD{suffix}"
         ] 
+        self.correlation_groups = {
+            "METALS": [f"XAUUSD{suffix}", f"XAGUSD{suffix}"],
+            "CRYPTO": [f"BTCUSD{suffix}", f"ETHUSD{suffix}", f"XRPUSD{suffix}", f"SOLUSD{suffix}"],
+            "INDICES_US": [f"US30{suffix}", f"US500{suffix}", f"USTEC{suffix}"],
+            "JPY_PAIRS": [f"USDJPY{suffix}", f"GBPJPY{suffix}", f"EURJPY{suffix}", f"AUDJPY{suffix}"],
+            "USD_MAJORS": [f"EURUSD{suffix}", f"GBPUSD{suffix}", f"AUDUSD{suffix}", f"USDCAD{suffix}", f"USDCHF{suffix}"] 
+        }
         self.risk_percent = 1.0 # Riesgo fijo institucional del 1%
         self.active_trades = {} # Para simulación de estado en Mac
         self.tracked_positions = {} # Para rastrear PnL y ROI de operaciones abiertas
@@ -52,6 +59,17 @@ class TradTripleScreenBot:
         # Inicializar Base de Datos
         init_db()
         
+    def is_group_active(self, symbol):
+        """Verifica si ya hay una operación abierta en el mismo grupo correlacionado (Anti-Correlación)"""
+        for group_name, symbols_in_group in self.correlation_groups.items():
+            if symbol in symbols_in_group:
+                # El símbolo pertenece a este grupo. Revisemos si algún otro símbolo del grupo está activo
+                for other_symbol in symbols_in_group:
+                    if other_symbol != symbol and self.has_active_trade(other_symbol):
+                        logger.info(f"[{symbol}] Filtro Anti-Correlación: Saltando porque {other_symbol} ({group_name}) ya está activo.")
+                        return True
+        return False
+
     def has_active_trade(self, symbol):
         """Verifica si ya hay una posición abierta o una orden pendiente para este símbolo"""
         if not MT5_AVAILABLE:
@@ -714,6 +732,11 @@ class TradTripleScreenBot:
                     break
                     
                 symbol = item['symbol']
+                
+                # FILTRO DE ANTI-CORRELACIÓN
+                if self.is_group_active(symbol):
+                    continue
+                    
                 logger.info(f"Analizando {symbol} (Fuerza ADX: {item['adx']:.1f})...")
                 
                 # 1. Analizar Marea (Diario)

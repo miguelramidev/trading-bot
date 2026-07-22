@@ -499,6 +499,18 @@ class TradTripleScreenBot:
         
         return lot_size
 
+    def normalize_price(self, symbol, price):
+        """Normaliza un precio al tick_size y digits exactos del broker para evitar 'Invalid price'"""
+        if not MT5_AVAILABLE:
+            return round(float(price), 5)
+        info = mt5.symbol_info(symbol)
+        if not info: return price
+        tick_size = info.trade_tick_size
+        digits = info.digits
+        if tick_size > 0:
+            price = round(price / tick_size) * tick_size
+        return round(float(price), digits)
+
     async def execute_trade(self, symbol, trade_setup, trend):
         """Envía la orden pendiente (Buy Stop / Sell Stop) a MT5"""
         side = trade_setup['side']
@@ -532,18 +544,30 @@ class TradTripleScreenBot:
         if tick:
             expiration = int(tick.time) + 3600
             
-        # Obtener decimales requeridos por el símbolo
-        symbol_info = mt5.symbol_info(symbol)
-        digits = symbol_info.digits if symbol_info else 5
+        # Obtener y normalizar precios exactos
+        entry_norm = self.normalize_price(symbol, entry)
+        sl_norm = self.normalize_price(symbol, sl)
+        tp_norm = self.normalize_price(symbol, tp)
+        
+        # Validar distancia de seguridad para Buy Stop / Sell Stop
+        if MT5_AVAILABLE:
+            tick = mt5.symbol_info_tick(symbol)
+            if tick:
+                if order_type == mt5.ORDER_TYPE_BUY_STOP and entry_norm <= tick.ask:
+                    logger.warning(f"[{symbol}] Precio de Entry Buy Stop ({entry_norm}) es menor o igual al Ask actual ({tick.ask}). Cancelando orden.")
+                    return None
+                if order_type == mt5.ORDER_TYPE_SELL_STOP and entry_norm >= tick.bid:
+                    logger.warning(f"[{symbol}] Precio de Entry Sell Stop ({entry_norm}) es mayor o igual al Bid actual ({tick.bid}). Cancelando orden.")
+                    return None
             
         request = {
             "action": mt5.TRADE_ACTION_PENDING,
             "symbol": symbol,
             "volume": float(lot_size),
             "type": order_type,
-            "price": round(float(entry), digits),
-            "sl": round(float(sl), digits),
-            "tp": round(float(tp), digits),
+            "price": entry_norm,
+            "sl": sl_norm,
+            "tp": tp_norm,
             "deviation": 20,
             "magic": 777777,
             "comment": "TripleScreen",
@@ -576,14 +600,18 @@ class TradTripleScreenBot:
         tick = mt5.symbol_info_tick(symbol)
         price = tick.ask if direction == 'BULLISH' else tick.bid
             
+        entry_norm = self.normalize_price(symbol, price)
+        sl_norm = self.normalize_price(symbol, sl)
+        tp_norm = self.normalize_price(symbol, tp)
+            
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
             "volume": float(lot_size),
             "type": order_type,
-            "price": price,
-            "sl": round(sl, digits),
-            "tp": round(tp, digits),
+            "price": entry_norm,
+            "sl": sl_norm,
+            "tp": tp_norm,
             "deviation": 20,
             "magic": 777777,
             "comment": strategy_name,

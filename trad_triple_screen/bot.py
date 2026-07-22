@@ -3,12 +3,12 @@ import time
 import math
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import pandas_ta as ta
 from dotenv import load_dotenv
 from shared.notifier import TelegramNotifier
-from shared.db import init_db, log_trade
+from shared.db import init_db, log_trade, get_last_close_time
 
 # Configuración de Logging
 logging.basicConfig(
@@ -565,6 +565,14 @@ class TradTripleScreenBot:
                     logger.info(f"[{symbol}] Operación o orden activa encontrada. Saltando análisis para evitar duplicados.")
                     continue
                     
+                # CUARENTENA DE 12 HORAS
+                last_close = get_last_close_time(symbol)
+                if last_close:
+                    hours_elapsed = (datetime.now() - last_close).total_seconds() / 3600
+                    if hours_elapsed < 12:
+                        logger.info(f"[{symbol}] En Cuarentena. Faltan {12 - hours_elapsed:.1f}h para volver a operar.")
+                        continue
+                        
                 # FILTRO DE TIEMPO
                 if not self.is_trading_allowed(symbol):
                     logger.info(f"[{symbol}] Fuera del horario de trading permitido. Saltando.")

@@ -51,3 +51,33 @@ def log_trade(symbol, direction, open_time, close_time, open_price, close_price,
         logger.info(f"[{symbol}] Trade guardado en el historial (SQLite).")
     except Exception as e:
         logger.error(f"Error guardando trade en SQLite: {e}")
+
+def get_last_close_time(symbol):
+    """Obtiene la fecha y hora exacta (datetime) del último cierre de este símbolo"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT close_time FROM trades 
+            WHERE symbol = ? 
+            ORDER BY close_time DESC LIMIT 1
+        ''', (symbol,))
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            # Result is a string from SQLite TIMESTAMP, usually ISO 8601
+            try:
+                # Tratar de parsear formato ISO (ej. 2026-07-22T04:14:55)
+                return datetime.fromisoformat(result[0])
+            except ValueError:
+                # Si falla, intentar parsear espacio en vez de T
+                return datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                
+        return None
+    except Exception as e:
+        logger.error(f"Error leyendo último close_time en SQLite para {symbol}: {e}")
+        return None
+

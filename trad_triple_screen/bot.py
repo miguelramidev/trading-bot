@@ -708,6 +708,11 @@ class TradTripleScreenBot:
                 logger.info(f"🏆 Alpha Ranking (Disponibles): {ranked_list_str}")
                 
             for item in eligible_symbols:
+                # FILTRO GLOBAL ESTRICTO: Re-verificar límite en caso de haber abierto operaciones en este mismo bucle
+                if self.get_total_active_trades() >= 3:
+                    logger.info("Límite de 3 operaciones alcanzado durante la ejecución. Deteniendo escaneo actual.")
+                    break
+                    
                 symbol = item['symbol']
                 logger.info(f"Analizando {symbol} (Fuerza ADX: {item['adx']:.1f})...")
                 

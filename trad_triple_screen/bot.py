@@ -353,19 +353,19 @@ class TradTripleScreenBot:
         
         # Validación de datos insuficientes
         if pd.isna(last_row.get('ema_13')) or pd.isna(prev_row.get('ema_13')) or pd.isna(last_row.get('adx')):
-            return 'NEUTRAL'
+            return ('NONE', 'NEUTRAL')
             
         # Filtro de Mercado Lateral (Rango)
-        if last_row['adx'] < 25.0:
-            return 'NEUTRAL'
+        regime = 'RANGING' if last_row['adx'] < 25.0 else 'TRENDING'
         
         # Pendiente de la EMA 13
-        if last_row['ema_13'] > prev_row['ema_13']:
-            return 'BULLISH'
-        elif last_row['ema_13'] < prev_row['ema_13']:
-            return 'BEARISH'
+        if regime == 'TRENDING':
+            if last_row['ema_13'] > prev_row['ema_13']:
+                return ('BULLISH', regime)
+            elif last_row['ema_13'] < prev_row['ema_13']:
+                return ('BEARISH', regime)
             
-        return 'NEUTRAL'
+        return ('NONE', regime)
 
     def analyze_screen_2(self, df, trend_screen_1):
         """
@@ -539,6 +539,117 @@ class TradTripleScreenBot:
             
         return {'status': 'executed', 'lot': lot_size, 'tp': tp}
 
+    async def execute_market_order(self, symbol, direction, sl, tp, lot_size, strategy_name="[MR]"):
+        """Envía una orden de mercado para Mean Reversion (Rango)"""
+        order_type = mt5.ORDER_TYPE_BUY if direction == 'BULLISH' else mt5.ORDER_TYPE_SELL
+        
+        logger.info(f"{strategy_name} [{symbol}] Ejecutando a Mercado | Lote: {lot_size} | SL: {sl} | TP: {tp}")
+        
+        if not MT5_AVAILABLE:
+            logger.warning(f"Simulando ejecución a mercado en Mac: {direction} {lot_size} lotes de {symbol}")
+            self.active_trades[symbol] = True
+            return {'status': 'simulated', 'lot': lot_size, 'tp': tp}
+            
+        symbol_info = mt5.symbol_info(symbol)
+        digits = symbol_info.digits if symbol_info else 5
+        
+        tick = mt5.symbol_info_tick(symbol)
+        price = tick.ask if direction == 'BULLISH' else tick.bid
+            
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": float(lot_size),
+            "type": order_type,
+            "price": price,
+            "sl": round(sl, digits),
+            "tp": round(tp, digits),
+            "deviation": 20,
+            "magic": 777777,
+            "comment": strategy_name,
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
+        }
+        
+        result = mt5.order_send(request)
+        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+            logger.info(f"{strategy_name} [{symbol}] Orden a mercado ejecutada. Ticket: {result.order}")
+            msg = (f"🚀 <b>¡{strategy_name} Entrada al Mercado! ({symbol})</b>\n\n"
+                   f"📈 <b>Dirección:</b> {'COMPRA' if direction == 'BULLISH' else 'VENTA'}\n"
+                   f"💲 <b>Precio:</b> {price:.5f}\n"
+                   f"🛡️ <b>SL:</b> {sl:.5f}\n"
+                   f"🎯 <b>TP:</b> {tp:.5f}\n"
+                   f"📦 <b>Lotaje:</b> {lot_size}")
+            await notifier.send_message(msg)
+            return {'status': 'executed', 'lot': lot_size, 'tp': tp}
+        else:
+            logger.error(f"{strategy_name} [{symbol}] Fallo al ejecutar orden a mercado: {result.retcode if result else 'Desconocido'}")
+            return None
+
+    async def analyze_mean_reversion(self, symbol):
+        """Motor de Reversión a la Media usando Bandas de Bollinger en 1H"""
+        df_1h = self.fetch_data(symbol, '1h')
+        if df_1h is None or len(df_1h) < 20: 
+            return
+            
+        # Calcular Bandas de Bollinger
+        bb = ta.bbands(df_1h['close'], length=20, std=2)
+        if bb is None or bb.empty: return
+        
+        df_1h = pd.concat([df_1h, bb], axis=1)
+        
+        # Última vela cerrada completa de 1H
+        last_closed = df_1h.iloc[-2]
+        
+        if pd.isna(last_closed.get('BBL_20_2.0')): return
+        
+        close_price = last_closed['close']
+        bb_lower = last_closed['BBL_20_2.0']
+        bb_upper = last_closed['BBU_20_2.0']
+        bb_middle = last_closed['BBM_20_2.0']
+        
+        direction = None
+        if close_price < bb_lower:
+            direction = 'BULLISH'
+        elif close_price > bb_upper:
+            direction = 'BEARISH'
+            
+        if not direction:
+            return # Sin señal
+            
+        logger.info(f"[{symbol}] [MR] ¡Cierre de vela fuera de BB! Dirección: {direction}")
+        
+        # Calcular Riesgo usando ATR Diario para mantener la coherencia matemática del bot
+        df_1d = self.fetch_data(symbol, '1d')
+        if df_1d is None: return
+        df_1d['atr'] = ta.atr(df_1d['high'], df_1d['low'], df_1d['close'], length=14)
+        atr_value = df_1d['atr'].iloc[-1]
+        
+        tick = mt5.symbol_info_tick(symbol)
+        if not tick: return
+        
+        current_price = tick.ask if direction == 'BULLISH' else tick.bid
+        
+        if direction == 'BULLISH':
+            sl = current_price - (atr_value * 1.5)
+            tp = bb_middle
+            dist_sl = current_price - sl
+            if tp <= current_price + (dist_sl * 1.0):
+                tp = current_price + (dist_sl * 1.5)
+        else:
+            sl = current_price + (atr_value * 1.5)
+            tp = bb_middle
+            dist_sl = sl - current_price
+            if tp >= current_price - (dist_sl * 1.0):
+                tp = current_price - (dist_sl * 1.5)
+                
+        # Usar el módulo seguro de Lotaje
+        lot_size = self.calculate_lot_size(symbol, current_price, sl)
+        if lot_size <= 0.0:
+            return
+            
+        await self.execute_market_order(symbol, direction, sl, tp, lot_size)
+
     async def run(self):
         """Bucle principal de análisis"""
         logger.info("Arrancando Bot Triple Pantalla...")
@@ -581,9 +692,14 @@ class TradTripleScreenBot:
                 # 1. Analizar Marea (Diario)
                 df_1d = self.fetch_data(symbol, '1d')
                 if df_1d is None: continue
-                trend = self.analyze_screen_1(df_1d)
+                trend, regime = self.analyze_screen_1(df_1d)
                 
-                if trend == 'NEUTRAL':
+                if regime == 'RANGING':
+                    logger.info(f"[{symbol}] Régimen LATERAL (ADX < 25). Ejecutando Motor Mean Reversion...")
+                    await self.analyze_mean_reversion(symbol)
+                    continue
+                    
+                if trend == 'NONE':
                     logger.info(f"[{symbol}] Marea neutral. Ignorando.")
                     continue
                     

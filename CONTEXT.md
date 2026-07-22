@@ -14,14 +14,14 @@ Desarrollar un sistema de trading automatizado (bot) compuesto por dos módulos 
     *   **Temporalidad:** Ejecución en 15 minutos (15m), validando la tendencia en temporalidades mayores (1h o 4h).
 *   **Tecnología Core:** Conexión en tiempo real mediante **WebSockets** (vía CCXT) para colocar y ajustar las órdenes del grid al milisegundo sin agotar los límites de la API REST.
 
-### 2. Bot Tradicional (Triple Pantalla en Forex/Índices/Acciones)
-*   **Mercado:** Tradicional (Índices como US500, Forex, Acciones).
+### 2. Motor Institucional Multi-Estrategia (MT5)
+*   **Mercado:** Forex, Índices (US30, DE30), Metales (Oro, Plata), Energía (Petróleo) y Criptomonedas (BTC, ETH, SOL, XRP). Total: 21 Activos.
 *   **Broker Elegido:** **Exness**.
     *   *Justificación:* Confirmado por su gran facilidad de depósitos/retiros en Cripto y Skrill en Paraguay, spreads bajos y excelente API REST.
-*   **Estrategia:** Triple Pantalla de Alexander Elder.
-    *   *Pantalla 1 (Mayor - ej. 4h):* Identificar la tendencia dominante (MACD Histogram).
-    *   *Pantalla 2 (Intermedia - ej. 1h):* Identificar retrocesos contra la tendencia (Force Index o Estocástico).
-    *   *Pantalla 3 (Menor - ej. 15m):* Gatillo de entrada (Trailing Stop).
+*   **Arquitectura Dual Híbrida (Alpha Ranking):**
+    *   Pre-escaneo de los 21 activos utilizando el **ADX Diario** para ordenarlos por "Fuerza Relativa" de mayor a menor, operando siempre los mercados con mayor tracción.
+    *   **Motor 1: Tendencia (Triple Pantalla de Elder):** Se activa en regímenes direccionales (ADX > 25). Entradas tipo Breakout (Buy Stop/Sell Stop) en velas de 15m a favor de la tendencia diaria. Ratio Riesgo/Recompensa 1:2.
+    *   **Motor 2: Reversión a la Media (Bollinger):** Se activa en regímenes laterales (ADX < 25). Identifica "falsos quiebres" usando Bandas de Bollinger (20,2) al cierre de velas de 1H. Entradas a Mercado con Ratio corto de 1:1.5.
 
 ## Infraestructura y Stack Tecnológico
 *   **Lenguaje:** Python 3.11+

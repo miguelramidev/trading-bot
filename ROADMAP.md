@@ -42,17 +42,18 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] Inyección de órdenes pendientes en MT5 con expiración a 1 hora y ratio Riesgo:Recompensa estricto de 1:2.
 - [x] *Hito Demostrable:* El bot tradicional escanea 10 activos, notifica a Telegram y gestiona las órdenes en MetaTrader 5 en vivo.
 
-## Fase 6: Seguridad, Gestión Avanzada y PnL Tracking
+## Fase 6: Arquitectura Institucional, Gestión Avanzada y PnL Tracking
 - [x] Límite global concurrente en MT5 (Máx. 3 operaciones).
 - [x] Escudo de Capital Estricto en MT5 (Riesgo máximo 1.5% ante lote mínimo).
 - [x] Gestión de Break-Even dinámico en MT5 (Free Ride al alcanzar +1R).
-- [x] Sincronización de estado Cripto con WebSockets y cierres manuales en Binance.
-- [x] Cuarentena (Cooldown) de 12 horas en Cripto para evitar operar repetidamente la misma moneda.
-- [x] Filtro de tendencias `NEUTRAL` en Cripto para evitar errores de Hard Stop sin posición.
-- [x] Rastreador de PnL en MT5: Notificaciones a Telegram con ganancias netas y ROI de operaciones cerradas.
-- [x] Rastreador de PnL en Cripto: Uso de la API nativa de "Income" de Binance para cálculos exactos de PnL y ROI (incluyendo fees).
-- [x] Base de Datos Histórica (SQLite): Registro de operaciones (PnL, precios exactos, tiempos) para métricas a largo plazo.
-- [x] Escáner Híbrido 24/7: Bypass de calendario para cazar tendencias en Cripto (BTC, ETH) los fines de semana en MT5.
+- [x] Base de Datos Histórica (SQLite): Memoria persistente para evitar amnesia entre reinicios.
+- [x] Rastreador de PnL en MT5: Notificaciones a Telegram con ganancias netas y ROI.
+- [x] Cuarentena (Cooldown) de 12 horas en MT5 para evitar sobre-operar el mismo activo tras un cierre.
+- [x] **Motor Dual Híbrido:** Uso de ADX para separar Regímenes de Tendencia (>25) de Mercados Laterales (<25).
+- [x] **Motor Mean Reversion:** Integración de Bandas de Bollinger (1H) para operar rebotes en mercados neutrales.
+- [x] **Sistema Alpha Ranking:** Escáner global que califica la fuerza (ADX) de todos los activos y prioriza los más explosivos.
+- [x] **Expansión de Portafolio:** Despliegue seguro sobre 21 activos descorrelacionados (FX, Índices, Metales, Energía y Cripto).
+- [x] Escáner Híbrido 24/7: Bypass de calendario para cazar tendencias en Cripto los fines de semana en MT5.
 
 ## Fase 7: Despliegue (En Pausa Estratégica)
 - [ ] **Pausa Estratégica:** El despliegue en un servidor VPS de pago (AWS Lightsail) queda pospuesto. El bot debe demostrar primero consistencia y rentabilidad mensual ejecutándose localmente para "pagarse a sí mismo".

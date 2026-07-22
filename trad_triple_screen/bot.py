@@ -698,6 +698,21 @@ class TradTripleScreenBot:
             
         await self.execute_market_order(symbol, direction, sl, tp, lot_size)
 
+    async def sleep_until_next_interval(self, minutes=15):
+        """Duerme hasta el próximo intervalo exacto de reloj (ej. :00, :15, :30, :45)"""
+        now = datetime.now()
+        # Calcular los minutos del siguiente intervalo
+        next_minute = ((now.minute // minutes) + 1) * minutes
+        
+        # Calcular el tiempo objetivo exacto (sumando los minutos, lo que manejará el salto de hora)
+        target_time = now.replace(minute=0, second=0, microsecond=0) + timedelta(minutes=next_minute)
+        
+        # Segundos a dormir
+        sleep_seconds = (target_time - now).total_seconds()
+        
+        logger.info(f"Durmiendo {int(sleep_seconds)} segundos hasta la próxima vela ({target_time.strftime('%H:%M:%S')})...")
+        await asyncio.sleep(sleep_seconds)
+
     async def run(self):
         """Bucle principal de análisis"""
         logger.info("Arrancando Bot Triple Pantalla...")
@@ -713,7 +728,7 @@ class TradTripleScreenBot:
             # FILTRO GLOBAL: Máximo 3 operaciones
             if self.get_total_active_trades() >= 3:
                 logger.info("Límite global de 3 operaciones alcanzado. Pausando escaneo...")
-                await asyncio.sleep(900)
+                await self.sleep_until_next_interval(15)
                 continue
                 
             # -- PRE-ESCANEO Y ALPHA RANKING --
@@ -823,8 +838,8 @@ class TradTripleScreenBot:
                                f"⏱️ <i>Nota: La orden expirará automáticamente en 1 hora si no se activa.</i>")
                         await notifier.send_message(msg)
                     
-            logger.info("Ciclo terminado. Durmiendo 15 minutos...")
-            await asyncio.sleep(900) # 15 minutos
+            logger.info("Ciclo terminado. Esperando a la siguiente vela de 15m...")
+            await self.sleep_until_next_interval(15)
 
 if __name__ == "__main__":
     bot = TradTripleScreenBot()

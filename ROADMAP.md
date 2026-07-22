@@ -54,7 +54,8 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] Base de Datos Histórica (SQLite): Registro de operaciones (PnL, precios exactos, tiempos) para métricas a largo plazo.
 - [x] Escáner Híbrido 24/7: Bypass de calendario para cazar tendencias en Cripto (BTC, ETH) los fines de semana en MT5.
 
-## Fase 7: Despliegue (En Pausa - Ejecución Local)
+## Fase 7: Despliegue (En Pausa Estratégica)
+- [ ] **Pausa Estratégica:** El despliegue en un servidor VPS de pago (AWS Lightsail) queda pospuesto. El bot debe demostrar primero consistencia y rentabilidad mensual ejecutándose localmente para "pagarse a sí mismo".
 - [ ] Exploración de alternativas a MetaApi para Linux o mantener ejecución en laptop (Windows/Mac).
-- [ ] Uso de gestores de procesos (ej. `pm2` o `systemd`) para mantener ambos bots corriendo 24/7.
-- [ ] *Hito Demostrable:* Sistema totalmente autónomo corriendo ininterrumpidamente.
+- [ ] Uso de gestores de procesos (ej. `pm2` o Windows Task Scheduler) para ejecución en segundo plano.
+- [ ] *Hito Demostrable:* Sistema totalmente autónomo corriendo ininterrumpidamente en la nube.

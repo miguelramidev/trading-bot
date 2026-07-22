@@ -41,7 +41,9 @@ class TradTripleScreenBot:
         self.symbols = [
             f"EURUSD{suffix}", f"GBPUSD{suffix}", f"USDJPY{suffix}", f"XAUUSD{suffix}", 
             f"US30{suffix}", f"US500{suffix}", f"USTEC{suffix}", f"USDCAD{suffix}", 
-            f"AUDUSD{suffix}", f"GBPJPY{suffix}", f"BTCUSD{suffix}", f"ETHUSD{suffix}"
+            f"AUDUSD{suffix}", f"GBPJPY{suffix}", f"BTCUSD{suffix}", f"ETHUSD{suffix}",
+            f"EURGBP{suffix}", f"EURJPY{suffix}", f"AUDJPY{suffix}", f"USDCHF{suffix}",
+            f"XAGUSD{suffix}", f"XTIUSD{suffix}", f"DE30{suffix}", f"XRPUSD{suffix}", f"SOLUSD{suffix}"
         ] 
         self.risk_percent = 1.0 # Riesgo fijo institucional del 1%
         self.active_trades = {} # Para simulación de estado en Mac
@@ -668,26 +670,46 @@ class TradTripleScreenBot:
                 await asyncio.sleep(900)
                 continue
                 
+            # -- PRE-ESCANEO Y ALPHA RANKING --
+            eligible_symbols = []
+            
             for symbol in self.symbols:
-                logger.info(f"Analizando {symbol}...")
-                
-                # VERIFICACIÓN DE ESTADO PREVIO
+                # Filtros Rápidos
                 if self.has_active_trade(symbol):
-                    logger.info(f"[{symbol}] Operación o orden activa encontrada. Saltando análisis para evitar duplicados.")
                     continue
                     
-                # CUARENTENA DE 12 HORAS
                 last_close = get_last_close_time(symbol)
                 if last_close:
                     hours_elapsed = (datetime.now() - last_close).total_seconds() / 3600
                     if hours_elapsed < 12:
-                        logger.info(f"[{symbol}] En Cuarentena. Faltan {12 - hours_elapsed:.1f}h para volver a operar.")
                         continue
                         
-                # FILTRO DE TIEMPO
                 if not self.is_trading_allowed(symbol):
-                    logger.info(f"[{symbol}] Fuera del horario de trading permitido. Saltando.")
                     continue
+                    
+                # Calcular Fuerza (ADX Diario)
+                df_1d = self.fetch_data(symbol, '1d')
+                if df_1d is None or len(df_1d) < 14:
+                    continue
+                    
+                adx_df = ta.adx(df_1d['high'], df_1d['low'], df_1d['close'], length=14)
+                if adx_df is not None and not adx_df.empty:
+                    adx_val = adx_df['ADX_14'].iloc[-1]
+                    if not pd.isna(adx_val):
+                        eligible_symbols.append({'symbol': symbol, 'adx': adx_val})
+            
+            # Ordenar por ADX de Mayor a Menor (Los más fuertes primero)
+            eligible_symbols.sort(key=lambda x: x['adx'], reverse=True)
+            
+            if not eligible_symbols:
+                logger.info("Ningún símbolo disponible para operar (todos filtrados o en cuarentena).")
+            else:
+                ranked_list_str = ", ".join([f"{s['symbol']}({s['adx']:.1f})" for s in eligible_symbols])
+                logger.info(f"🏆 Alpha Ranking (Disponibles): {ranked_list_str}")
+                
+            for item in eligible_symbols:
+                symbol = item['symbol']
+                logger.info(f"Analizando {symbol} (Fuerza ADX: {item['adx']:.1f})...")
                 
                 # 1. Analizar Marea (Diario)
                 df_1d = self.fetch_data(symbol, '1d')

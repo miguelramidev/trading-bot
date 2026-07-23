@@ -583,8 +583,12 @@ class TradTripleScreenBot:
         }
         
         result = mt5.order_send(request)
+        if result is None:
+            logger.error(f"Error enviando orden a MT5: order_send devolvió None. Posible desconexión.")
+            return None
+            
         if result.retcode != mt5.TRADE_RETCODE_DONE:
-            logger.error(f"Error enviando orden a MT5: {result.comment}")
+            logger.error(f"Error enviando orden a MT5 (TripleScreen): RetCode={result.retcode}, Comment={result.comment}")
             return None
             
         return {'status': 'executed', 'lot': lot_size, 'tp': tp}
@@ -637,7 +641,7 @@ class TradTripleScreenBot:
             await notifier.send_message(msg)
             return {'status': 'executed', 'lot': lot_size, 'tp': tp}
         else:
-            logger.error(f"{strategy_name} [{symbol}] Fallo al ejecutar orden a mercado: {result.retcode if result else 'Desconocido'}")
+            logger.error(f"{strategy_name} [{symbol}] Fallo al ejecutar orden a mercado: {result.retcode}")
             return None
 
     async def analyze_mean_reversion(self, symbol):

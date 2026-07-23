@@ -55,6 +55,7 @@ class TradTripleScreenBot:
         self.risk_percent = 1.0 # Riesgo fijo institucional del 1%
         self.active_trades = {} # Para simulación de estado en Mac
         self.tracked_positions = {} # Para rastrear PnL y ROI de operaciones abiertas
+        self.is_first_scan = True # Bandera para no notificar posiciones ya abiertas al reiniciar el bot
         
         # Inicializar Base de Datos
         init_db()
@@ -277,13 +278,14 @@ class TradTripleScreenBot:
                             'volume': p.volume
                         }
                         
-                        # NOTIFICAR ENTRADA A MERCADO
-                        direction_str = "COMPRA" if p.type == mt5.POSITION_TYPE_BUY else "VENTA"
-                        msg = (f"🚀 <b>¡Orden Ejecutada a Mercado! ({p.symbol})</b>\n\n"
-                               f"📈 <b>Dirección:</b> {direction_str}\n"
-                               f"💲 <b>Precio de Entrada:</b> {p.price_open:.5f}\n"
-                               f"📦 <b>Lotaje:</b> {p.volume:.2f}")
-                        asyncio.create_task(notifier.send_message(msg))
+                        # NOTIFICAR ENTRADA A MERCADO (Solo si no es el escaneo inicial)
+                        if not self.is_first_scan:
+                            direction_str = "COMPRA" if p.type == mt5.POSITION_TYPE_BUY else "VENTA"
+                            msg = (f"🚀 <b>¡Orden Ejecutada a Mercado! ({p.symbol})</b>\n\n"
+                                   f"📈 <b>Dirección:</b> {direction_str}\n"
+                                   f"💲 <b>Precio de Entrada:</b> {p.price_open:.5f}\n"
+                                   f"📦 <b>Lotaje:</b> {p.volume:.2f}")
+                            asyncio.create_task(notifier.send_message(msg))
                         
                         
         # Revisar cuáles posiciones rastreadas ya no están activas
@@ -350,6 +352,9 @@ class TradTripleScreenBot:
                 
             # Eliminar del rastreador
             del self.tracked_positions[ticket]
+            
+        if self.is_first_scan:
+            self.is_first_scan = False
 
     def connect(self):
         """Inicializa la conexión con el terminal de MetaTrader 5"""

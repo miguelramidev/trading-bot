@@ -816,13 +816,10 @@ class TradTripleScreenBot:
                 # Filtros Rápidos
                 if self.has_active_trade(symbol):
                     continue
+                # Filtro Anti-Correlación de Grupo
+                if self.is_group_active(symbol):
+                    continue
                     
-                last_close = get_last_close_time(symbol)
-                if last_close:
-                    hours_elapsed = (datetime.now() - last_close).total_seconds() / 3600
-                    if hours_elapsed < 12:
-                        continue
-                        
                 if not self.is_trading_allowed(symbol):
                     continue
                     
@@ -864,6 +861,15 @@ class TradTripleScreenBot:
                 df_1d = self.fetch_data(symbol, '1d')
                 if df_1d is None: continue
                 trend, regime = self.analyze_screen_1(df_1d)
+                
+                # --- CUARENTENA SELECTIVA ---
+                last_close = get_last_close_time(symbol)
+                if last_close:
+                    hours_elapsed = (datetime.now() - last_close).total_seconds() / 3600
+                    # Si es Tendencia, aplicamos cuarentena de 6 horas
+                    if hours_elapsed < 6 and regime == 'TRENDING':
+                        logger.info(f"[{symbol}] En Cuarentena de Tendencia (faltan {6 - hours_elapsed:.1f}h). Ignorando.")
+                        continue
                 
                 if regime == 'RANGING':
                     logger.info(f"[{symbol}] Régimen LATERAL (ADX < 25). Ejecutando Motor Mean Reversion...")

@@ -485,10 +485,13 @@ class TradTripleScreenBot:
         if risk_per_lot == 0:
             return symbol_info.volume_min
             
-        # Parche para errores del broker (Exness Cent reporta mal el volumen mínimo de algunas criptos)
-        true_min_volume = symbol_info.volume_min
-        if symbol == "ETHUSDc":
-            true_min_volume = max(true_min_volume, 10.0)
+        # Parche generalizado para errores del broker (Exness Cent reporta mal el volumen mínimo de algunas criptos)
+        # Aquí podemos añadir más símbolos si descubrimos que el broker miente en su API
+        BROKER_MIN_VOLUME_OVERRIDES = {
+            "ETHUSDc": 10.0,
+            # "LTCUSDc": 1.0, # Ejemplo de cómo agregar más en el futuro
+        }
+        true_min_volume = BROKER_MIN_VOLUME_OVERRIDES.get(symbol, symbol_info.volume_min)
             
         # ESCUDO DE CAPITAL: Rechazar operación si el lote mínimo real arriesga más del 1.5% del balance
         max_allowed_risk = risk_amount * 1.5

@@ -794,17 +794,28 @@ class TradTripleScreenBot:
         logger.info(f"Durmiendo {int(sleep_seconds)} segundos hasta la próxima vela ({target_time.strftime('%H:%M:%S')})...")
         await asyncio.sleep(sleep_seconds)
 
+    async def position_management_loop(self):
+        """Bucle secundario que se ejecuta frecuentemente para trailing stop y monitoreo rápido"""
+        logger.info("Iniciando motor de monitoreo de posiciones (Fast Loop: 30s)...")
+        while True:
+            try:
+                await self.manage_open_positions()
+                await self.monitor_closed_positions()
+            except Exception as e:
+                logger.error(f"Error en bucle rápido de posiciones: {e}")
+            await asyncio.sleep(30)
+
     async def run(self):
         """Bucle principal de análisis"""
         logger.info("Arrancando Bot Triple Pantalla...")
         if not self.connect():
             return
             
-        # Bucle de análisis (se ejecutaría cada 1 Hora en producción)
+        # Arrancar el bucle rápido de posiciones en segundo plano (Concurrencia)
+        asyncio.create_task(self.position_management_loop())
+            
+        # Bucle de análisis (se ejecuta cada 15m)
         while True:
-            # 0. GESTIÓN DE BREAK-EVEN Y PnL TRACKER
-            await self.manage_open_positions()
-            await self.monitor_closed_positions()
             
             # FILTRO GLOBAL: Máximo 3 operaciones
             if self.get_total_active_trades() >= 3:

@@ -655,7 +655,10 @@ class TradTripleScreenBot:
             if result and result.retcode == mt5.TRADE_RETCODE_DONE:
                 success_count += 1
             else:
-                logger.error(f"[{symbol}] Falló envío de orden: {result.comment if result else 'None'}")
+                if result:
+                    logger.error(f"[{symbol}] Falló envío de orden '{req['comment']}': RetCode={result.retcode}, Comment={result.comment}")
+                else:
+                    logger.error(f"[{symbol}] Falló envío de orden '{req['comment']}': result is None")
                 
         if success_count > 0:
             return {'status': 'executed', 'lot': total_lot_size, 'tp': tp_1}

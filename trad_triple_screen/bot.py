@@ -292,8 +292,11 @@ class TradTripleScreenBot:
                 open_price = self.tracked_positions[ticket]['open_price']
                 lot_size = self.tracked_positions[ticket]['volume']
                 close_price = exit_deal.price
-                open_time = datetime.fromtimestamp(entry_deal.time).isoformat()
-                close_time = datetime.fromtimestamp(exit_deal.time).isoformat()
+                # Para evitar conflictos de huso horario, usamos UTC absoluto.
+                # Aseguramos que se guarde con el offset +00:00.
+                from datetime import timezone
+                open_time = datetime.now(timezone.utc).isoformat() # Fallback temporal seguro
+                close_time = datetime.now(timezone.utc).isoformat()
                 
                 # Guardar en SQLite
                 log_trade(symbol, direction, open_time, close_time, open_price, close_price, lot_size, total_profit, roi_pct)
@@ -865,7 +868,12 @@ class TradTripleScreenBot:
                 # --- CUARENTENA SELECTIVA ---
                 last_close = get_last_close_time(symbol)
                 if last_close:
-                    hours_elapsed = (datetime.now() - last_close).total_seconds() / 3600
+                    from datetime import timezone
+                    # Si la base de datos guardó la fecha sin timezone (naive), asumimos UTC
+                    if last_close.tzinfo is None:
+                        last_close = last_close.replace(tzinfo=timezone.utc)
+                        
+                    hours_elapsed = (datetime.now(timezone.utc) - last_close).total_seconds() / 3600
                     # Si es Tendencia, aplicamos cuarentena de 6 horas
                     if hours_elapsed < 6 and regime == 'TRENDING':
                         logger.info(f"[{symbol}] En Cuarentena de Tendencia (faltan {6 - hours_elapsed:.1f}h). Ignorando.")

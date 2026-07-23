@@ -88,20 +88,40 @@ class TradTripleScreenBot:
         return False
         
     def get_total_active_trades(self):
-        """Cuenta el total de operaciones (posiciones + órdenes) en TODA la cuenta"""
+        """Cuenta el total de activos únicos (symbols) que tienen riesgo en la cuenta"""
         if not MT5_AVAILABLE:
             return len(self.active_trades)
             
-        total = 0
-        positions = mt5.positions_get()
-        if positions is not None:
-            total += len(positions)
-            
+        risk_symbols = set()
+        
+        # 1. Órdenes pendientes (siempre tienen riesgo, ya que no se han ejecutado)
         orders = mt5.orders_get()
-        if orders is not None:
-            total += len(orders)
-            
-        return total
+        if orders:
+            for o in orders:
+                risk_symbols.add(o.symbol)
+                
+        # 2. Posiciones abiertas (solo tienen riesgo si el SL está en pérdida)
+        positions = mt5.positions_get()
+        if positions:
+            for p in positions:
+                # Si el símbolo ya está en risk_symbols, no hace falta revisar
+                if p.symbol in risk_symbols:
+                    continue
+                    
+                has_risk = True
+                if p.type == mt5.POSITION_TYPE_BUY:
+                    # Si el SL existe y es mayor o igual al precio de entrada -> Break-Even o mejor = Riesgo 0
+                    if p.sl > 0 and p.sl >= p.price_open:
+                        has_risk = False
+                elif p.type == mt5.POSITION_TYPE_SELL:
+                    # Si el SL existe y es menor o igual al precio de entrada -> Break-Even o mejor = Riesgo 0
+                    if p.sl > 0 and p.sl <= p.price_open:
+                        has_risk = False
+                        
+                if has_risk:
+                    risk_symbols.add(p.symbol)
+                    
+        return len(risk_symbols)
         
     def is_trading_allowed(self, symbol):
         """Verifica si el horario actual del servidor permite operar (Filtro diario y fin de semana)"""

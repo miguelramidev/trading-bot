@@ -498,10 +498,8 @@ class TradTripleScreenBot:
         step = symbol_info.volume_step
         lot_size = math.floor(lot_size / step) * step
         
-        # Respetar mínimos y máximos, y añadir un TOPE ABSOLUTO DE SEGURIDAD (MAX_LOTS)
-        MAX_LOTS = 3.0
-        max_allowed = min(symbol_info.volume_max, MAX_LOTS)
-        lot_size = max(symbol_info.volume_min, min(lot_size, max_allowed))
+        # Respetar mínimos y máximos del broker
+        lot_size = max(symbol_info.volume_min, min(lot_size, symbol_info.volume_max))
         
         # Redondeo final para evitar errores de precisión flotante de Python en MT5
         decimals = abs(int(math.floor(math.log10(step)))) if step < 1 else 0

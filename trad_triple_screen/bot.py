@@ -427,6 +427,7 @@ class TradTripleScreenBot:
         
         # Obtener el tamaño de 1 tick real del broker
         tick_size = 0.0001
+        spread = 0.0
         if MT5_AVAILABLE:
             symbol_info = mt5.symbol_info(symbol)
             if symbol_info:
@@ -434,18 +435,23 @@ class TradTripleScreenBot:
                 tick_size = symbol_info.trade_tick_size
                 if tick_size == 0:
                     tick_size = symbol_info.point
+            
+            tick = mt5.symbol_info_tick(symbol)
+            if tick:
+                spread = tick.ask - tick.bid
+                logger.info(f"[{symbol}] Spread detectado para buffer de seguridad: {spread:.5f}")
                     
         # Usamos 2 ticks de "respiro" para asegurar la ruptura
         buffer = tick_size * 2
         
         if trend_screen_1 == 'BULLISH':
             entry_price = last_candle['high'] + buffer
-            stop_loss = last_candle['low'] - buffer
+            stop_loss = last_candle['low'] - buffer - spread
             return {'side': 'buy_stop', 'entry': entry_price, 'sl': stop_loss}
             
         elif trend_screen_1 == 'BEARISH':
             entry_price = last_candle['low'] - buffer
-            stop_loss = last_candle['high'] + buffer
+            stop_loss = last_candle['high'] + buffer + spread
             return {'side': 'sell_stop', 'entry': entry_price, 'sl': stop_loss}
             
         return None
@@ -676,16 +682,19 @@ class TradTripleScreenBot:
         tick = mt5.symbol_info_tick(symbol)
         if not tick: return
         
+        spread = tick.ask - tick.bid
+        logger.info(f"[{symbol}] [MR] Spread detectado para buffer de seguridad: {spread:.5f}")
+        
         current_price = tick.ask if direction == 'BULLISH' else tick.bid
         
         if direction == 'BULLISH':
-            sl = current_price - (atr_value * 1.5)
+            sl = current_price - (atr_value * 1.5) - spread
             tp = bb_middle
             dist_sl = current_price - sl
             if tp <= current_price + (dist_sl * 1.0):
                 tp = current_price + (dist_sl * 1.5)
         else:
-            sl = current_price + (atr_value * 1.5)
+            sl = current_price + (atr_value * 1.5) + spread
             tp = bb_middle
             dist_sl = sl - current_price
             if tp >= current_price - (dist_sl * 1.0):

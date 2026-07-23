@@ -330,7 +330,7 @@ class TradTripleScreenBot:
             logger.error(f"❌ Fallo de autenticación en MT5. Error: {mt5.last_error()}")
             return False
 
-    def fetch_data(self, symbol, timeframe, num_candles=100):
+    def fetch_data(self, symbol, timeframe, num_candles=300):
         """Descarga velas históricas desde MT5 y devuelve un DataFrame de pandas"""
         if not MT5_AVAILABLE:
             return None
@@ -361,10 +361,11 @@ class TradTripleScreenBot:
     def analyze_screen_1(self, df):
         """
         Pantalla 1: Marea Macro (Diario 1D)
-        Utilizamos la EMA de 13 períodos para la dirección de la tendencia.
+        Utilizamos el Filtro de Oro Institucional (EMA 50 y EMA 200) para la dirección de la tendencia.
         Filtro ADX: Requerimos ADX > 25 para garantizar que NO es un mercado lateral.
         """
-        df['ema_13'] = ta.ema(df['close'], length=13)
+        df['ema_50'] = ta.ema(df['close'], length=50)
+        df['ema_200'] = ta.ema(df['close'], length=200)
         
         # Calcular ADX (14 periodos por defecto)
         adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
@@ -373,24 +374,27 @@ class TradTripleScreenBot:
         else:
             df['adx'] = None
             
-        if len(df) < 2:
-            return 'NEUTRAL'
+        if len(df) < 200:
+            return ('NONE', 'NEUTRAL')
             
         last_row = df.iloc[-1]
-        prev_row = df.iloc[-2]
         
         # Validación de datos insuficientes
-        if pd.isna(last_row.get('ema_13')) or pd.isna(prev_row.get('ema_13')) or pd.isna(last_row.get('adx')):
+        if pd.isna(last_row.get('ema_200')) or pd.isna(last_row.get('ema_50')) or pd.isna(last_row.get('adx')):
             return ('NONE', 'NEUTRAL')
             
         # Filtro de Mercado Lateral (Rango)
         regime = 'RANGING' if last_row['adx'] < 25.0 else 'TRENDING'
         
-        # Pendiente de la EMA 13
+        # Filtro Institucional de Tendencia (Golden Cross / Death Cross dinámico)
         if regime == 'TRENDING':
-            if last_row['ema_13'] > prev_row['ema_13']:
+            close_price = last_row['close']
+            ema50 = last_row['ema_50']
+            ema200 = last_row['ema_200']
+            
+            if close_price > ema50 and ema50 > ema200:
                 return ('BULLISH', regime)
-            elif last_row['ema_13'] < prev_row['ema_13']:
+            elif close_price < ema50 and ema50 < ema200:
                 return ('BEARISH', regime)
             
         return ('NONE', regime)

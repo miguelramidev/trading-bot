@@ -485,10 +485,15 @@ class TradTripleScreenBot:
         if risk_per_lot == 0:
             return symbol_info.volume_min
             
-        # ESCUDO DE CAPITAL: Rechazar operación si el lote mínimo arriesga más del 1.5% del balance
+        # Parche para errores del broker (Exness Cent reporta mal el volumen mínimo de algunas criptos)
+        true_min_volume = symbol_info.volume_min
+        if symbol == "ETHUSDc":
+            true_min_volume = max(true_min_volume, 10.0)
+            
+        # ESCUDO DE CAPITAL: Rechazar operación si el lote mínimo real arriesga más del 1.5% del balance
         max_allowed_risk = risk_amount * 1.5
-        if (symbol_info.volume_min * risk_per_lot) > max_allowed_risk:
-            logger.warning(f"[{symbol}] ESCUDO DE CAPITAL: El lote mínimo ({symbol_info.volume_min}) arriesga {symbol_info.volume_min * risk_per_lot:.2f} (Límite 1.5x: {max_allowed_risk:.2f}). Abortando trade.")
+        if (true_min_volume * risk_per_lot) > max_allowed_risk:
+            logger.warning(f"[{symbol}] ESCUDO DE CAPITAL: El lote mínimo real ({true_min_volume}) arriesga {true_min_volume * risk_per_lot:.2f} (Límite 1.5x: {max_allowed_risk:.2f}). Abortando trade.")
             return 0.0
             
         # Calcular lote
@@ -498,8 +503,8 @@ class TradTripleScreenBot:
         step = symbol_info.volume_step
         lot_size = math.floor(lot_size / step) * step
         
-        # Respetar mínimos y máximos del broker
-        lot_size = max(symbol_info.volume_min, min(lot_size, symbol_info.volume_max))
+        # Respetar mínimos y máximos del broker (usando nuestro true_min_volume)
+        lot_size = max(true_min_volume, min(lot_size, symbol_info.volume_max))
         
         # Redondeo final para evitar errores de precisión flotante de Python en MT5
         decimals = abs(int(math.floor(math.log10(step)))) if step < 1 else 0

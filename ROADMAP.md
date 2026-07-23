@@ -48,9 +48,12 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] Gestión de Break-Even dinámico en MT5 (Free Ride al alcanzar +1R).
 - [x] Base de Datos Histórica (SQLite): Memoria persistente para evitar amnesia entre reinicios.
 - [x] Rastreador de PnL en MT5: Notificaciones a Telegram con ganancias netas y ROI.
-- [x] Cuarentena (Cooldown) de 12 horas en MT5 para evitar sobre-operar el mismo activo tras un cierre.
+- [x] Cuarentena (Cooldown) Selectiva: 6 horas para Tendencia, bypass para Mean Reversion. Estandarización a huso horario estricto (UTC).
 - [x] **Motor Dual Híbrido:** Uso de ADX para separar Regímenes de Tendencia (>25) de Mercados Laterales (<25).
 - [x] **Motor Mean Reversion:** Integración de Bandas de Bollinger (1H) para operar rebotes en mercados neutrales.
+- [x] **Filtro Institucional (Trend):** Reemplazo de indicadores rápidos por cruces robustos a largo plazo (EMA 50 y EMA 200).
+- [x] **SL Dinámico de Volatilidad:** Implementación de ATR(14) x 2.0 para protección contra cacería de stops institucionales.
+- [x] **Arquitectura de Órdenes Divididas:** Escalado de Take Profit enviando 2 órdenes simultáneas (TP 1:2 y 1:3) y trailing dinámico entre ellas.
 - [x] **Sistema Alpha Ranking:** Escáner global que califica la fuerza (ADX) de todos los activos y prioriza los más explosivos.
 - [x] **Expansión de Portafolio:** Despliegue seguro sobre 21 activos descorrelacionados (FX, Índices, Metales, Energía y Cripto).
 - [x] Escáner Híbrido 24/7: Bypass de calendario para cazar tendencias en Cripto los fines de semana en MT5.

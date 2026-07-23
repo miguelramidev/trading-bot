@@ -119,16 +119,24 @@ class TradTripleScreenBot:
         if symbol.startswith(("BTC", "ETH")):
             return True
             
-        server_time = datetime.fromtimestamp(tick.time)
+        from datetime import timezone
         
-        # Filtro Diario: No operar entre las 23:00 y las 01:00
-        if server_time.hour == 23 or server_time.hour == 0:
+        # Usar siempre la hora UTC real para no depender del reloj de la computadora local (Paraguay)
+        server_time = datetime.now(timezone.utc)
+        
+        # Filtro Diario (Rollover de Nueva York / Sidney): 
+        # Cierre NY es a las 17:00 EST, que equivale a las 21:00 o 22:00 UTC dependiendo del horario de verano.
+        # Bloqueamos de 21:00 a 22:59 UTC para evitar los spreads altísimos de esa ventana.
+        if server_time.hour == 21 or server_time.hour == 22:
             return False
             
-        # Filtro Fin de Semana: No operar desde Viernes 20:00 hasta Domingo
-        if server_time.weekday() == 4 and server_time.hour >= 20: # Viernes
+        # Filtro Fin de Semana: El mercado de divisas cierra el viernes a las 21:00 UTC
+        # y abre el domingo a las 21:00 UTC. Bloqueamos operar en ese lapso.
+        if server_time.weekday() == 4 and server_time.hour >= 21: # Viernes después del cierre NY
             return False
-        if server_time.weekday() in (5, 6): # Sábado y Domingo
+        if server_time.weekday() == 5: # Sábado entero cerrado
+            return False
+        if server_time.weekday() == 6 and server_time.hour < 21: # Domingo antes de apertura Sidney
             return False
             
         return True

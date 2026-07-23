@@ -503,6 +503,10 @@ class TradTripleScreenBot:
         max_allowed = min(symbol_info.volume_max, MAX_LOTS)
         lot_size = max(symbol_info.volume_min, min(lot_size, max_allowed))
         
+        # Redondeo final para evitar errores de precisión flotante de Python en MT5
+        decimals = abs(int(math.floor(math.log10(step)))) if step < 1 else 0
+        lot_size = round(lot_size, decimals)
+        
         return lot_size
 
     def normalize_price(self, symbol, price):

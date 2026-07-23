@@ -164,9 +164,16 @@ class TradTripleScreenBot:
             if sl == 0.0 or tp == 0.0:
                 continue
                 
-            # Distancia 1R es la mitad de la distancia al TP (ya que TP es 2R)
-            dist_1r = abs(tp - open_price) / 2.0
+            comment = pos.comment
             
+            # Calcular 1R basado en el multiplicador del TP original
+            if comment == "TS_Half_B":
+                dist_1r = abs(tp - open_price) / 3.0
+            elif comment == "[MR]":
+                dist_1r = abs(tp - open_price) / 1.5
+            else: # TS_Half_A, TS_Full, TripleScreen
+                dist_1r = abs(tp - open_price) / 2.0
+                
             symbol_info = mt5.symbol_info(symbol)
             if not symbol_info:
                 continue
@@ -175,47 +182,61 @@ class TradTripleScreenBot:
             
             # Compras (BUY)
             if pos_type == mt5.ORDER_TYPE_BUY:
-                # Si el precio llegó a la mitad del camino (+1R)
-                if current_price >= (open_price + dist_1r):
-                    # Añadimos 2 ticks a favor para cubrir comisiones
-                    be_price = open_price + (tick_size * 2)
-                    if sl < be_price:
-                        request = {
-                            "action": mt5.TRADE_ACTION_SLTP,
-                            "position": pos.ticket,
-                            "symbol": symbol,
-                            "sl": float(be_price),
-                            "tp": float(tp),
-                            "magic": 777777
-                        }
-                        result = mt5.order_send(request)
-                        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                            logger.info(f"[{symbol}] 🛡️ Stop Loss movido a Break-Even ({be_price})")
-                            await notifier.send_message(f"🛡️ <b>Free Ride Activado ({symbol})</b>\n\nLa compra alcanzó +1R.\nEl Stop Loss está ahora en {be_price:.4f} (Cero Riesgo).")
+                new_sl = sl
+                # Fase 2: Precio alcanza +2R -> Mover SL a +1R
+                if current_price >= (open_price + (dist_1r * 2.0)):
+                    target_sl = open_price + dist_1r
+                    if sl < target_sl:
+                        new_sl = target_sl
+                # Fase 1: Precio alcanza +1R -> Mover SL a BE
+                elif current_price >= (open_price + dist_1r):
+                    target_sl = open_price + (tick_size * 2)
+                    if sl < target_sl:
+                        new_sl = target_sl
+                        
+                if new_sl != sl:
+                    request = {
+                        "action": mt5.TRADE_ACTION_SLTP, "position": pos.ticket, "symbol": symbol,
+                        "sl": float(new_sl), "tp": float(tp), "magic": 777777
+                    }
+                    result = mt5.order_send(request)
+                    if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                        logger.info(f"[{symbol}] 🛡️ SL movido a {new_sl} (Trailing Dinámico)")
+                        msg = f"🛡️ <b>SL Actualizado ({symbol})</b>\n\nEl mercado avanzó. Nuevo SL: {new_sl:.4f}."
+                        if new_sl == open_price + (tick_size * 2):
+                            msg += "\n(Riesgo Cero - Break Even)"
                         else:
-                            logger.error(f"[{symbol}] Error moviendo SL a Break-Even: {result.comment if result else 'Desconocido'}")
+                            msg += "\n(Ganancia Asegurada de +1R)"
+                        await notifier.send_message(msg)
                             
             # Ventas (SELL)
             elif pos_type == mt5.ORDER_TYPE_SELL:
-                # Si el precio llegó a la mitad del camino (+1R)
-                if current_price <= (open_price - dist_1r):
-                    # Restamos 2 ticks a favor para cubrir comisiones
-                    be_price = open_price - (tick_size * 2)
-                    if sl > be_price:
-                        request = {
-                            "action": mt5.TRADE_ACTION_SLTP,
-                            "position": pos.ticket,
-                            "symbol": symbol,
-                            "sl": float(be_price),
-                            "tp": float(tp),
-                            "magic": 777777
-                        }
-                        result = mt5.order_send(request)
-                        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                            logger.info(f"[{symbol}] 🛡️ Stop Loss movido a Break-Even ({be_price})")
-                            await notifier.send_message(f"🛡️ <b>Free Ride Activado ({symbol})</b>\n\nLa venta alcanzó +1R.\nEl Stop Loss está ahora en {be_price:.4f} (Cero Riesgo).")
+                new_sl = sl
+                # Fase 2: Precio alcanza +2R -> Mover SL a +1R
+                if current_price <= (open_price - (dist_1r * 2.0)):
+                    target_sl = open_price - dist_1r
+                    if sl > target_sl:
+                        new_sl = target_sl
+                # Fase 1: Precio alcanza +1R -> Mover SL a BE
+                elif current_price <= (open_price - dist_1r):
+                    target_sl = open_price - (tick_size * 2)
+                    if sl > target_sl:
+                        new_sl = target_sl
+                        
+                if new_sl != sl:
+                    request = {
+                        "action": mt5.TRADE_ACTION_SLTP, "position": pos.ticket, "symbol": symbol,
+                        "sl": float(new_sl), "tp": float(tp), "magic": 777777
+                    }
+                    result = mt5.order_send(request)
+                    if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                        logger.info(f"[{symbol}] 🛡️ SL movido a {new_sl} (Trailing Dinámico)")
+                        msg = f"🛡️ <b>SL Actualizado ({symbol})</b>\n\nEl mercado avanzó. Nuevo SL: {new_sl:.4f}."
+                        if new_sl == open_price - (tick_size * 2):
+                            msg += "\n(Riesgo Cero - Break Even)"
                         else:
-                            logger.error(f"[{symbol}] Error moviendo SL a Break-Even: {result.comment if result else 'Desconocido'}")
+                            msg += "\n(Ganancia Asegurada de +1R)"
+                        await notifier.send_message(msg)
 
     async def monitor_closed_positions(self):
         """Detecta operaciones que se cerraron, calcula PnL/ROI y notifica"""
@@ -430,40 +451,38 @@ class TradTripleScreenBot:
     def analyze_screen_3(self, symbol, df, trend_screen_1):
         """
         Pantalla 3: El Disparo (1 Hora)
-        Estrategia Original de Alexander Elder: 
-        - Compra: 1 tick por encima del máximo de la vela señal. SL 1 tick por debajo del mínimo.
-        - Venta: 1 tick por debajo del mínimo de la vela señal. SL 1 tick por encima del máximo.
-        (Se elimina el ATR ya que en temporalidad de 1H el tamaño de la vela es suficiente).
+        Usamos el ATR(14) en la gráfica de 1H para crear un SL Dinámico y seguro.
         """
         last_candle = df.iloc[-1]
         
-        # Obtener el tamaño de 1 tick real del broker
-        tick_size = 0.0001
+        # Calcular ATR(14) de 1 Hora
+        df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        atr_value = df['atr'].iloc[-1] if not pd.isna(df['atr'].iloc[-1]) else 0.0
+        
+        # Si por alguna razón falla el ATR, usamos un fallback basado en % de precio
+        if atr_value <= 0:
+            atr_value = last_candle['close'] * 0.002
+            
+        # Obtener el spread
         spread = 0.0
         if MT5_AVAILABLE:
-            symbol_info = mt5.symbol_info(symbol)
-            if symbol_info:
-                # tick_size o point, usaremos trade_tick_size que es el paso mínimo de precio
-                tick_size = symbol_info.trade_tick_size
-                if tick_size == 0:
-                    tick_size = symbol_info.point
-            
             tick = mt5.symbol_info_tick(symbol)
             if tick:
                 spread = tick.ask - tick.bid
-                logger.info(f"[{symbol}] Spread detectado para buffer de seguridad: {spread:.5f}")
+                logger.info(f"[{symbol}] ATR(14) 1H: {atr_value:.5f} | Spread: {spread:.5f}")
                     
-        # Usamos 2 ticks de "respiro" para asegurar la ruptura
-        buffer = tick_size * 2
+        # Colchón institucional de volatilidad
+        buffer = (atr_value * 2.0)
         
         if trend_screen_1 == 'BULLISH':
-            entry_price = last_candle['high'] + buffer
-            stop_loss = last_candle['low'] - buffer - spread
+            # Entrada agresiva al romper el máximo de la hora pasada
+            entry_price = last_candle['high'] + spread
+            stop_loss = entry_price - buffer
             return {'side': 'buy_stop', 'entry': entry_price, 'sl': stop_loss}
             
         elif trend_screen_1 == 'BEARISH':
-            entry_price = last_candle['low'] - buffer
-            stop_loss = last_candle['high'] + buffer + spread
+            entry_price = last_candle['low'] - spread
+            stop_loss = entry_price + buffer
             return {'side': 'sell_stop', 'entry': entry_price, 'sl': stop_loss}
             
         return None
@@ -540,80 +559,104 @@ class TradTripleScreenBot:
         return round(float(price), digits)
 
     async def execute_trade(self, symbol, trade_setup, trend):
-        """Envía la orden pendiente (Buy Stop / Sell Stop) a MT5"""
+        """Envía las órdenes pendientes (Split) a MT5"""
         side = trade_setup['side']
         entry = trade_setup['entry']
         sl = trade_setup['sl']
         
-        # RR 1:2 -> Take Profit es el doble de la distancia del SL
         distance = abs(entry - sl)
         if side == 'buy_stop':
-            tp = entry + (distance * 2)
+            tp_1 = entry + (distance * 2) # TP 1:2
+            tp_2 = entry + (distance * 3) # TP 1:3
             order_type = mt5.ORDER_TYPE_BUY_STOP
         else:
-            tp = entry - (distance * 2)
+            tp_1 = entry - (distance * 2) # TP 1:2
+            tp_2 = entry - (distance * 3) # TP 1:3
             order_type = mt5.ORDER_TYPE_SELL_STOP
             
-        lot_size = self.calculate_lot_size(symbol, entry, sl)
+        total_lot_size = self.calculate_lot_size(symbol, entry, sl)
         
-        if lot_size <= 0.0:
+        if total_lot_size <= 0.0:
             return None # Trade abortado por el Escudo de Capital
             
-        logger.info(f"[{symbol}] Calculado Lote: {lot_size} | Entry: {entry} | SL: {sl} | TP: {tp}")
+        logger.info(f"[{symbol}] Calculado Lote Total: {total_lot_size} | Entry: {entry:.5f} | SL: {sl:.5f}")
         
         if not MT5_AVAILABLE:
-            logger.warning(f"Simulando ejecución en Mac: {side.upper()} {lot_size} lotes de {symbol}")
+            logger.warning(f"Simulando ejecución en Mac: {side.upper()} {total_lot_size} lotes de {symbol}")
             self.active_trades[symbol] = True # Guardar estado simulado
-            return {'status': 'simulated', 'lot': lot_size, 'tp': tp}
+            return {'status': 'simulated', 'lot': total_lot_size, 'tp': tp_1}
             
-        # Calcular tiempo de expiración (1 hora = 3600 segundos) usando la hora del servidor
+        symbol_info = mt5.symbol_info(symbol)
+        min_lot = symbol_info.volume_min if symbol_info else 0.01
+        step_lot = symbol_info.volume_step if symbol_info else 0.01
+        
+        # Calcular tiempo de expiración (1 hora = 3600 segundos)
         expiration = 0
         tick = mt5.symbol_info_tick(symbol)
         if tick:
             expiration = int(tick.time) + 3600
             
-        # Obtener y normalizar precios exactos
+        # Normalizar precios
         entry_norm = self.normalize_price(symbol, entry)
         sl_norm = self.normalize_price(symbol, sl)
-        tp_norm = self.normalize_price(symbol, tp)
+        tp_1_norm = self.normalize_price(symbol, tp_1)
+        tp_2_norm = self.normalize_price(symbol, tp_2)
         
-        # Validar distancia de seguridad para Buy Stop / Sell Stop
-        if MT5_AVAILABLE:
-            tick = mt5.symbol_info_tick(symbol)
-            if tick:
-                if order_type == mt5.ORDER_TYPE_BUY_STOP and entry_norm <= tick.ask:
-                    logger.warning(f"[{symbol}] Precio de Entry Buy Stop ({entry_norm}) es menor o igual al Ask actual ({tick.ask}). Cancelando orden.")
-                    return None
-                if order_type == mt5.ORDER_TYPE_SELL_STOP and entry_norm >= tick.bid:
-                    logger.warning(f"[{symbol}] Precio de Entry Sell Stop ({entry_norm}) es mayor o igual al Bid actual ({tick.bid}). Cancelando orden.")
-                    return None
-            
-        request = {
-            "action": mt5.TRADE_ACTION_PENDING,
-            "symbol": symbol,
-            "volume": float(lot_size),
-            "type": order_type,
-            "price": entry_norm,
-            "sl": sl_norm,
-            "tp": tp_norm,
-            "deviation": 20,
-            "magic": 777777,
-            "comment": "TripleScreen",
-            "type_time": mt5.ORDER_TIME_SPECIFIED,
-            "expiration": expiration,
-            "type_filling": mt5.ORDER_FILLING_IOC,
-        }
+        # Validar distancia de seguridad para órdenes stop
+        if tick:
+            if order_type == mt5.ORDER_TYPE_BUY_STOP and entry_norm <= tick.ask:
+                logger.warning(f"[{symbol}] Entry Buy Stop ({entry_norm}) <= Ask ({tick.ask}). Cancelando.")
+                return None
+            if order_type == mt5.ORDER_TYPE_SELL_STOP and entry_norm >= tick.bid:
+                logger.warning(f"[{symbol}] Entry Sell Stop ({entry_norm}) >= Bid ({tick.bid}). Cancelando.")
+                return None
+                
+        # SPLIT ORDERS LOGIC (Escalado de Ganancias)
+        # Si podemos dividir el lote sin bajar del mínimo
+        half_lot = round((total_lot_size / 2.0) / step_lot) * step_lot
         
-        result = mt5.order_send(request)
-        if result is None:
-            logger.error(f"Error enviando orden a MT5: order_send devolvió None. Posible desconexión.")
-            return None
+        requests = []
+        if half_lot >= min_lot:
+            lot_a = half_lot
+            lot_b = round((total_lot_size - lot_a) / step_lot) * step_lot
+            logger.info(f"[{symbol}] Dividiendo orden: Lote A (TP 1:2) = {lot_a}, Lote B (TP 1:3) = {lot_b}")
             
-        if result.retcode != mt5.TRADE_RETCODE_DONE:
-            logger.error(f"Error enviando orden a MT5 (TripleScreen): RetCode={result.retcode}, Comment={result.comment}")
-            return None
+            # Orden A
+            req_a = {
+                "action": mt5.TRADE_ACTION_PENDING, "symbol": symbol, "volume": float(lot_a),
+                "type": order_type, "price": entry_norm, "sl": sl_norm, "tp": tp_1_norm,
+                "deviation": 20, "magic": 777777, "comment": "TS_Half_A",
+                "type_time": mt5.ORDER_TIME_SPECIFIED, "expiration": expiration, "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+            # Orden B
+            req_b = {
+                "action": mt5.TRADE_ACTION_PENDING, "symbol": symbol, "volume": float(lot_b),
+                "type": order_type, "price": entry_norm, "sl": sl_norm, "tp": tp_2_norm,
+                "deviation": 20, "magic": 777777, "comment": "TS_Half_B",
+                "type_time": mt5.ORDER_TIME_SPECIFIED, "expiration": expiration, "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+            requests.extend([req_a, req_b])
+        else:
+            logger.info(f"[{symbol}] Lote {total_lot_size} demasiado pequeño para dividir. Enviando orden única con TP 1:2.")
+            req_single = {
+                "action": mt5.TRADE_ACTION_PENDING, "symbol": symbol, "volume": float(total_lot_size),
+                "type": order_type, "price": entry_norm, "sl": sl_norm, "tp": tp_1_norm,
+                "deviation": 20, "magic": 777777, "comment": "TS_Full",
+                "type_time": mt5.ORDER_TIME_SPECIFIED, "expiration": expiration, "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+            requests.append(req_single)
             
-        return {'status': 'executed', 'lot': lot_size, 'tp': tp}
+        success_count = 0
+        for req in requests:
+            result = mt5.order_send(req)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                success_count += 1
+            else:
+                logger.error(f"[{symbol}] Falló envío de orden: {result.comment if result else 'None'}")
+                
+        if success_count > 0:
+            return {'status': 'executed', 'lot': total_lot_size, 'tp': tp_1}
+        return None
 
     async def execute_market_order(self, symbol, direction, sl, tp, lot_size, strategy_name="[MR]"):
         """Envía una orden de mercado para Mean Reversion (Rango)"""

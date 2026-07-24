@@ -845,16 +845,23 @@ class TradTripleScreenBot:
         # Bucle de análisis (se ejecuta cada 15m)
         while True:
             
-            # FILTRO GLOBAL: Máximo 3 operaciones
-            if self.get_total_active_trades() >= 3:
-                logger.info("Límite global de 3 operaciones alcanzado. Pausando escaneo...")
-                await self.sleep_until_next_interval(15)
-                continue
-                
+            active_trades_count = self.get_total_active_trades()
+            
             # -- PRE-ESCANEO Y ALPHA RANKING --
             eligible_symbols = []
             
+            from datetime import timezone
+            server_time = datetime.now(timezone.utc)
+            is_weekend = server_time.weekday() == 5 or (server_time.weekday() == 4 and server_time.hour >= 21) or (server_time.weekday() == 6 and server_time.hour < 21)
+            
             for symbol in self.symbols:
+                # FILTRO GLOBAL: Máximo 3 operaciones
+                if active_trades_count >= 3:
+                    is_crypto = symbol.startswith(("BTC", "ETH", "XRP", "SOL"))
+                    # Si es fin de semana y los cupos están llenos, permitimos que las criptos ignoren el límite 
+                    # porque Forex está congelado de todas formas.
+                    if not (is_weekend and is_crypto):
+                        continue
                 # Filtros Rápidos
                 if self.has_active_trade(symbol):
                     continue

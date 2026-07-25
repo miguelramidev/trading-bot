@@ -88,10 +88,16 @@ class TradTripleScreenBot:
             
         return False
         
-    def get_total_active_trades(self):
-        """Cuenta el total de activos únicos (symbols) que tienen riesgo en la cuenta"""
+    def get_active_trades_by_type(self):
+        """Cuenta los activos únicos con riesgo, separados por Criptos y Tradicionales (Forex/Metales)"""
+        counts = {'crypto': 0, 'traditional': 0}
         if not MT5_AVAILABLE:
-            return len(self.active_trades)
+            for s in self.active_trades.keys():
+                if s.startswith(("BTC", "ETH", "XRP", "SOL", "LTC", "ADA", "DOGE", "DOT", "LINK", "MATIC", "BCH")):
+                    counts['crypto'] += 1
+                else:
+                    counts['traditional'] += 1
+            return counts
             
         risk_symbols = set()
         
@@ -119,10 +125,17 @@ class TradTripleScreenBot:
                     if p.sl > 0 and p.sl <= p.price_open:
                         has_risk = False
                         
+                        
                 if has_risk:
                     risk_symbols.add(p.symbol)
                     
-        return len(risk_symbols)
+        for s in risk_symbols:
+            if s.startswith(("BTC", "ETH", "XRP", "SOL", "LTC", "ADA", "DOGE", "DOT", "LINK", "MATIC", "BCH")):
+                counts['crypto'] += 1
+            else:
+                counts['traditional'] += 1
+                
+        return counts
         
     def is_trading_allowed(self, symbol):
         """Verifica si el horario actual del servidor permite operar (Filtro diario y fin de semana)"""
@@ -844,8 +857,7 @@ class TradTripleScreenBot:
             
         # Bucle de análisis (se ejecuta cada 15m)
         while True:
-            
-            active_trades_count = self.get_total_active_trades()
+            active_counts = self.get_active_trades_by_type()
             
             # -- PRE-ESCANEO Y ALPHA RANKING --
             eligible_symbols = []
@@ -855,13 +867,18 @@ class TradTripleScreenBot:
             is_weekend = server_time.weekday() == 5 or (server_time.weekday() == 4 and server_time.hour >= 21) or (server_time.weekday() == 6 and server_time.hour < 21)
             
             for symbol in self.symbols:
-                # FILTRO GLOBAL: Máximo 3 operaciones
-                if active_trades_count >= 3:
-                    is_crypto = symbol.startswith(("BTC", "ETH", "XRP", "SOL"))
-                    # Si es fin de semana y los cupos están llenos, permitimos que las criptos ignoren el límite 
-                    # porque Forex está congelado de todas formas.
-                    if not (is_weekend and is_crypto):
-                        continue
+                is_crypto = symbol.startswith(("BTC", "ETH", "XRP", "SOL", "LTC", "ADA", "DOGE", "DOT", "LINK", "MATIC", "BCH"))
+                
+                # FILTROS DE CUPO DIVORCIADOS
+                if is_crypto:
+                    if active_counts['crypto'] >= 1:
+                        continue # Límite de criptos lleno
+                else:
+                    if active_counts['traditional'] >= 3:
+                        continue # Límite de Forex lleno
+                        
+                # Si es fin de semana y es Forex, el mercado está cerrado, is_trading_allowed lo filtrará abajo
+                
                 # Filtros Rápidos
                 if self.has_active_trade(symbol):
                     continue
@@ -894,13 +911,16 @@ class TradTripleScreenBot:
                 
             for item in eligible_symbols:
                 symbol = item['symbol']
+                is_crypto = symbol.startswith(("BTC", "ETH", "XRP", "SOL", "LTC", "ADA", "DOGE", "DOT", "LINK", "MATIC", "BCH"))
                 
-                # FILTRO GLOBAL ESTRICTO: Re-verificar límite en caso de haber abierto operaciones en este mismo bucle
-                if self.get_total_active_trades() >= 3:
-                    is_crypto = symbol.startswith(("BTC", "ETH", "XRP", "SOL"))
-                    if not (is_weekend and is_crypto):
-                        logger.info("Límite de 3 operaciones alcanzado durante la ejecución. Deteniendo escaneo actual.")
-                        break
+                # FILTRO ESTRICTO RE-VERIFICACIÓN
+                if is_crypto:
+                    if self.get_active_trades_by_type()['crypto'] >= 1:
+                        continue
+                else:
+                    if self.get_active_trades_by_type()['traditional'] >= 3:
+                        logger.info("Límite de 3 operaciones tradicionales alcanzado. Deteniendo escaneo de Forex.")
+                        break # Rompemos porque si la lista está ordenada, igual el resto de forex fallará
                         
                 # FILTRO DE ANTI-CORRELACIÓN
                 if self.is_group_active(symbol):

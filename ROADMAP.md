@@ -55,6 +55,7 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] **SL Dinámico de Volatilidad:** Implementación de ATR(14) x 2.0 para protección contra cacería de stops institucionales.
 - [x] **Arquitectura de Órdenes Divididas:** Escalado de Take Profit enviando 2 órdenes simultáneas (TP 1:2 y 1:3) y trailing dinámico entre ellas.
 - [x] **Trailing Stop Concurrente (Fast Loop):** Separación asíncrona del escáner (15m) y la gestión de posiciones (30s) para cierres de alta precisión.
+- [x] **Trailing Stop de 3 Fases:** Escalado inteligente de protección (+1R ➔ BE, +2R ➔ +1R, y +2.5R ➔ +2R) para maximizar la retención de ganancias en el tramo final al TP 1:3.
 - [x] **Rotación de Capital (Risk-Free Slots):** Reestructuración del límite global; las posiciones protegidas en Break-Even liberan cupo automáticamente para cazar nuevos activos.
 - [x] **Sistema Alpha Ranking:** Escáner global que califica la fuerza (ADX) de todos los activos y prioriza los más explosivos.
 - [x] **Expansión de Portafolio:** Despliegue seguro sobre 21 activos descorrelacionados (FX, Índices, Metales, Energía y Cripto).

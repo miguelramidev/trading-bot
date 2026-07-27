@@ -217,8 +217,13 @@ class TradTripleScreenBot:
             # Compras (BUY)
             if pos_type == mt5.ORDER_TYPE_BUY:
                 new_sl = sl
+                # Fase 3: Precio alcanza +2.5R -> Mover SL a +2R
+                if current_price >= (open_price + (dist_1r * 2.5)):
+                    target_sl = open_price + (dist_1r * 2.0)
+                    if sl < target_sl:
+                        new_sl = target_sl
                 # Fase 2: Precio alcanza +2R -> Mover SL a +1R
-                if current_price >= (open_price + (dist_1r * 2.0)):
+                elif current_price >= (open_price + (dist_1r * 2.0)):
                     target_sl = open_price + dist_1r
                     if sl < target_sl:
                         new_sl = target_sl
@@ -237,8 +242,10 @@ class TradTripleScreenBot:
                     if result and result.retcode == mt5.TRADE_RETCODE_DONE:
                         logger.info(f"[{symbol}] 🛡️ SL movido a {new_sl} (Trailing Dinámico)")
                         msg = f"🛡️ <b>SL Actualizado ({symbol})</b>\n\nEl mercado avanzó. Nuevo SL: {new_sl:.4f}."
-                        if new_sl == open_price + (tick_size * 2):
+                        if abs(new_sl - open_price) <= (tick_size * 5):
                             msg += "\n(Riesgo Cero - Break Even)"
+                        elif abs(new_sl - open_price) >= (dist_1r * 1.8):
+                            msg += "\n(Ganancia Asegurada de +2R 🔥)"
                         else:
                             msg += "\n(Ganancia Asegurada de +1R)"
                         await notifier.send_message(msg)
@@ -246,8 +253,13 @@ class TradTripleScreenBot:
             # Ventas (SELL)
             elif pos_type == mt5.ORDER_TYPE_SELL:
                 new_sl = sl
+                # Fase 3: Precio alcanza +2.5R -> Mover SL a +2R
+                if current_price <= (open_price - (dist_1r * 2.5)):
+                    target_sl = open_price - (dist_1r * 2.0)
+                    if sl > target_sl:
+                        new_sl = target_sl
                 # Fase 2: Precio alcanza +2R -> Mover SL a +1R
-                if current_price <= (open_price - (dist_1r * 2.0)):
+                elif current_price <= (open_price - (dist_1r * 2.0)):
                     target_sl = open_price - dist_1r
                     if sl > target_sl:
                         new_sl = target_sl
@@ -266,8 +278,10 @@ class TradTripleScreenBot:
                     if result and result.retcode == mt5.TRADE_RETCODE_DONE:
                         logger.info(f"[{symbol}] 🛡️ SL movido a {new_sl} (Trailing Dinámico)")
                         msg = f"🛡️ <b>SL Actualizado ({symbol})</b>\n\nEl mercado avanzó. Nuevo SL: {new_sl:.4f}."
-                        if new_sl == open_price - (tick_size * 2):
+                        if abs(new_sl - open_price) <= (tick_size * 5):
                             msg += "\n(Riesgo Cero - Break Even)"
+                        elif abs(new_sl - open_price) >= (dist_1r * 1.8):
+                            msg += "\n(Ganancia Asegurada de +2R 🔥)"
                         else:
                             msg += "\n(Ganancia Asegurada de +1R)"
                         await notifier.send_message(msg)

@@ -889,11 +889,11 @@ class TradTripleScreenBot:
             
         logger.info(f"[{symbol}] [MR] ¡Toque de extremo en Banda de Bollinger BB(20,2) detectado! Dirección: {direction}")
         
-        # Calcular Riesgo usando ATR Diario para mantener la coherencia matemática del bot
-        df_1d = self.fetch_data(symbol, '1d')
-        if df_1d is None: return
-        df_1d['atr'] = ta.atr(df_1d['high'], df_1d['low'], df_1d['close'], length=14)
-        atr_value = df_1d['atr'].iloc[-1]
+        # Calcular Riesgo usando ATR(14) de 1 Hora (1H) coherente con velas de 1H
+        df_1h['atr'] = ta.atr(df_1h['high'], df_1h['low'], df_1h['close'], length=14)
+        atr_value = df_1h['atr'].iloc[-1] if not pd.isna(df_1h['atr'].iloc[-1]) else 0.0
+        if atr_value <= 0:
+            atr_value = close_price * 0.002
         
         tick = mt5.symbol_info_tick(symbol)
         if not tick: return

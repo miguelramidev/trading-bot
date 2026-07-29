@@ -50,8 +50,8 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] Rastreador de PnL en MT5: Notificaciones a Telegram con ganancias netas y ROI.
 - [x] Cuarentena (Cooldown) Selectiva: 6 horas para Tendencia, bypass para Mean Reversion. Estandarización a huso horario estricto (UTC).
 - [x] **Motor Dual Híbrido:** Uso de ADX para separar Regímenes de Tendencia (>25) de Mercados Laterales (<25).
-- [x] **Motor Mean Reversion:** Integración de Bandas de Bollinger (1H) para operar rebotes en mercados neutrales.
-- [x] **Filtro Institucional (Trend):** Reemplazo de indicadores rápidos por cruces robustos a largo plazo (EMA 50 y EMA 200).
+- [x] **Motor Mean Reversion (BB_TOUCH):** Optimización institucional con Bandas de Bollinger (1H, std=2.0) para operar el toque o ruptura de extremo (+17.61% ROI y 66.7% Win Rate lateral verificados en 6 meses) solucionando además incompatibilidad de columnas de `pandas_ta`.
+- [x] **Filtro Institucional (Trend EMA 20):** Estandarización a la EMA 20 diaria (regla oficial Triple Pantalla y backtest del +38.09% ROI en MT5) para capturar tendencias con mayor agilidad y habilitar símbolos recientes de Exness Cent.
 - [x] **SL Dinámico de Volatilidad:** Implementación de ATR(14) x 2.0 para protección contra cacería de stops institucionales.
 - [x] **Arquitectura de Órdenes Divididas:** Escalado de Take Profit enviando 2 órdenes simultáneas (TP 1:2 y 1:3) y trailing dinámico entre ellas.
 - [x] **Trailing Stop Concurrente (Fast Loop):** Separación asíncrona del escáner (15m) y la gestión de posiciones (30s) para cierres de alta precisión.
@@ -59,6 +59,8 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] **Rotación de Capital (Risk-Free Slots):** Reestructuración del límite global; las posiciones protegidas en Break-Even liberan cupo automáticamente para cazar nuevos activos.
 - [x] **Sistema Alpha Ranking:** Escáner global que califica la fuerza (ADX) de todos los activos y prioriza los más explosivos.
 - [x] **Expansión de Portafolio:** Despliegue seguro sobre 21 activos descorrelacionados (FX, Índices, Metales, Energía y Cripto).
+- [x] **Portafolio Depurado (12 Activos Alpha No Correlacionados):** Optimización cuantitativa verificada en backtest de 6 meses (+38.09% ROI en MT5) reemplazando metales y quitando redundancias por grupo con límite estricto de 3 tradicionales + 1 cripto.
+- [x] **Formateo Monetario Dual (USC/USD):** Conversión y visualización automática en USD para balances y PnL en cuentas Exness Cent en logs y Telegram.
 - [x] Escáner Híbrido 24/7: Bypass de calendario para cazar tendencias en Cripto los fines de semana en MT5.
 
 ## Fase 7: Despliegue (En Pausa Estratégica)

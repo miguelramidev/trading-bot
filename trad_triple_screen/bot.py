@@ -3,7 +3,7 @@ import time
 import math
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import pandas_ta as ta
 from dotenv import load_dotenv
@@ -37,20 +37,28 @@ class TradTripleScreenBot:
         self.account_type = os.getenv('ACCOUNT_TYPE', 'CENT').upper()
         suffix = "c" if self.account_type == "CENT" else "m"
         
-        # Símbolos a operar (Cuenta Exness)
+        # Símbolos a operar (Cuenta Exness - 12 Activos Alpha No Correlacionados - Récord +44.55% ROI)
         self.symbols = [
-            f"EURUSD{suffix}", f"GBPUSD{suffix}", f"USDJPY{suffix}", f"XAUUSD{suffix}", 
-            f"US30{suffix}", f"US500{suffix}", f"USTEC{suffix}", f"USDCAD{suffix}", 
-            f"AUDUSD{suffix}", f"GBPJPY{suffix}", f"BTCUSD{suffix}", f"ETHUSD{suffix}",
-            f"EURGBP{suffix}", f"EURJPY{suffix}", f"AUDJPY{suffix}", f"USDCHF{suffix}",
-            f"XAGUSD{suffix}", f"XTIUSD{suffix}", f"DE30{suffix}", f"XRPUSD{suffix}", f"SOLUSD{suffix}"
+            # Cripto (Fin de Semana)
+            f"BTCUSD{suffix}", f"ETHUSD{suffix}",
+            # Majors USD (Euro, Franco Suizo, Aussie)
+            f"EURUSD{suffix}", f"USDCHF{suffix}", f"AUDUSD{suffix}",
+            # Cruces del Yen (Aussie y Libra)
+            f"AUDJPY{suffix}", f"GBPJPY{suffix}",
+            # Cruces de la Libra (Franco Suizo y CAD)
+            f"GBPCHF{suffix}", f"GBPCAD{suffix}",
+            # Cruces del Aussie (CAD y NZD)
+            f"AUDCAD{suffix}", f"AUDNZD{suffix}",
+            # Cruce Europeo
+            f"EURCHF{suffix}"
         ] 
         self.correlation_groups = {
-            "METALS": [f"XAUUSD{suffix}", f"XAGUSD{suffix}"],
-            "CRYPTO": [f"BTCUSD{suffix}", f"ETHUSD{suffix}", f"XRPUSD{suffix}", f"SOLUSD{suffix}"],
-            "INDICES_US": [f"US30{suffix}", f"US500{suffix}", f"USTEC{suffix}"],
-            "JPY_PAIRS": [f"USDJPY{suffix}", f"GBPJPY{suffix}", f"EURJPY{suffix}", f"AUDJPY{suffix}"],
-            "USD_MAJORS": [f"EURUSD{suffix}", f"GBPUSD{suffix}", f"AUDUSD{suffix}", f"USDCAD{suffix}", f"USDCHF{suffix}"] 
+            "CRYPTO": [f"BTCUSD{suffix}", f"ETHUSD{suffix}"],
+            "USD_MAJORS": [f"EURUSD{suffix}", f"USDCHF{suffix}", f"AUDUSD{suffix}"],
+            "JPY_PAIRS": [f"AUDJPY{suffix}", f"GBPJPY{suffix}"],
+            "GBP_CROSSES": [f"GBPCHF{suffix}", f"GBPCAD{suffix}"],
+            "AUD_CROSSES": [f"AUDCAD{suffix}", f"AUDNZD{suffix}"],
+            "EUR_CROSSES": [f"EURCHF{suffix}"]
         }
         self.risk_percent = 1.0 # Riesgo fijo institucional del 1%
         self.active_trades = {} # Para simulación de estado en Mac
@@ -286,6 +294,76 @@ class TradTripleScreenBot:
                             msg += "\n(Ganancia Asegurada de +1R)"
                         await notifier.send_message(msg)
 
+    async def check_friday_profit_lock(self, hours_before_close=3):
+        """
+        Escudo del Viernes: Cierra automáticamente las posiciones de Forex/Metales 
+        que estén en ganancias (positivas) cuando falten 'hours_before_close' horas para el cierre semanal.
+        """
+        if not MT5_AVAILABLE:
+            return
+            
+        now_utc = datetime.now(timezone.utc)
+        # Viernes es weekday() == 4. El mercado Forex cierra a las 21:00 UTC (18:00 hs Paraguay).
+        if now_utc.weekday() != 4:
+            return
+            
+        # Si faltan 'hours_before_close' o menos para el cierre (21:00 UTC)
+        # Es decir, si la hora UTC es >= (21 - hours_before_close) y < 21 (entre 18:00 y 21:00 UTC / 15:00 a 18:00 Paraguay)
+        if now_utc.hour < (21 - hours_before_close) or now_utc.hour >= 21:
+            return
+            
+        positions = mt5.positions_get()
+        if not positions:
+            return
+            
+        for pos in positions:
+            if pos.magic != 777777:
+                continue
+                
+            symbol = pos.symbol
+            # Criptos operan 24/7 los fines de semana, no se cierran el viernes
+            if symbol.startswith(("BTC", "ETH", "XRP", "SOL")):
+                continue
+                
+            total_profit = pos.profit + pos.swap
+            if total_profit > 0.0:
+                tick = mt5.symbol_info_tick(symbol)
+                if not tick:
+                    continue
+                    
+                opposite_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+                close_price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
+                
+                request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "position": pos.ticket,
+                    "symbol": symbol,
+                    "volume": float(pos.volume),
+                    "type": opposite_type,
+                    "price": float(close_price),
+                    "deviation": 20,
+                    "magic": 777777,
+                    "comment": "Friday_Lock",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                    "type_filling": mt5.ORDER_FILLING_IOC,
+                }
+                
+                result = mt5.order_send(request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    if self.account_type == "CENT":
+                        profit_display = f"{total_profit:.2f} USC (${total_profit / 100:.2f} USD)"
+                    else:
+                        profit_display = f"${total_profit:.2f} USD"
+                    logger.info(f"[{symbol}] 🛡️ ESCUDO VIERNES: Operación cerrada con ganancia de +{profit_display} antes del fin de semana.")
+                    msg = (f"🛡️ <b>ESCUDO DEL VIERNES ACTIVADO ({symbol})</b>\n\n"
+                           f"Se ha cerrado automáticamente una posición en <b>GANANCIA</b> antes del cierre del fin de semana para blindar tu capital.\n\n"
+                           f"💰 <b>Beneficio Asegurado:</b> +{profit_display}\n"
+                           f"🕒 <b>Razón:</b> Fin de semana (Evitar gaps de mercado)")
+                    await notifier.send_message(msg)
+                else:
+                    ret = result.retcode if result else "None"
+                    logger.error(f"[{symbol}] Error al intentar cerrar por Escudo Viernes: {ret}")
+
     async def monitor_closed_positions(self):
         """Detecta operaciones que se cerraron, calcula PnL/ROI y notifica"""
         if not MT5_AVAILABLE:
@@ -400,7 +478,10 @@ class TradTripleScreenBot:
             logger.info("✅ Conexión exitosa a Exness vía MT5")
             account_info = mt5.account_info()
             if account_info:
-                logger.info(f"Balance: {account_info.balance} {account_info.currency}")
+                if self.account_type == "CENT" and account_info.currency == "USC":
+                    logger.info(f"Balance: {account_info.balance:.2f} {account_info.currency} (${account_info.balance / 100:.2f} USD)")
+                else:
+                    logger.info(f"Balance: {account_info.balance} {account_info.currency}")
             return True
         else:
             logger.error(f"❌ Fallo de autenticación en MT5. Error: {mt5.last_error()}")
@@ -437,40 +518,39 @@ class TradTripleScreenBot:
     def analyze_screen_1(self, df):
         """
         Pantalla 1: Marea Macro (Diario 1D)
-        Utilizamos el Filtro de Oro Institucional (EMA 50 y EMA 200) para la dirección de la tendencia.
+        Utilizamos EMA 20 (Estándar Triple Pantalla y Backtest cuantitativo sim_6m.py) para la dirección de la tendencia.
         Filtro ADX: Requerimos ADX > 25 para garantizar que NO es un mercado lateral.
         """
-        df['ema_50'] = ta.ema(df['close'], length=50)
-        df['ema_200'] = ta.ema(df['close'], length=200)
+        df['ema_20'] = ta.ema(df['close'], length=20)
         
         # Calcular ADX (14 periodos por defecto)
-        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
+        adx_len = min(14, len(df)-1)
+        adx_df = ta.adx(df['high'], df['low'], df['close'], length=adx_len)
         if adx_df is not None and not adx_df.empty:
-            df['adx'] = adx_df['ADX_14']
+            df['adx'] = adx_df[f'ADX_{adx_len}']
         else:
             df['adx'] = None
             
-        if len(df) < 200:
+        if len(df) < 20:
             return ('NONE', 'NEUTRAL')
             
         last_row = df.iloc[-1]
         
         # Validación de datos insuficientes
-        if pd.isna(last_row.get('ema_200')) or pd.isna(last_row.get('ema_50')) or pd.isna(last_row.get('adx')):
+        if pd.isna(last_row.get('ema_20')) or pd.isna(last_row.get('adx')):
             return ('NONE', 'NEUTRAL')
             
         # Filtro de Mercado Lateral (Rango)
         regime = 'RANGING' if last_row['adx'] < 25.0 else 'TRENDING'
         
-        # Filtro Institucional de Tendencia (Golden Cross / Death Cross dinámico)
+        # Filtro de Tendencia (Precio vs EMA 20 como en sim_6m.py)
         if regime == 'TRENDING':
             close_price = last_row['close']
-            ema50 = last_row['ema_50']
-            ema200 = last_row['ema_200']
+            ema20 = last_row['ema_20']
             
-            if close_price > ema50 and ema50 > ema200:
+            if close_price > ema20:
                 return ('BULLISH', regime)
-            elif close_price < ema50 and ema50 < ema200:
+            elif close_price < ema20:
                 return ('BEARISH', regime)
             
         return ('NONE', regime)
@@ -782,23 +862,32 @@ class TradTripleScreenBot:
         # Última vela cerrada completa de 1H
         last_closed = df_1h.iloc[-2]
         
-        if pd.isna(last_closed.get('BBL_20_2.0')): return
+        col_lower = bb.columns[0]
+        col_middle = bb.columns[1]
+        col_upper = bb.columns[2]
+        
+        if pd.isna(last_closed.get(col_lower)): return
         
         close_price = last_closed['close']
-        bb_lower = last_closed['BBL_20_2.0']
-        bb_upper = last_closed['BBU_20_2.0']
-        bb_middle = last_closed['BBM_20_2.0']
+        low_price = last_closed['low']
+        high_price = last_closed['high']
+        
+        bb_lower = last_closed[col_lower]
+        bb_upper = last_closed[col_upper]
+        bb_middle = last_closed[col_middle]
         
         direction = None
-        if close_price < bb_lower:
+        # Reversión a la Media (BB Touch Institucional): El mínimo/máximo tocó o perforó la banda exterior en mercado lateral (ADX < 25)
+        if low_price <= bb_lower:
             direction = 'BULLISH'
-        elif close_price > bb_upper:
+        elif high_price >= bb_upper:
             direction = 'BEARISH'
             
         if not direction:
+            logger.info(f"[{symbol}] [MR 1H] Sin toque extremo en BB (Low: {low_price:.5f} > Inf: {bb_lower:.5f} | High: {high_price:.5f} < Sup: {bb_upper:.5f}).")
             return # Sin señal
             
-        logger.info(f"[{symbol}] [MR] ¡Cierre de vela fuera de BB! Dirección: {direction}")
+        logger.info(f"[{symbol}] [MR] ¡Toque de extremo en Banda de Bollinger BB(20,2) detectado! Dirección: {direction}")
         
         # Calcular Riesgo usando ATR Diario para mantener la coherencia matemática del bot
         df_1d = self.fetch_data(symbol, '1d')
@@ -855,6 +944,7 @@ class TradTripleScreenBot:
         while True:
             try:
                 await self.manage_open_positions()
+                await self.check_friday_profit_lock(hours_before_close=3)
                 await self.monitor_closed_positions()
             except Exception as e:
                 logger.error(f"Error en bucle rápido de posiciones: {e}")

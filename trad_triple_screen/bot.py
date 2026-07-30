@@ -543,10 +543,14 @@ class TradTripleScreenBot:
             
         # Clasificación del régimen de mercado
         adx_value = last_row['adx']
+        adx_prev = df['adx'].iloc[-2]
+        
         if adx_value < 25.0:
             regime = 'RANGING'
         elif adx_value >= 45.0:
             regime = 'EXHAUSTED'
+        elif adx_value < adx_prev:
+            regime = 'DYING_TREND'
         else:
             regime = 'TRENDING'
         
@@ -1061,6 +1065,10 @@ class TradTripleScreenBot:
                 
                 if regime == 'EXHAUSTED':
                     logger.info(f"[{symbol}] Tendencia AGOTADA / Clímax (ADX >= 45.0). Ignorando para evitar giro en contra.")
+                    continue
+
+                if regime == 'DYING_TREND':
+                    logger.info(f"[{symbol}] Tendencia MURIÉNDOSE / Desacelerando (ADX en caída). Ignorando para evitar operar fin de tendencia.")
                     continue
 
                 if regime == 'RANGING':

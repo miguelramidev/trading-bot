@@ -37,33 +37,37 @@ class TradTripleScreenBot:
         self.account_type = os.getenv('ACCOUNT_TYPE', 'CENT').upper()
         suffix = "c" if self.account_type == "CENT" else "m"
         
-        # Símbolos a operar: Universo Completo Exness Cent (USDc / USCc) verificado y organizado por grupos
+        # Símbolos a operar: Literalmente TODOS los símbolos operables del universo Exness Cent (32 en total)
         self.symbols = [
-            # Metales
+            # Metales (2)
             f"XAUUSD{suffix}", f"XAGUSD{suffix}",
-            # Cripto Cent
-            f"BTCUSD{suffix}", f"ETHUSD{suffix}",
-            # 7 Divisas Mayores (USD Majors)
+            # Cripto Cent (4)
+            f"BTCUSD{suffix}", f"BTCUSDT{suffix}", f"ETHUSD{suffix}", f"ETHBTC{suffix}",
+            # USD Majors (8)
             f"EURUSD{suffix}", f"GBPUSD{suffix}", f"AUDUSD{suffix}", f"NZDUSD{suffix}",
-            f"USDJPY{suffix}", f"USDCHF{suffix}", f"USDCAD{suffix}",
-            # Cruces del Yen
-            f"EURJPY{suffix}", f"GBPJPY{suffix}", f"AUDJPY{suffix}", f"CADJPY{suffix}",
-            # Cruces de la Libra
-            f"GBPCHF{suffix}", f"GBPCAD{suffix}", f"EURGBP{suffix}",
-            # Cruces del Aussie y NZD
-            f"AUDNZD{suffix}", f"AUDCAD{suffix}",
-            # Cruces Europeos
-            f"EURCHF{suffix}", f"EURCAD{suffix}"
+            f"USDJPY{suffix}", f"USDCHF{suffix}", f"USDCAD{suffix}", f"USDHKD{suffix}",
+            # Cruces Europeos (6)
+            f"EURAUD{suffix}", f"EURCAD{suffix}", f"EURCHF{suffix}", f"EURGBP{suffix}",
+            f"EURJPY{suffix}", f"EURNZD{suffix}",
+            # Cruces de la Libra (5)
+            f"GBPAUD{suffix}", f"GBPCAD{suffix}", f"GBPCHF{suffix}", f"GBPJPY{suffix}",
+            f"GBPNZD{suffix}",
+            # Cruces del Yen (4)
+            f"AUDJPY{suffix}", f"CADJPY{suffix}", f"CHFJPY{suffix}", f"NZDJPY{suffix}",
+            # Cruces de Materias Primas / Minor (3)
+            f"AUDCAD{suffix}", f"AUDCHF{suffix}", f"AUDNZD{suffix}"
         ] 
         self.correlation_groups = {
             "METALS": [f"XAUUSD{suffix}", f"XAGUSD{suffix}"],
-            "CRYPTO": [f"BTCUSD{suffix}", f"ETHUSD{suffix}"],
+            "CRYPTO": [f"BTCUSD{suffix}", f"BTCUSDT{suffix}", f"ETHUSD{suffix}", f"ETHBTC{suffix}"],
             "USD_MAJORS": [f"EURUSD{suffix}", f"GBPUSD{suffix}", f"AUDUSD{suffix}", f"NZDUSD{suffix}",
-                           f"USDJPY{suffix}", f"USDCHF{suffix}", f"USDCAD{suffix}"],
-            "JPY_PAIRS": [f"EURJPY{suffix}", f"GBPJPY{suffix}", f"AUDJPY{suffix}", f"CADJPY{suffix}"],
-            "GBP_CROSSES": [f"GBPCHF{suffix}", f"GBPCAD{suffix}", f"EURGBP{suffix}"],
-            "AUD_NZD_CROSSES": [f"AUDNZD{suffix}", f"AUDCAD{suffix}"],
-            "EUR_CROSSES": [f"EURCHF{suffix}", f"EURCAD{suffix}"]
+                           f"USDJPY{suffix}", f"USDCHF{suffix}", f"USDCAD{suffix}", f"USDHKD{suffix}"],
+            "EUR_CROSSES": [f"EURAUD{suffix}", f"EURCAD{suffix}", f"EURCHF{suffix}", f"EURGBP{suffix}",
+                            f"EURJPY{suffix}", f"EURNZD{suffix}"],
+            "GBP_CROSSES": [f"GBPAUD{suffix}", f"GBPCAD{suffix}", f"GBPCHF{suffix}", f"GBPJPY{suffix}",
+                            f"GBPNZD{suffix}"],
+            "JPY_PAIRS": [f"AUDJPY{suffix}", f"CADJPY{suffix}", f"CHFJPY{suffix}", f"NZDJPY{suffix}"],
+            "COMMODITY_CROSSES": [f"AUDCAD{suffix}", f"AUDCHF{suffix}", f"AUDNZD{suffix}"]
         }
         self.risk_percent = 1.0 # Riesgo fijo institucional del 1%
         self.active_trades = {} # Para simulación de estado en Mac

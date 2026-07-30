@@ -27,6 +27,7 @@ class TelegramNotifier:
             }
             response = requests.post(self.base_url, json=payload, timeout=10)
             response.raise_for_status()
+            logger.info("📲 Notificación enviada a Telegram exitosamente.")
         except Exception as e:
             logger.error(f"Failed to send Telegram message: {e}")
 

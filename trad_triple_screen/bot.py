@@ -522,6 +522,7 @@ class TradTripleScreenBot:
         Filtro ADX: Requerimos ADX > 25 para garantizar que NO es un mercado lateral.
         """
         df['ema_20'] = ta.ema(df['close'], length=20)
+        df['ema_50'] = ta.ema(df['close'], length=50)
         
         # Calcular ADX (14 periodos por defecto)
         adx_len = min(14, len(df)-1)
@@ -531,26 +532,33 @@ class TradTripleScreenBot:
         else:
             df['adx'] = None
             
-        if len(df) < 20:
+        if len(df) < 50:
             return ('NONE', 'NEUTRAL')
             
         last_row = df.iloc[-1]
         
         # Validación de datos insuficientes
-        if pd.isna(last_row.get('ema_20')) or pd.isna(last_row.get('adx')):
+        if pd.isna(last_row.get('ema_20')) or pd.isna(last_row.get('ema_50')) or pd.isna(last_row.get('adx')):
             return ('NONE', 'NEUTRAL')
             
-        # Filtro de Mercado Lateral (Rango)
-        regime = 'RANGING' if last_row['adx'] < 25.0 else 'TRENDING'
+        # Clasificación del régimen de mercado
+        adx_value = last_row['adx']
+        if adx_value < 25.0:
+            regime = 'RANGING'
+        elif adx_value >= 45.0:
+            regime = 'EXHAUSTED'
+        else:
+            regime = 'TRENDING'
         
-        # Filtro de Tendencia (Precio vs EMA 20 como en sim_6m.py)
+        # Filtro de Tendencia con Alineación (EMA 20 + EMA 50)
         if regime == 'TRENDING':
             close_price = last_row['close']
             ema20 = last_row['ema_20']
+            ema50 = last_row['ema_50']
             
-            if close_price > ema20:
+            if close_price > ema20 and ema20 > ema50:
                 return ('BULLISH', regime)
-            elif close_price < ema20:
+            elif close_price < ema20 and ema20 < ema50:
                 return ('BEARISH', regime)
             
         return ('NONE', regime)
@@ -1051,9 +1059,12 @@ class TradTripleScreenBot:
                         logger.info(f"[{symbol}] En Cuarentena de Tendencia (faltan {6 - hours_elapsed:.1f}h). Ignorando.")
                         continue
                 
+                if regime == 'EXHAUSTED':
+                    logger.info(f"[{symbol}] Tendencia AGOTADA / Clímax (ADX >= 45.0). Ignorando para evitar giro en contra.")
+                    continue
+
                 if regime == 'RANGING':
-                    logger.info(f"[{symbol}] Régimen LATERAL (ADX < 25). Ejecutando Motor Mean Reversion...")
-                    await self.analyze_mean_reversion(symbol)
+                    logger.info(f"[{symbol}] Régimen LATERAL (ADX < 25.0). Ignorando (Estrategias laterales desactivadas).")
                     continue
                     
                 if trend == 'NONE':

@@ -72,3 +72,14 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [ ] Exploración de alternativas a MetaApi para Linux o mantener ejecución en laptop (Windows/Mac).
 - [ ] Uso de gestores de procesos (ej. `pm2` o Windows Task Scheduler) para ejecución en segundo plano.
 - [ ] *Hito Demostrable:* Sistema totalmente autónomo corriendo ininterrumpidamente en la nube.
+
+## Fase 8: Arquitectura Multi-Pilar Institucional (Experimento Demo en Paralelo)
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Configuración de Entorno Demo Multi-Cuenta:** Crear y configurar 2 cuentas Demo separadas en Exness (o 2 sub-cuentas Cent) para probar en paralelo la arquitectura institucional multi-estrategia sin interferencia entre márgenes ni órdenes.
+  - **Cuenta Demo 1 (Pilar 1 - Trend Following):** Ejecutar `bot.py` (Triple Pantalla Elder) con el universo completo de activos Exness Cent (`USDc`) y los filtros institucionales anti-agotamiento, alineación EMA 20/50 y rechazo de mercados laterales (`RANGING`).
+  - **Cuenta Demo 2 (Pilar 2 - Arbitraje Estadístico de Pares / *Pairs Trading*):** Diseñar e implementar un segundo bot cuantitativo en Python (`bot_arbitrage.py`) especializado en mercados laterales y cointegración de pares correlacionados (ej. `AUDUSDc` vs `NZDUSDc`, o `EURUSDc` vs `GBPUSDc`, o `XAUUSDc` vs `XAGUSDc`).
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Ejecución Concurrente Aislada (Modo Multi-Instancia):**
+  - Configurar dos instalaciones independientes de MetaTrader 5 en la PC local (ej. carpeta `Exness MT5 - Trend` y carpeta `Exness MT5 - Arb` o usar el flag `/portable`) para que ambas terminales puedan estar abiertas simultáneamente y ser supervisadas visualmente.
+  - Crear archivos de variables de entorno separados (`.env.trend` y `.env.arb`) con las credenciales de cada cuenta Demo para conectar cada script al terminal que le corresponde.
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Medición Cuantitativa Combinada (All-Weather Portfolio):**
+  - Rastrear el PnL y el Drawdown de ambas cuentas en paralelo durante al menos 2 semanas.
+  - Verificar que cuando el Pilar 1 (Tendencia) se encuentra en periodos de cuarentena o lateralidad, el Pilar 2 (Arbitraje) genera retornos para suavizar la curva de capital global y reducir el Drawdown máximo del portafolio a la mitad.

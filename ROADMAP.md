@@ -72,13 +72,14 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [ ] Uso de gestores de procesos (ej. `pm2` o Windows Task Scheduler) para ejecución en segundo plano.
 - [ ] *Hito Demostrable:* Sistema totalmente autónomo corriendo ininterrumpidamente en la nube.
 
-## Fase 8: Arquitectura Multi-Pilar Institucional (Experimento Demo en Paralelo)
-- [ ] **[PENDIENTE AGENTE LOCAL MT5] Configuración de Entorno Demo Multi-Cuenta:** Crear y configurar 2 cuentas Demo separadas en Exness (o 2 sub-cuentas Cent) para probar en paralelo la arquitectura institucional multi-estrategia sin interferencia entre márgenes ni órdenes.
-  - **Cuenta Demo 1 (Pilar 1 - Trend Following):** Ejecutar `bot.py` (Triple Pantalla Elder) con el universo completo de activos Exness Cent (`USDc`) y los filtros institucionales anti-agotamiento, alineación EMA 20/50 y rechazo de mercados laterales (`RANGING`).
-  - **Cuenta Demo 2 (Pilar 2 - Arbitraje Estadístico de Pares / *Pairs Trading*):** Diseñar e implementar un segundo bot cuantitativo en Python (`bot_arbitrage.py`) especializado en mercados laterales y cointegración de pares correlacionados (ej. `AUDUSDc` vs `NZDUSDc`, o `EURUSDc` vs `GBPUSDc`, o `XAUUSDc` vs `XAGUSDc`).
-- [ ] **[PENDIENTE AGENTE LOCAL MT5] Ejecución Concurrente Aislada (Modo Multi-Instancia):**
-  - Configurar dos instalaciones independientes de MetaTrader 5 en la PC local (ej. carpeta `Exness MT5 - Trend` y carpeta `Exness MT5 - Arb` o usar el flag `/portable`) para que ambas terminales puedan estar abiertas simultáneamente y ser supervisadas visualmente.
-  - Crear archivos de variables de entorno separados (`.env.trend` y `.env.arb`) con las credenciales de cada cuenta Demo para conectar cada script al terminal que le corresponde.
+## Fase 8: Arquitectura Multi-Pilar Institucional (3 Terminales MT5 en Paralelo)
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Configuración de Entorno Multi-Cuenta (3 Terminales MT5):** Crear y configurar 3 cuentas/sub-cuentas separadas en Exness para probar en paralelo la arquitectura institucional multi-estrategia sin interferencia de margen ni choque de órdenes:
+  - **Terminal MT5 #1 (Pilar 1 - Trend Following):** Ejecutar `bot.py` (Triple Pantalla Elder) con los **12 Activos Alpha Depurados** y filtros institucionales anti-agotamiento, alineación EMA 20/50 y rechazo de mercados laterales (`RANGING`).
+  - **Terminal MT5 #2 (Pilar 2A - Arbitraje Estadístico de Pares / *Pairs Trading*):** Diseñar e implementar un bot cuantitativo (`bot_arbitrage.py`) especializado en cointegración y divergencia de z-score entre pares hermanados (ej. `AUDUSDc` vs `NZDUSDc`, o `XAUUSDc` vs `XAGUSDc`).
+  - **Terminal MT5 #3 (Pilar 2B - Reversión a la Media en Rango / Lateralidad):** Ejecutar una segunda instancia o estrategia de mercados laterales especializada en activos puramente de rango (ej. `EURGBPc`, `EURCHFc`) o cestas alternativas descorrelacionadas para maximizar la cosecha en consolidación sin sobrecargar el margen del Terminal #2.
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Ejecución Concurrente Aislada (Modo 3 Instancias):**
+  - Configurar tres instalaciones independientes de MetaTrader 5 en la PC local (o usando el flag `/portable` en carpetas separadas: `Exness MT5 - Trend`, `Exness MT5 - Arb1`, `Exness MT5 - Arb2`).
+  - Crear archivos de configuración de variables de entorno separados (`.env.trend`, `.env.arb1`, `.env.arb2`) asignados a cada terminal.
 - [ ] **[PENDIENTE AGENTE LOCAL MT5] Medición Cuantitativa Combinada (All-Weather Portfolio):**
-  - Rastrear el PnL y el Drawdown de ambas cuentas en paralelo durante al menos 2 semanas.
-  - Verificar que cuando el Pilar 1 (Tendencia) se encuentra en periodos de cuarentena o lateralidad, el Pilar 2 (Arbitraje) genera retornos para suavizar la curva de capital global y reducir el Drawdown máximo del portafolio a la mitad.
+  - Rastrear el PnL y el Drawdown de las 3 cuentas en paralelo durante al menos 2 semanas.
+  - Verificar que cuando el Pilar 1 (Tendencia) se encuentra en periodos de cuarentena o lateralidad, los Pilares 2A y 2B compensan la rentabilidad del portafolio, suavizando la curva y reduciendo el Drawdown global a la mitad.

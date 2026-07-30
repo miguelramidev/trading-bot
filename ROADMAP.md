@@ -63,6 +63,9 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [x] **Portafolio Depurado (12 Activos Alpha No Correlacionados):** Optimización cuantitativa verificada en backtest de 6 meses (+38.09% ROI en MT5) reemplazando metales y quitando redundancias por grupo con límite estricto de 3 tradicionales + 1 cripto.
 - [x] **Formateo Monetario Dual (USC/USD):** Conversión y visualización automática en USD para balances y PnL en cuentas Exness Cent en logs y Telegram.
 - [x] Escáner Híbrido 24/7: Bypass de calendario para cazar tendencias en Cripto los fines de semana en MT5.
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Expansión Completa del Universo Exness Cent (`USDc`):** Verificar en la terminal MT5 conectada e incorporar en `bot.py` la lista completa de símbolos reales disponibles para la cuenta Exness Cent (`USDc` / `USCc`).
+  - **Símbolos a incorporar:** Metales (`XAUUSDc`, `XAGUSDc`), las 7 Divisas Mayores (`EURUSDc`, `GBPUSDc`, `AUDUSDc`, `NZDUSDc`, `USDJPYc`, `USDCHFc`, `USDCADc`), Cruces del Yen (`EURJPYc`, `GBPJPYc`, `AUDJPYc`, `CADJPYc`), Cruces Europeos/GBP (`GBPCHFc`, `GBPCADc`, `EURCHFc`, `EURGBPc`, `EURCADc`) y Cripto Cent (`BTCUSDc`, `ETHUSDc`, `LTCUSDc`, `BCHUSDc`).
+  - **Regla de Correlación:** Organizar obligatoriamente estos símbolos en `self.correlation_groups` (grupos `METALS`, `CRYPTO`, `USD_MAJORS`, `JPY_PAIRS`, `GBP_CROSSES`, `AUD_NZD_CROSSES`, `EUR_CROSSES`) para impedir duplicidad direccional en el portafolio y respetar el límite global estricto de **3 operaciones tradicionales concurrentes**.
 
 ## Fase 7: Despliegue (En Pausa Estratégica)
 - [ ] **Pausa Estratégica:** El despliegue en un servidor VPS de pago (AWS Lightsail) queda pospuesto. El bot debe demostrar primero consistencia y rentabilidad mensual ejecutándose localmente para "pagarse a sí mismo".

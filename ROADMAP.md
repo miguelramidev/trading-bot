@@ -75,11 +75,12 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 ## Fase 8: Arquitectura Multi-Pilar Institucional (3 Terminales MT5 en Paralelo)
 - [ ] **[PENDIENTE AGENTE LOCAL MT5] Configuración de Entorno Multi-Cuenta (3 Terminales MT5):** Crear y configurar 3 cuentas/sub-cuentas separadas en Exness para probar en paralelo la arquitectura institucional multi-estrategia sin interferencia de margen ni choque de órdenes:
   - **Terminal MT5 #1 (Pilar 1 - Trend Following):** Ejecutar `bot.py` (Triple Pantalla Elder) con los **12 Activos Alpha Depurados** y filtros institucionales anti-agotamiento, alineación EMA 20/50 y rechazo de mercados laterales (`RANGING`).
-  - **Terminal MT5 #2 (Pilar 2A - Arbitraje Estadístico de Pares / *Pairs Trading*):** Diseñar e implementar un bot cuantitativo (`bot_arbitrage.py`) especializado en cointegración y divergencia de z-score entre pares hermanados (ej. `AUDUSDc` vs `NZDUSDc`, o `XAUUSDc` vs `XAGUSDc`).
-  - **Terminal MT5 #3 (Pilar 2B - Reversión a la Media en Rango / Lateralidad):** Ejecutar una segunda instancia o estrategia de mercados laterales especializada en activos puramente de rango (ej. `EURGBPc`, `EURCHFc`) o cestas alternativas descorrelacionadas para maximizar la cosecha en consolidación sin sobrecargar el margen del Terminal #2.
+  - **Terminal MT5 #2 y #3 (Pilar 2 - Arbitraje Estadístico de Pares / *Pairs Trading*):** Dedicar **dos terminales independientes** exclusivamente a la estrategia de **Pairs Trading (Arbitraje Estadístico / Cointegración)** para diversificar cestas sin colisión de margen ni interferencia entre órdenes:
+    - **Terminal MT5 #2 (Pairs Trading - Cesta Forex):** Operar el diferencial (z-score) entre divisas hermanadas y cointegradas (ej. `AUDUSDc` vs `NZDUSDc`, `EURUSDc` vs `GBPUSDc`).
+    - **Terminal MT5 #3 (Pairs Trading - Cesta Metales & Cripto / Cestas Secundarias):** Operar ratios y diferenciales de materias primas y cripto (ej. ratio Oro/Plata `XAUUSDc` vs `XAGUSDc`, o `BTCUSDc` vs `ETHUSDc`) en una cuenta independiente.
 - [ ] **[PENDIENTE AGENTE LOCAL MT5] Ejecución Concurrente Aislada (Modo 3 Instancias):**
   - Configurar tres instalaciones independientes de MetaTrader 5 en la PC local (o usando el flag `/portable` en carpetas separadas: `Exness MT5 - Trend`, `Exness MT5 - Arb1`, `Exness MT5 - Arb2`).
   - Crear archivos de configuración de variables de entorno separados (`.env.trend`, `.env.arb1`, `.env.arb2`) asignados a cada terminal.
 - [ ] **[PENDIENTE AGENTE LOCAL MT5] Medición Cuantitativa Combinada (All-Weather Portfolio):**
   - Rastrear el PnL y el Drawdown de las 3 cuentas en paralelo durante al menos 2 semanas.
-  - Verificar que cuando el Pilar 1 (Tendencia) se encuentra en periodos de cuarentena o lateralidad, los Pilares 2A y 2B compensan la rentabilidad del portafolio, suavizando la curva y reduciendo el Drawdown global a la mitad.
+  - Verificar que cuando el Pilar 1 (Tendencia) se encuentra en periodos de cuarentena o lateralidad, las 2 terminales de **Pairs Trading** compensan la rentabilidad del portafolio, suavizando la curva y reduciendo el Drawdown global a la mitad.

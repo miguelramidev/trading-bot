@@ -16,7 +16,8 @@ load_dotenv()
 
 from trad_triple_screen.bot import TradTripleScreenBot
 from arbitrage.bot_arbitrage import PairsTradingBot
-from trad_triple_screen.notifier import notifier
+from shared.notifier import TelegramNotifier
+notifier = TelegramNotifier()
 
 logging.basicConfig(
     level=logging.INFO,

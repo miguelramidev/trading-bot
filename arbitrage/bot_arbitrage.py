@@ -21,7 +21,8 @@ except ImportError:
     MT5_AVAILABLE = False
 
 from dotenv import load_dotenv
-from trad_triple_screen.notifier import notifier
+from shared.notifier import TelegramNotifier
+notifier = TelegramNotifier()
 
 # Cargar configuración (acepta .env.arb si existe, sino .env estándar)
 if os.path.exists('.env.arb'):

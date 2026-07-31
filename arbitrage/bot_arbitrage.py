@@ -290,6 +290,7 @@ class PairsTradingBot:
 
     async def check_and_trade(self):
         """Ciclo principal de monitoreo de cointegración y reversión a la media"""
+        basket_status_list = []
         for basket in self.baskets:
             leg_a = basket['leg_a']
             leg_b = basket['leg_b']
@@ -301,6 +302,16 @@ class PairsTradingBot:
                 continue
                 
             z = metrics['zscore']
+            
+            # Recopilar métricas para el resumen de consola
+            basket_status_list.append({
+                "name": basket['name'],
+                "zscore": z,
+                "entry_z": basket['entry_z'],
+                "slope": metrics['slope'],
+                "max_slope": basket['max_slope'],
+                "open": open_pos is not None
+            })
             
             if open_pos is None:
                 # 1. BUSCAR OPORTUNIDAD DE ENTRADA (Si no hay posición de esta cesta abierta)
@@ -350,6 +361,32 @@ class PairsTradingBot:
                                f"🧮 <b>Z-Score Final:</b> {z:+.2f}\n"
                                f"💰 <b>PnL Cesta:</b> ${total_pnl:.2f} USD")
                         await notifier.send_message(msg)
+
+        # PANORAMA DE ARBITRAJE - TOP 3 MEJORES HERMANOS
+        if basket_status_list:
+            basket_status_list.sort(key=lambda x: abs(x['zscore']), reverse=True)
+            top3 = basket_status_list[:3]
+            print("\n==========================================================================================")
+            print("   [PANORAMA ARBITRAJE - TOP 3 HERMANOS MAS CERCANOS A DIVERGENCIA / SEPARACION]         ")
+            print("==========================================================================================")
+            print(f"{'#':<3} | {'Cesta (Hermanos)':<34} | {'Z-Score / Meta':<16} | {'Pendiente':<14} | {'Estado':<15}")
+            print("-" * 90)
+            for idx, item in enumerate(top3, 1):
+                z_str = f"{item['zscore']:+.2f} / {item['entry_z']}"
+                slope_str = f"{item['slope']:.2f}/{item['max_slope']:.1f}"
+                pct_div = min(int((abs(item['zscore']) / item['entry_z']) * 100), 999)
+                if item['open']:
+                    status = "[ACTIVO EN MT5]"
+                elif abs(item['zscore']) >= item['entry_z']:
+                    status = "[DISPARO]"
+                elif pct_div >= 70:
+                    status = f"ALERTA ({pct_div}% div)"
+                elif pct_div >= 40:
+                    status = f"SEGURO ({pct_div}% div)"
+                else:
+                    status = f"ESTABLE ({pct_div}%)"
+                print(f"{idx:<3} | {item['name']:<34} | {z_str:<16} | {slope_str:<14} | {status:<15}")
+            print("==========================================================================================\n")
 
     async def run(self):
         logger.info("=========================================================")

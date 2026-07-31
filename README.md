@@ -20,9 +20,12 @@ Este es un monorepo diseñado para operar de manera autónoma en mercados tradic
 
 Para iniciar **ambos motores en paralelo** en tu terminal MetaTrader 5 con un solo comando:
 
-```bash
-# Iniciar el Orquestador All-Weather (Requiere Windows con MT5)
-PYTHONPATH=. python main.py
+```powershell
+# En Windows (PowerShell / CMD), simplemente ejecuta:
+python main.py
+
+# O si necesitas definir el path explícitamente en PowerShell:
+$env:PYTHONPATH="."; python main.py
 ```
 
 *Nota: También puedes ejecutar un módulo de forma independiente con `python -m trad_triple_screen.bot` o `python -m arbitrage.bot_arbitrage` si lo necesitas.*

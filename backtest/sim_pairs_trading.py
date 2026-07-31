@@ -14,37 +14,49 @@ from datetime import datetime
 # Canastas Oficiales de Pairs Trading (Activos Cointegrados Exness Cent USDc)
 PAIRS_BASKETS = [
     {
-        "name": "Oceánicas (AUD vs NZD)",
-        "leg_a": "AUDUSDc",
-        "leg_b": "NZDUSDc",
-        "window": 100,      # Ventana móvil en H1 (~4 días) para media y desviación
-        "entry_z": 2.0,     # Entrada cuando |Z-Score| > 2.0
-        "exit_z": 0.2,      # Salida cuando |Z-Score| revierte al equilibrio (< 0.2)
-        "stop_z": 3.0,      # Stop Loss estricto si |Z-Score| > 3.0 (ruptura de cointegración)
-        "max_bars": 96,     # Time-Stop: Máximo 96 horas (4 días) en el mercado
-        "max_slope": 1.2    # Filtro de pendiente estricto en Oceanía para evitar tendencias
+        "name": "Oceánicas USD (AUD vs NZD)",
+        "leg_a": "AUDUSDc", "leg_b": "NZDUSDc",
+        "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.2
     },
     {
-        "name": "Europeas (EUR vs GBP)",
-        "leg_a": "EURUSDc",
-        "leg_b": "GBPUSDc",
-        "window": 100,
-        "entry_z": 2.0,
-        "exit_z": 0.2,
-        "stop_z": 3.2,      # Mayor tolerancia en stop por altísima cointegración de fondo
-        "max_bars": 168,    # Time-Stop: 168 horas (1 semana entera para converger)
-        "max_slope": 10.0   # Sin restricción de pendiente por cointegración estructural de EUR/GBP
+        "name": "Europeas USD (EUR vs GBP)",
+        "leg_a": "EURUSDc", "leg_b": "GBPUSDc",
+        "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 168, "max_slope": 10.0
     },
     {
         "name": "Metales Preciosos (Oro vs Plata)",
-        "leg_a": "XAUUSDc",
-        "leg_b": "XAGUSDc",
-        "window": 120,      # Ventana para metales
-        "entry_z": 2.1,     # Entrada en divergencia un poco más exigente
-        "exit_z": 0.2,
-        "stop_z": 3.0,
-        "max_bars": 96,
-        "max_slope": 1.0    # Filtro anti-tendencia muy estricto en metales
+        "leg_a": "XAUUSDc", "leg_b": "XAGUSDc",
+        "window": 120, "entry_z": 2.1, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.0
+    },
+    {
+        "name": "Europeas JPY (EUR/JPY vs GBP/JPY)",
+        "leg_a": "EURJPYc", "leg_b": "GBPJPYc",
+        "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 120, "max_slope": 8.0
+    },
+    {
+        "name": "Oceánicas JPY (AUD/JPY vs NZD/JPY)",
+        "leg_a": "AUDJPYc", "leg_b": "NZDJPYc",
+        "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.5
+    },
+    {
+        "name": "Europeas AUD (EUR/AUD vs GBP/AUD)",
+        "leg_a": "EURAUDc", "leg_b": "GBPAUDc",
+        "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+    },
+    {
+        "name": "Europeas CAD (EUR/CAD vs GBP/CAD)",
+        "leg_a": "EURCADc", "leg_b": "GBPCADc",
+        "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+    },
+    {
+        "name": "Europeas CHF (EUR/CHF vs GBP/CHF)",
+        "leg_a": "EURCHFc", "leg_b": "GBPCHFc",
+        "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+    },
+    {
+        "name": "Reyes Cripto (BTC vs ETH)",
+        "leg_a": "BTCUSDc", "leg_b": "ETHUSDc",
+        "window": 120, "entry_z": 2.2, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 96, "max_slope": 2.0
     }
 ]
 

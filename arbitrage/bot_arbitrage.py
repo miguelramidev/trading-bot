@@ -45,40 +45,52 @@ class PairsTradingBot:
         self.risk_percent = float(os.getenv('RISK_PERCENT', '1.0'))
         self.check_interval = int(os.getenv('CHECK_INTERVAL_SECONDS', '300')) # 5 minutos
         
-        # Cestas Oficiales de Pairs Trading Cointegradas (verificadas por estudio de 6 meses)
+        # Cestas Oficiales de Pairs Trading Cointegradas (9 cestas verificadas por backtest en Exness)
         self.baskets = [
             {
-                "name": "Oceánicas (AUD vs NZD)",
-                "leg_a": f"AUDUSD{suffix}",
-                "leg_b": f"NZDUSD{suffix}",
-                "window": 100,
-                "entry_z": 2.0,
-                "exit_z": 0.2,
-                "stop_z": 3.0,
-                "max_bars": 96,
-                "max_slope": 1.2
+                "name": "Oceánicas USD (AUD vs NZD)",
+                "leg_a": f"AUDUSD{suffix}", "leg_b": f"NZDUSD{suffix}",
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.2
             },
             {
-                "name": "Europeas (EUR vs GBP)",
-                "leg_a": f"EURUSD{suffix}",
-                "leg_b": f"GBPUSD{suffix}",
-                "window": 100,
-                "entry_z": 2.0,
-                "exit_z": 0.2,
-                "stop_z": 3.2,
-                "max_bars": 168,
-                "max_slope": 10.0
+                "name": "Europeas USD (EUR vs GBP)",
+                "leg_a": f"EURUSD{suffix}", "leg_b": f"GBPUSD{suffix}",
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 168, "max_slope": 10.0
+            },
+            {
+                "name": "Oceánicas JPY (AUD/JPY vs NZD/JPY)",
+                "leg_a": f"AUDJPY{suffix}", "leg_b": f"NZDJPY{suffix}",
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.5
+            },
+            {
+                "name": "Europeas JPY (EUR/JPY vs GBP/JPY)",
+                "leg_a": f"EURJPY{suffix}", "leg_b": f"GBPJPY{suffix}",
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 120, "max_slope": 8.0
+            },
+            {
+                "name": "Europeas AUD (EUR/AUD vs GBP/AUD)",
+                "leg_a": f"EURAUD{suffix}", "leg_b": f"GBPAUD{suffix}",
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+            },
+            {
+                "name": "Europeas CHF (EUR/CHF vs GBP/CHF)",
+                "leg_a": f"EURCHF{suffix}", "leg_b": f"GBPCHF{suffix}",
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+            },
+            {
+                "name": "Europeas CAD (EUR/CAD vs GBP/CAD)",
+                "leg_a": f"EURCAD{suffix}", "leg_b": f"GBPCAD{suffix}",
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
             },
             {
                 "name": "Metales Preciosos (Oro vs Plata)",
-                "leg_a": f"XAUUSD{suffix}",
-                "leg_b": f"XAGUSD{suffix}",
-                "window": 120,
-                "entry_z": 2.1,
-                "exit_z": 0.2,
-                "stop_z": 3.0,
-                "max_bars": 96,
-                "max_slope": 1.0
+                "leg_a": f"XAUUSD{suffix}", "leg_b": f"XAGUSD{suffix}",
+                "window": 120, "entry_z": 2.1, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.0
+            },
+            {
+                "name": "Reyes Cripto (BTC vs ETH)",
+                "leg_a": f"BTCUSD{suffix}", "leg_b": f"ETHUSD{suffix}",
+                "window": 120, "entry_z": 2.2, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 96, "max_slope": 2.0
             }
         ]
 

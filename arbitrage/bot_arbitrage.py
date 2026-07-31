@@ -51,12 +51,12 @@ class PairsTradingBot:
             {
                 "name": "Oceánicas USD (AUD vs NZD)",
                 "leg_a": f"AUDUSD{suffix}", "leg_b": f"NZDUSD{suffix}",
-                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.2
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.5
             },
             {
                 "name": "Europeas USD (EUR vs GBP)",
                 "leg_a": f"EURUSD{suffix}", "leg_b": f"GBPUSD{suffix}",
-                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 168, "max_slope": 10.0
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 168, "max_slope": 1.5
             },
             {
                 "name": "Oceánicas JPY (AUD/JPY vs NZD/JPY)",
@@ -66,32 +66,32 @@ class PairsTradingBot:
             {
                 "name": "Europeas JPY (EUR/JPY vs GBP/JPY)",
                 "leg_a": f"EURJPY{suffix}", "leg_b": f"GBPJPY{suffix}",
-                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 120, "max_slope": 8.0
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 120, "max_slope": 1.5
             },
             {
                 "name": "Europeas AUD (EUR/AUD vs GBP/AUD)",
                 "leg_a": f"EURAUD{suffix}", "leg_b": f"GBPAUD{suffix}",
-                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 1.5
             },
             {
                 "name": "Europeas CHF (EUR/CHF vs GBP/CHF)",
                 "leg_a": f"EURCHF{suffix}", "leg_b": f"GBPCHF{suffix}",
-                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 1.5
             },
             {
                 "name": "Europeas CAD (EUR/CAD vs GBP/CAD)",
                 "leg_a": f"EURCAD{suffix}", "leg_b": f"GBPCAD{suffix}",
-                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 6.0
+                "window": 100, "entry_z": 2.0, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 120, "max_slope": 1.5
             },
             {
                 "name": "Metales Preciosos (Oro vs Plata)",
                 "leg_a": f"XAUUSD{suffix}", "leg_b": f"XAGUSD{suffix}",
-                "window": 120, "entry_z": 2.1, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.0
+                "window": 120, "entry_z": 2.1, "exit_z": 0.2, "stop_z": 3.0, "max_bars": 96, "max_slope": 1.5
             },
             {
                 "name": "Reyes Cripto (BTC vs ETH)",
                 "leg_a": f"BTCUSD{suffix}", "leg_b": f"ETHUSD{suffix}",
-                "window": 120, "entry_z": 2.2, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 96, "max_slope": 2.0
+                "window": 120, "entry_z": 2.2, "exit_z": 0.2, "stop_z": 3.2, "max_bars": 96, "max_slope": 1.5
             }
         ]
 
@@ -149,8 +149,8 @@ class PairsTradingBot:
         df['std'] = df['spread'].rolling(window=window).std()
         df['zscore'] = (df['spread'] - df['mean']) / df['std']
         
-        # Pendiente de la media en 24 horas para detectar lateralidad vs tendencia secular
-        df['mean_slope'] = (df['mean'] - df['mean'].shift(24)) * 1000.0
+        # Pendiente de la media en 24 horas normalizada por desviación estándar (sigma/24h)
+        df['mean_slope'] = (df['mean'] - df['mean'].shift(24)) / df['std']
         
         last = df.iloc[-1]
         return {
@@ -377,8 +377,10 @@ class PairsTradingBot:
                 pct_div = min(int((abs(item['zscore']) / item['entry_z']) * 100), 999)
                 if item['open']:
                     status = "[ACTIVO EN MT5]"
+                elif item['slope'] > item['max_slope']:
+                    status = "[BLOQUEO TEND.]"
                 elif abs(item['zscore']) >= item['entry_z']:
-                    status = "[DISPARO]"
+                    status = "[DISPARO ENVIADO]"
                 elif pct_div >= 70:
                     status = f"ALERTA ({pct_div}% div)"
                 elif pct_div >= 40:

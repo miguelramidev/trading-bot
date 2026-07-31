@@ -85,15 +85,19 @@ class TradTripleScreenBot:
         if not MT5_AVAILABLE:
             return self.active_trades.get(symbol, False)
             
-        # Revisar posiciones abiertas (trades activos)
+        # Revisar posiciones abiertas (trades activos) del motor tendencial
         positions = mt5.positions_get(symbol=symbol)
-        if positions is not None and len(positions) > 0:
-            return True
+        if positions is not None:
+            for p in positions:
+                if getattr(p, 'magic', 0) == 777777:
+                    return True
             
-        # Revisar órdenes pendientes (limit / stop orders)
+        # Revisar órdenes pendientes (limit / stop orders) del motor tendencial
         orders = mt5.orders_get(symbol=symbol)
-        if orders is not None and len(orders) > 0:
-            return True
+        if orders is not None:
+            for o in orders:
+                if getattr(o, 'magic', 0) == 777777:
+                    return True
             
         return False
         
@@ -114,12 +118,15 @@ class TradTripleScreenBot:
         orders = mt5.orders_get()
         if orders:
             for o in orders:
-                risk_symbols.add(o.symbol)
+                if getattr(o, 'magic', 0) == 777777:
+                    risk_symbols.add(o.symbol)
                 
         # 2. Posiciones abiertas (solo tienen riesgo si el SL está en pérdida)
         positions = mt5.positions_get()
         if positions:
             for p in positions:
+                if getattr(p, 'magic', 0) != 777777:
+                    continue
                 # Si el símbolo ya está en risk_symbols, no hace falta revisar
                 if p.symbol in risk_symbols:
                     continue

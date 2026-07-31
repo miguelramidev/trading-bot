@@ -72,13 +72,14 @@ Este documento divide el desarrollo del Trading Bot en fases demostrables para f
 - [ ] Uso de gestores de procesos (ej. `pm2` o Windows Task Scheduler) para ejecución en segundo plano.
 - [ ] *Hito Demostrable:* Sistema totalmente autónomo corriendo ininterrumpidamente en la nube.
 
-## Fase 8: Arquitectura Multi-Pilar Institucional (2 Terminales MT5 en Paralelo)
-- [ ] **[PENDIENTE AGENTE LOCAL MT5] Configuración de Entorno Dual-Cuenta (2 Terminales MT5):** Crear y configurar 2 cuentas/sub-cuentas separadas en Exness para probar en paralelo la arquitectura institucional multi-estrategia sin interferencia de margen ni choque de órdenes:
-  - **Terminal MT5 #1 (Pilar 1 - Trend Following):** Ejecutar `bot.py` (Triple Pantalla Elder) con los **12 Activos Alpha Depurados** y filtros institucionales anti-agotamiento, alineación EMA 20/50 y rechazo de mercados laterales (`RANGING`).
-  - **Terminal MT5 #2 (Pilar 2 - Arbitraje Estadístico de Pares / *Pairs Trading*):** Ejecutar el motor cuantitativo `bot_arbitrage.py` en una terminal independiente para operar el diferencial (*Z-Score*) de todas las cestas cointegradas del portafolio (ej. `AUDUSDc` vs `NZDUSDc`, `EURUSDc` vs `GBPUSDc`, y ratio Oro/Plata `XAUUSDc` vs `XAGUSDc`).
-- [ ] **[PENDIENTE AGENTE LOCAL MT5] Ejecución Concurrente Aislada (Modo 2 Instancias):**
-  - Configurar dos instalaciones independientes de MetaTrader 5 en la PC local (o usando el flag `/portable` en carpetas separadas: `Exness MT5 - Trend` y `Exness MT5 - Arb`).
-  - Crear archivos de configuración de variables de entorno separados (`.env.trend` y `.env.arb`) asignados a cada terminal.
+## Fase 8: Arquitectura Multi-Pilar Institucional (Experimento Demo en Paralelo)
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Configuración de Entorno Multi-Estrategia (1 o 2 Terminales MT5):** Probar en paralelo la arquitectura institucional multi-pilar sin interferencia de órdenes:
+  - **Pilar 1 (Trend Following - `bot.py`):** Ejecutar con los **12 Activos Alpha Depurados** (`BTCUSDc`, `ETHUSDc`, `EURUSDc`, `USDCHFc`, `AUDUSDc`, `AUDJPYc`, `GBPJPYc`, `GBPCHFc`, `GBPCADc`, `AUDCADc`, `AUDNZDc`, `EURCHFc`) usando `magic=777777` y filtros institucionales anti-agotamiento, alineación EMA 20/50 y rechazo de mercados laterales (`RANGING`).
+  - **Pilar 2 (Arbitraje Estadístico de Pares / *Pairs Trading* - `bot_arbitrage.py`):** Ejecutar con un motor cuantitativo en Python para operar el diferencial (*Z-Score*) de las cestas cointegradas y laterales del portafolio (ej. `AUDUSDc` vs `NZDUSDc`, `EURUSDc` vs `GBPUSDc`, y ratio Oro/Plata `XAUUSDc` vs `XAGUSDc`) usando `magic=888888`.
+- [ ] **[PENDIENTE AGENTE LOCAL MT5] Ejecución Concurrente Aislada:**
+  - **Opción A (Recomendada - 1 Sola Terminal):** Ejecutar ambos bots (`bot.py` y `bot_arbitrage.py`) en la misma y única terminal MT5 conectada a una sola cuenta, diferenciando las estrategias mediante **Magic Numbers duales** (`magic=777777` para Tendencia y `magic=888888` para Arbitraje). Esto permite que cada algoritmo administre sus órdenes en total aislamiento sin duplicar recursos del sistema.
+  - **Opción B (Multi-Cuenta / Visual):** Configurar dos instalaciones independientes de MetaTrader 5 en la PC local (usando dos carpetas distintas o el flag `/portable`: `Exness MT5 - Trend` y `Exness MT5 - Arb`) conectadas a cuentas separadas con `.env.trend` y `.env.arb`.
 - [ ] **[PENDIENTE AGENTE LOCAL MT5] Medición Cuantitativa Combinada (All-Weather Portfolio):**
-  - Rastrear el PnL y el Drawdown de ambas cuentas en paralelo durante al menos 2 semanas.
+  - Rastrear el PnL y el Drawdown en paralelo durante al menos 2 semanas.
   - Verificar que cuando el Pilar 1 (Tendencia) se encuentra en periodos de cuarentena o lateralidad, el Pilar 2 (*Pairs Trading*) compensa la rentabilidad del portafolio, suavizando la curva y reduciendo el Drawdown global a la mitad.
+

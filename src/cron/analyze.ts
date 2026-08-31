@@ -85,13 +85,20 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
   const strategy = new PullbackStrategy();
   const htf = strategy.getHigherTimeframe(timeframe);
 
-  const message = `🔔 <b>SEÑAL SPOT GANADORA (${timeframe})</b> 🔔\n\n` +
+  const isLong = signal.direction === "LONG";
+  const emoji = isLong ? "🟢" : "🔴";
+  const filterMsg = isLong ? "Tendencia Alcista (Sobre EMA 200)" : "Tendencia Bajista (Bajo EMA 200)";
+  const strategyMsg = isLong ? "Soporte Institucional Múltiple" : "Resistencia Institucional Múltiple";
+
+  const message = `🔔 <b>SEÑAL FUTUROS 1x (${timeframe})</b> 🔔\n\n` +
     `🪙 <b>Par:</b> ${signal.symbol}\n` +
-    `📈 <b>Filtro:</b> Tendencia Alcista (Sobre EMA 200)\n` +
-    `📊 <b>Estrategia:</b> Soporte Institucional Múltiple (Zona de ${htf})\n` +
-    `💵 <b>Precio Actual:</b> ${signal.currentPrice.toFixed(4)} (-${signal.distancePct.toFixed(2)}% hasta entrada)\n\n` +
+    `🧭 <b>Dirección:</b> ${emoji} <b>${signal.direction}</b>\n` +
+    `📈 <b>Filtro:</b> ${filterMsg}\n` +
+    `📊 <b>Estrategia:</b> ${strategyMsg} (Zona de ${htf})\n` +
+    `💵 <b>Precio Actual:</b> ${signal.currentPrice.toFixed(4)} (${signal.distancePct.toFixed(2)}% hasta entrada)\n` +
+    `💰 <b>Min Notional (Binance):</b> ~$${Math.ceil(signal.minNotional)} USDT\n\n` +
     `📝 <b>PLAN DE TRADING (Ratio 1:3)</b>\n` +
-    `🛒 <b>Compra Limit:</b> ${signal.entry.toFixed(4)}\n` +
+    `🛒 <b>Orden Limit:</b> ${signal.entry.toFixed(4)}\n` +
     `🛑 <b>Stop Loss:</b> ${signal.stopLoss.toFixed(4)}\n` +
     `🎯 <b>Take Profit:</b> ${signal.takeProfit.toFixed(4)}\n\n` +
     `🛡️ <b>Gestión Activa:</b> Mueve tu Stop Loss a precio de Entrada (Breakeven) cuando el precio alcance <b>${signal.breakevenTarget.toFixed(4)}</b>\n\n` +

@@ -27,3 +27,4 @@
 * [ ] **Notificaciones con Gráficas:** Añadir generación de una imagen o enlace de TradingView al mensaje de Telegram.
 * [x] **Cálculo Dinámico del Stop Loss (ATR):** En lugar de un SL fijo del 1.5%, utilizar el indicador de volatilidad ATR para darle "respiración" a la moneda según su volatilidad natural.
 * [x] **Gestión Activa del Trade:** Una vez enviada la señal de compra, sugerir al usuario el punto exacto de "Breakeven" para asegurar ganancias.
+* [x] **Migración a Futuros 1x (SMC Long/Short):** Adaptación bidireccional del motor para operar "Swing Lows" en tendencia alcista y "Swing Highs" en tendencia bajista, con integración de márgenes mínimos (`minNotional`) e inclusión de Blue Chips (BTC/ETH).

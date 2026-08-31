@@ -11,6 +11,8 @@ type Candle = {
 
 export type Signal = {
   symbol: string;
+  direction: "LONG" | "SHORT";
+  minNotional: number;
   supportLevel: number;
   currentPrice: number;
   entry: number;
@@ -41,7 +43,7 @@ export class PullbackStrategy {
     return "1d"; // default fallback
   }
 
-  analyze(ltfCandles: Candle[], htfCandles: Candle[], fetcher: DataFetcher): Omit<Signal, "symbol"> | null {
+  analyze(ltfCandles: Candle[], htfCandles: Candle[], fetcher: DataFetcher): Omit<Signal, "symbol" | "minNotional"> | null {
     if (!ltfCandles || ltfCandles.length < this.emaPeriod) return null;
     if (!htfCandles || htfCandles.length < 10) return null;
 
@@ -54,92 +56,110 @@ export class PullbackStrategy {
     const currentEMA = emaArray[emaArray.length - 1];
     const currentATR = atrArray[atrArray.length - 1];
 
-    // Si el precio actual está por debajo de la EMA 200, estamos en tendencia bajista -> Descartamos la moneda
-    if (currentPrice < currentEMA) {
-      return null;
-    }
+    const isLong = currentPrice > currentEMA;
 
-    // 2. DETECCIÓN DE ZONAS DE SOPORTE INSTITUCIONAL (en gráfica mayor HTF)
-    // Encontramos los Swing Lows de la HTF (excluyendo la vela actual que se está formando)
-    const swingLows: number[] = [];
+    // 2. DETECCIÓN DE ZONAS INSTITUCIONALES (en gráfica mayor HTF)
+    const swingPoints: number[] = [];
     for (let i = 1; i < htfCandles.length - 2; i++) {
-      if (htfCandles[i].low < htfCandles[i - 1].low && htfCandles[i].low < htfCandles[i + 1].low) {
-        swingLows.push(htfCandles[i].low);
+      if (isLong) {
+        // Swing Lows
+        if (htfCandles[i].low < htfCandles[i - 1].low && htfCandles[i].low < htfCandles[i + 1].low) {
+          swingPoints.push(htfCandles[i].low);
+        }
+      } else {
+        // Swing Highs
+        if (htfCandles[i].high > htfCandles[i - 1].high && htfCandles[i].high > htfCandles[i + 1].high) {
+          swingPoints.push(htfCandles[i].high);
+        }
       }
     }
 
-    if (swingLows.length === 0) return null;
+    if (swingPoints.length === 0) return null;
 
     // Agrupamiento (Clustering) - Buscamos confluencia de al menos 2 toques en un rango de 1.5%
-    let bestSupportZone: number | null = null;
+    let bestZone: number | null = null;
     let maxTouches = 0;
 
-    for (let i = 0; i < swingLows.length; i++) {
-      const coreLevel = swingLows[i];
+    for (let i = 0; i < swingPoints.length; i++) {
+      const coreLevel = swingPoints[i];
       let touches = 1;
-      let lowestInCluster = coreLevel;
+      let extremeInCluster = coreLevel;
 
-      for (let j = 0; j < swingLows.length; j++) {
+      for (let j = 0; j < swingPoints.length; j++) {
         if (i === j) continue;
-        const compareLevel = swingLows[j];
+        const compareLevel = swingPoints[j];
         
-        // Si el otro swing low está a menos de 1.5% de distancia del coreLevel
         const distance = Math.abs(coreLevel - compareLevel) / coreLevel;
         if (distance <= 0.015) {
           touches++;
-          if (compareLevel < lowestInCluster) {
-            lowestInCluster = compareLevel;
+          if (isLong && compareLevel < extremeInCluster) {
+            extremeInCluster = compareLevel;
+          } else if (!isLong && compareLevel > extremeInCluster) {
+            extremeInCluster = compareLevel;
           }
         }
       }
 
       if (touches >= 2 && touches >= maxTouches) {
-        // Encontramos una zona con 2 o más toques.
-        // Guardamos el punto más bajo de este clúster como nuestro soporte seguro.
-        bestSupportZone = lowestInCluster;
+        bestZone = extremeInCluster;
         maxTouches = touches;
       }
     }
 
-    if (!bestSupportZone) return null; // No hay zonas de confluencia fuertes
+    if (!bestZone) return null; // No hay zonas de confluencia fuertes
 
-    const supportLevel = bestSupportZone;
+    const level = bestZone;
 
     // 3. CÁLCULO DE ENTRADA Y RIESGO
-    // Validamos que el precio actual esté por encima del soporte (aún no ha roto)
-    if (currentPrice <= supportLevel) return null;
+    let distanceToZone = 0;
+    let entryPrice = 0;
+    let stopLoss = 0;
+    let takeProfit = 0;
+    let breakevenTarget = 0;
+    let riskPerCoin = 0;
 
-    const distanceToSupport = (currentPrice - supportLevel) / supportLevel;
+    if (isLong) {
+      if (currentPrice <= level) return null;
+      distanceToZone = (currentPrice - level) / level;
+      if (distanceToZone > this.maxDistancePercent) return null;
 
-    // Si estamos demasiado lejos del soporte, la entrada no es inminente
-    if (distanceToSupport > this.maxDistancePercent) return null;
+      entryPrice = level * 1.001; // 0.1% buffer de entrada
+      stopLoss = entryPrice - (currentATR * this.atrMultiplier);
+      if (stopLoss <= 0) return null;
 
-    const entryPrice = supportLevel * 1.001; // 0.1% buffer de entrada
-    const stopLoss = entryPrice - (currentATR * this.atrMultiplier);
-    
-    // Si por alguna razón el ATR es extremadamente volátil y genera SL negativo
-    if (stopLoss <= 0) return null;
+      riskPerCoin = entryPrice - stopLoss;
+      takeProfit = entryPrice + (riskPerCoin * this.rrRatio);
+      breakevenTarget = entryPrice + (riskPerCoin * 1.05);
+    } else {
+      if (currentPrice >= level) return null;
+      distanceToZone = (level - currentPrice) / level;
+      if (distanceToZone > this.maxDistancePercent) return null;
 
-    const riskPerCoin = entryPrice - stopLoss;
-    const takeProfit = entryPrice + (riskPerCoin * this.rrRatio);
+      entryPrice = level * 0.999; // 0.1% buffer por debajo
+      stopLoss = entryPrice + (currentATR * this.atrMultiplier);
+      
+      riskPerCoin = stopLoss - entryPrice;
+      if (riskPerCoin <= 0) return null; 
 
-    // Breakeven target: Ratio 1:1 + 5% del riesgo extra para comisiones de Binance
-    const breakevenTarget = entryPrice + (riskPerCoin * 1.05);
+      takeProfit = entryPrice - (riskPerCoin * this.rrRatio);
+      breakevenTarget = entryPrice - (riskPerCoin * 1.05);
+    }
 
     // Score: Premiamos las monedas que están más cerca del precio de entrada
     // y damos un bonus por la cantidad de toques que tuvo la zona en la HTF.
-    const distanceScore = this.maxDistancePercent - distanceToSupport;
+    const distanceScore = this.maxDistancePercent - distanceToZone;
     const touchBonus = maxTouches * 0.01; 
     const score = distanceScore + touchBonus;
 
     return {
-      supportLevel,
+      direction: isLong ? "LONG" : "SHORT",
+      supportLevel: level,
       currentPrice,
       entry: entryPrice,
       stopLoss,
       takeProfit,
       breakevenTarget,
-      distancePct: distanceToSupport * 100,
+      distancePct: distanceToZone * 100,
       score,
     };
   }
@@ -154,7 +174,7 @@ export class PullbackStrategy {
       const ltfCandles = await fetcher.fetchOhlcv(symbol, timeframe, 200);
       if (!ltfCandles) continue;
 
-      // Descargamos velas de la temporalidad mayor para zonas de soporte
+      // Descargamos velas de la temporalidad mayor para zonas de soporte/resistencia
       const htfCandles = await fetcher.fetchOhlcv(symbol, higherTimeframe, 200);
       if (!htfCandles) continue;
 
@@ -162,7 +182,8 @@ export class PullbackStrategy {
       
       if (signal && signal.score > bestScore) {
         bestScore = signal.score;
-        bestSignal = { symbol, ...signal };
+        const minNotional = await fetcher.getMinNotional(symbol);
+        bestSignal = { symbol, minNotional, ...signal };
       }
     }
 

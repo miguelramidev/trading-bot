@@ -3,25 +3,29 @@ import ccxt from "ccxt";
 export class DataFetcher {
   private exchange: ccxt.binance;
   private excludedCoins = [
-    "BTC/USDT", "ETH/USDT", "BNB/USDT", 
     "USDC/USDT", "FDUSD/USDT", "TUSD/USDT", "BUSD/USDT", "DAI/USDT", "USDP/USDT", "EUR/USDT"
   ];
 
   constructor() {
     this.exchange = new ccxt.binance({
       enableRateLimit: true,
+      options: { defaultType: 'future' },
     });
   }
 
   async getTop100Pairs(): Promise<string[]> {
     try {
+      await this.exchange.loadMarkets();
       const tickers = await this.exchange.fetchTickers();
       const usdtPairs: { symbol: string; quoteVolume: number }[] = [];
 
       for (const [symbol, ticker] of Object.entries(tickers)) {
-        if (symbol.endsWith("/USDT") && !this.excludedCoins.includes(symbol)) {
+        const market = this.exchange.markets[symbol];
+        
+        // Filtrar solo contratos perpetuos lineales de USDT
+        if (market && market.linear && market.quote === 'USDT' && market.active !== false && !this.excludedCoins.includes(symbol)) {
           
-          const base = symbol.split("/")[0];
+          const base = market.base;
           
           // Filtrar monedas fiat, stablecoins y tokens apalancados dinámicamente
           if (
@@ -70,6 +74,19 @@ export class DataFetcher {
     } catch (error) {
       console.error(`Error fetching OHLCV for ${symbol}:`, error);
       return null;
+    }
+  }
+
+  async getMinNotional(symbol: string): Promise<number> {
+    try {
+      await this.exchange.loadMarkets();
+      const market = this.exchange.markets[symbol];
+      if (market && market.limits && market.limits.cost && market.limits.cost.min !== undefined) {
+        return market.limits.cost.min;
+      }
+      return 5; // Fallback común en Binance
+    } catch (e) {
+      return 5;
     }
   }
 

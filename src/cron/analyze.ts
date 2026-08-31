@@ -128,7 +128,8 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
   if (timeframe === "1h") timeStopStr = "5 días";
   else if (timeframe === "4h") timeStopStr = "14 días";
 
-  const message = `🔔 <b>SEÑAL FUTUROS 1x (${timeframe})</b> 🔔\n\n` +
+    const binanceSymbol = signal.symbol.replace("/", "").replace(":USDT", "");
+    const message = `🔔 <b>SEÑAL FUTUROS 1x (${timeframe})</b> 🔔\n\n` +
     `🪙 <b>Par:</b> ${signal.symbol}\n` +
     `🧭 <b>Dirección:</b> ${emoji} <b>${signal.direction}</b>\n` +
     `👑 <b>Macro BTC:</b> ${btcTrend === "UP" ? "Alcista (Permitiendo Longs)" : "Bajista (Permitiendo Shorts)"}\n` +
@@ -136,14 +137,15 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `📊 <b>Estrategia:</b> ${strategyMsg} (Zona de ${htf})\n` +
     `💵 <b>Precio Actual:</b> ${signal.currentPrice.toFixed(4)} (${signal.distancePct.toFixed(2)}% hasta entrada)\n` +
     `💰 <b>Min Notional (Binance):</b> ~$${Math.ceil(signal.minNotional)} USDT\n\n` +
-    `📝 <b>PLAN DE TRADING (Ratio 1:3)</b>\n` +
+    `📝 <b>PLAN DE TRADING (Ratio 1:1.5)</b>\n` +
     `🛒 <b>Orden Limit:</b> ${signal.entry.toFixed(4)}\n` +
     `🛑 <b>Stop Loss:</b> ${signal.stopLoss.toFixed(4)}\n` +
     `🎯 <b>Take Profit:</b> ${signal.takeProfit.toFixed(4)}\n\n` +
     `⏳ <b>Expiración de Orden (Limit):</b> Cancelar si no entra en <b>${expStr}</b> (${signal.expirationCandles} velas).\n` +
     `⏱️ <b>Time Stop (Operación):</b> Cerrar manualmente si no toca SL o TP en <b>${timeStopStr}</b>.\n` +
     `🛡️ <b>Gestión Activa:</b> Mueve tu Stop Loss a precio de Entrada (Breakeven) cuando el precio alcance <b>${signal.breakevenTarget.toFixed(4)}</b>\n\n` +
-    `🔗 <a href="https://www.tradingview.com/chart/?symbol=BINANCE:${signal.symbol.replace("/", "").replace(":USDT", "")}"><b>ABRIR GRÁFICA EN TRADINGVIEW</b></a>\n\n` +
+    `🔗 <a href="https://www.binance.com/es/futures/${binanceSymbol}"><b>📱 ABRIR EN BINANCE (App/Web)</b></a>\n` +
+    `🔗 <a href="https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}"><b>🖥️ ABRIR EN TRADINGVIEW</b></a>\n\n` +
     `<i>💡 Recuerda verificar la gráfica antes de colocar la orden.</i>`;
 
   for (const chatId of chatIds) {

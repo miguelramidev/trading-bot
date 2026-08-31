@@ -71,6 +71,7 @@ async function runAnalysis(timeframe: string) {
       entry: bestSignal.entry.toString(),
       stopLoss: bestSignal.stopLoss.toString(),
       takeProfit: bestSignal.takeProfit.toString(),
+      breakevenTarget: bestSignal.breakevenTarget.toString(),
       minNotional: bestSignal.minNotional.toString(),
     }).returning({ id: signalHistory.id });
 
@@ -93,8 +94,8 @@ async function runAnalysis(timeframe: string) {
       });
       
       for (const record of allRecords) {
-        if (!idsToKeep.includes(record.id)) {
-          // Delete manually by id if not in the top 5
+        if (!idsToKeep.includes(record.id) && !record.isActiveTrade) {
+          // Delete manually by id if not in the top 5 AND it's not an active trade
           await db.delete(signalHistory).where(eq(signalHistory.id, record.id));
         }
       }

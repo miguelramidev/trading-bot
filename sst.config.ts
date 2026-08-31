@@ -59,6 +59,16 @@ export default $config({
       }
     });
 
+    // Monitor de posiciones (cada 5 minutos)
+    new sst.aws.Cron("MonitorBreakeven", {
+      schedule: "rate(5 minutes)",
+      job: {
+        handler: "src/cron/monitor.handler",
+        timeout: "60 seconds",
+        environment: envVars
+      }
+    });
+
     // Retorna la URL del API para configurar el webhook manualmente después
     return {
       WebhookUrl: api.url,

@@ -29,3 +29,4 @@
 * [x] **Gestión Activa del Trade:** Una vez enviada la señal de compra, sugerir al usuario el punto exacto de "Breakeven" para asegurar ganancias.
 * [x] **Migración a Futuros 1x (SMC Long/Short):** Adaptación bidireccional del motor para operar "Swing Lows" en tendencia alcista y "Swing Highs" en tendencia bajista, con integración de márgenes mínimos (`minNotional`) e inclusión de Blue Chips (BTC/ETH).
 * [x] **Motor Dual (Momentum Breakout):** Integración de un segundo cerebro estratégico paralelo que detecta rompimientos de soportes/resistencias con inyecciones masivas de volumen institucional, operando mediante órdenes Limit (Breakout & Retest).
+* [x] **Defensas Anti-Manipulación:** Ensanchamiento matemático del ATR (2.5x) para evitar Stop Loss prematuros y creación de un Filtro Maestro de Macro Tendencia que escanea la EMA 50 de Bitcoin para prohibir operaciones contra-tendencia.

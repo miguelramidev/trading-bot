@@ -143,6 +143,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `⏳ <b>Expiración de Orden (Limit):</b> Cancelar si no entra en <b>${expStr}</b> (${signal.expirationCandles} velas).\n` +
     `⏱️ <b>Time Stop (Operación):</b> Cerrar manualmente si no toca SL o TP en <b>${timeStopStr}</b>.\n` +
     `🛡️ <b>Gestión Activa:</b> Mueve tu Stop Loss a precio de Entrada (Breakeven) cuando el precio alcance <b>${signal.breakevenTarget.toFixed(4)}</b>\n\n` +
+    `🔗 <a href="https://www.tradingview.com/chart/?symbol=BINANCE:${signal.symbol.replace("/", "").replace(":USDT", "")}"><b>ABRIR GRÁFICA EN TRADINGVIEW</b></a>\n\n` +
     `<i>💡 Recuerda verificar la gráfica antes de colocar la orden.</i>`;
 
   for (const chatId of chatIds) {

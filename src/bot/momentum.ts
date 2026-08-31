@@ -16,7 +16,7 @@ export class MomentumStrategy {
   private emaPeriod: number;
   private volumeMultiplier: number;
 
-  constructor(riskRewardRatio = 3.0, atrMultiplier = 2.5, emaPeriod = 200, volumeMultiplier = 1.5) {
+  constructor(riskRewardRatio = 1.5, atrMultiplier = 2.0, emaPeriod = 200, volumeMultiplier = 1.5) {
     this.rrRatio = riskRewardRatio;
     this.atrMultiplier = atrMultiplier;
     this.emaPeriod = emaPeriod;
@@ -49,13 +49,20 @@ export class MomentumStrategy {
     const lastClosedVolume = lastClosedCandle.volume;
     const avgVolume = volumeSMA[volumeSMA.length - 3]; // Promedio justo antes del pico de volumen
 
+    const rsiArray = fetcher.calculateRSI(closingPrices, 14);
+
     const currentEMA = emaArray[emaArray.length - 1];
     const currentATR = atrArray[atrArray.length - 1];
+    const currentRSI = rsiArray[rsiArray.length - 1];
     const isLong = currentCandle.close > currentEMA;
 
     // Filtro Maestro de Bitcoin (Macro Trend)
     if (isLong && btcTrend === "DOWN") return null;
     if (!isLong && btcTrend === "UP") return null;
+
+    // Filtro Oscilador (RSI)
+    if (isLong && currentRSI > 75) return null; // Momentum permite RSI más alto, pero bloqueamos sobrecompra extrema
+    if (!isLong && currentRSI < 25) return null;
 
     // Validación de Volumen Institucional (Smart Money Concept)
     if (lastClosedVolume < avgVolume * this.volumeMultiplier) {

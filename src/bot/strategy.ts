@@ -31,7 +31,7 @@ export class PullbackStrategy {
   private maxDistancePercent: number;
   private emaPeriod: number;
 
-  constructor(riskRewardRatio = 3.0, atrMultiplier = 2.5, maxDistancePercent = 5.0, emaPeriod = 200) {
+  constructor(riskRewardRatio = 1.5, atrMultiplier = 2.0, maxDistancePercent = 5.0, emaPeriod = 200) {
     this.rrRatio = riskRewardRatio;
     this.atrMultiplier = atrMultiplier;
     this.maxDistancePercent = maxDistancePercent / 100.0;
@@ -52,17 +52,24 @@ export class PullbackStrategy {
     // 1. FILTRO DE TENDENCIA (EMA 200 en la gráfica operativa LTF)
     const closingPrices = ltfCandles.map(c => c.close);
     const emaArray = fetcher.calculateEMA(closingPrices, this.emaPeriod);
+    const rsiArray = fetcher.calculateRSI(closingPrices, 14);
     const atrArray = fetcher.calculateATR(ltfCandles, 14);
-    
-    const currentPrice = ltfCandles[ltfCandles.length - 1].close;
+
+    const currentCandle = ltfCandles[ltfCandles.length - 1];
     const currentEMA = emaArray[emaArray.length - 1];
+    const currentPrice = currentCandle.close;
     const currentATR = atrArray[atrArray.length - 1];
+    const currentRSI = rsiArray[rsiArray.length - 1];
 
     const isLong = currentPrice > currentEMA;
 
     // Filtro Maestro de Bitcoin (Macro Trend)
     if (isLong && btcTrend === "DOWN") return null;
     if (!isLong && btcTrend === "UP") return null;
+
+    // Filtro Oscilador (RSI) para evitar comprar techos y vender pisos
+    if (isLong && currentRSI > 65) return null; // Sobrecomprado, muy peligroso comprar
+    if (!isLong && currentRSI < 35) return null; // Sobrevendido, muy peligroso vender en corto
 
     // 2. DETECCIÓN DE ZONAS INSTITUCIONALES (en gráfica mayor HTF)
     const swingPoints: number[] = [];
@@ -88,27 +95,39 @@ export class PullbackStrategy {
 
     for (let i = 0; i < swingPoints.length; i++) {
       const coreLevel = swingPoints[i];
-      let touches = 1;
+      let htfTouches = 1;
       let extremeInCluster = coreLevel;
 
+      // Buscar toques en la misma zona en temporalidad mayor
       for (let j = 0; j < swingPoints.length; j++) {
         if (i === j) continue;
         const compareLevel = swingPoints[j];
         
         const distance = Math.abs(coreLevel - compareLevel) / coreLevel;
-        if (distance <= 0.015) {
-          touches++;
+        if (distance <= 0.015) { // 1.5% cluster
+          htfTouches++;
           if (isLong && compareLevel < extremeInCluster) {
-            extremeInCluster = compareLevel;
+            extremeInCluster = compareLevel; // Tomamos el nivel más bajo como soporte
           } else if (!isLong && compareLevel > extremeInCluster) {
-            extremeInCluster = compareLevel;
+            extremeInCluster = compareLevel; // Tomamos el nivel más alto como resistencia
           }
         }
       }
 
-      if (touches >= 2 && touches >= maxTouches) {
+      // Validar si en la temporalidad menor también hay toques recientes
+      let ltfTouches = 0;
+      for (const c of ltfCandles) {
+        if (Math.abs(c.low - extremeInCluster) / extremeInCluster < 0.005 || Math.abs(c.high - extremeInCluster) / extremeInCluster < 0.005) {
+          ltfTouches++;
+        }
+      }
+
+      // El total de toques es la suma de HTF y LTF
+      const totalTouches = htfTouches + (ltfTouches > 0 ? 1 : 0);
+
+      if (totalTouches >= 2 && totalTouches >= maxTouches) {
         bestZone = extremeInCluster;
-        maxTouches = touches;
+        maxTouches = totalTouches;
       }
     }
 

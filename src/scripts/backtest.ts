@@ -28,6 +28,7 @@ async function runBacktest(symbol: string, timeframe: string) {
   let wins = 0;
   let losses = 0;
   let expired = 0;
+  let breakevens = 0;
   let activeTrades = [];
 
   const BATCH_SIZE = 50; // Para calcular trend macro con cierta holgura
@@ -62,24 +63,47 @@ async function runBacktest(symbol: string, timeframe: string) {
         }
       }
       
-      // Si ya está llenada, comprobar TP o SL
+      // Si ya está llenada, comprobar TP o SL o Breakeven
       if (trade.isFilled) {
         let hitTP = false;
         let hitSL = false;
+        let hitBreakeven = false;
 
         if (trade.direction === "LONG") {
-          if (currentCandle.low <= trade.stopLoss) hitSL = true;
+          if (!trade.breakevenHit && currentCandle.high >= trade.breakevenTarget) {
+            trade.breakevenHit = true;
+            trade.stopLoss = trade.entry; // Movemos SL a entrada
+            // console.log(`[${new Date(currentCandle.timestamp).toISOString()}] 🛡️ BREAKEVEN ACTIVADO: ${trade.strategyName}`);
+          }
+          if (currentCandle.low <= trade.stopLoss) {
+            hitSL = true;
+            if (trade.breakevenHit) hitBreakeven = true;
+          }
           if (currentCandle.high >= trade.takeProfit) hitTP = true;
         } else {
-          if (currentCandle.high >= trade.stopLoss) hitSL = true;
+          if (!trade.breakevenHit && currentCandle.low <= trade.breakevenTarget) {
+            trade.breakevenHit = true;
+            trade.stopLoss = trade.entry; // Movemos SL a entrada
+            // console.log(`[${new Date(currentCandle.timestamp).toISOString()}] 🛡️ BREAKEVEN ACTIVADO: ${trade.strategyName}`);
+          }
+          if (currentCandle.high >= trade.stopLoss) {
+            hitSL = true;
+            if (trade.breakevenHit) hitBreakeven = true;
+          }
           if (currentCandle.low <= trade.takeProfit) hitTP = true;
         }
 
         // Si tocó ambos en la misma vela, asumimos SL por ser pesimistas/conservadores en el backtest
         if (hitSL) {
-          console.log(`[${new Date(currentCandle.timestamp).toISOString()}] ❌ STOP LOSS (-1R): ${trade.strategyName}`);
-          losses++;
-          activeTrades.splice(t, 1);
+          if (hitBreakeven) {
+             console.log(`[${new Date(currentCandle.timestamp).toISOString()}] ⚪ SALIDA EN BREAKEVEN (0R): ${trade.strategyName}`);
+             breakevens++;
+             activeTrades.splice(t, 1);
+          } else {
+             console.log(`[${new Date(currentCandle.timestamp).toISOString()}] ❌ STOP LOSS (-1R): ${trade.strategyName}`);
+             losses++;
+             activeTrades.splice(t, 1);
+          }
         } else if (hitTP) {
           console.log(`[${new Date(currentCandle.timestamp).toISOString()}] 🏆 TAKE PROFIT (+3R): ${trade.strategyName}`);
           wins++;
@@ -133,8 +157,9 @@ async function runBacktest(symbol: string, timeframe: string) {
   console.log(`-------------------------------------------`);
   console.log(`Victorias (TP): ${wins}`);
   console.log(`Derrotas (SL): ${losses}`);
+  console.log(`Salidas en Cero (Breakeven): ${breakevens}`);
   
-  const totalCompleted = wins + losses;
+  const totalCompleted = wins + losses + breakevens;
   const winrate = totalCompleted > 0 ? ((wins / totalCompleted) * 100).toFixed(2) : 0;
   console.log(`Winrate: ${winrate}%`);
   

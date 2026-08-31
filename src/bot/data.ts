@@ -213,4 +213,44 @@ export class DataFetcher {
       return "UP"; // fallback
     }
   }
+
+  calculateRSI(prices: number[], period: number = 14): number[] {
+    if (prices.length < period + 1) return [];
+
+    let rsiArray = [];
+    let gains = 0;
+    let losses = 0;
+
+    for (let i = 1; i <= period; i++) {
+      const difference = prices[i] - prices[i - 1];
+      if (difference >= 0) gains += difference;
+      else losses -= difference;
+    }
+
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+
+    for (let i = period; i < prices.length; i++) {
+      if (i > period) {
+        const difference = prices[i] - prices[i - 1];
+        const gain = difference >= 0 ? difference : 0;
+        const loss = difference < 0 ? -difference : 0;
+
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+      }
+
+      if (avgLoss === 0) {
+        rsiArray.push(100);
+      } else {
+        const rs = avgGain / avgLoss;
+        rsiArray.push(100 - (100 / (1 + rs)));
+      }
+    }
+
+    // Rellenamos el inicio con 50 (neutral) para que el array tenga la misma longitud
+    const padding = new Array(period).fill(50);
+    return padding.concat(rsiArray);
+  }
 }
+

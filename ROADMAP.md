@@ -1,0 +1,29 @@
+# Roadmap
+
+## 1. Fase Inicial (Python Script) - [Completado]
+* [x] Definir estrategia inicial de *Swing Lows*.
+* [x] Construir conexión con Binance vía `ccxt` usando Python.
+* [x] Configurar bot de Telegram con `python-telegram-bot` mediante Polling.
+* [x] Implementar programación de tareas en `APScheduler` para el cierre exacto de velas.
+
+## 2. Fase de Migración Serverless - [Completado]
+* [x] Re-arquitecturar el proyecto de Python a **TypeScript**.
+* [x] Implementar infraestructura Serverless con **SST v4**.
+* [x] Integrar **Neon DB** (PostgreSQL Serverless) y **Drizzle ORM** para mantener persistencia a costo $0.
+* [x] Transición del bot de Telegram de *Polling* a **Webhooks** con AWS API Gateway.
+* [x] Configurar AWS EventBridge (Cronjobs) para gatillar las alertas de 15m, 1h y 4h.
+* [x] Mudar el despliegue a la región de AWS de Canadá (`ca-central-1`) para evitar bloqueos regionales de Binance.com a EE.UU.
+
+## 3. Refinamiento de Estrategia Institucional - [Completado]
+* [x] **Filtro Anti-Fiat/Stablecoin:** Regla dinámica para ignorar tokens de baja volatilidad artificial (`USD`, `EUR`, heurística de precio en $1.00, y listas negras específicas como `EURI`).
+* [x] **Filtro de Liquidez:** Eliminar monedas de muy bajo volumen (ej. `SPCXB`) forzando un mínimo de $15 Millones de volumen 24h.
+* [x] **Análisis Multi-Temporal (MTFA):** Utilizar la temporalidad mayor inmediata (15m -> 1H, 1H -> 4H, etc.) para definir el soporte.
+* [x] **Confluencia de Soportes:** Implementar *clustering* (agrupamiento) matemático para ignorar mínimos aislados y exigir zonas de soporte con al menos 2 toques históricos probados.
+* [x] **Filtro de Tendencia (EMA 200):** Prohibir buscar soportes en activos en caída libre por debajo de la media institucional de 200 periodos.
+* [x] **Sistema Anti-Spam (FIFO Queue):** Conectar la lógica del bot a Neon DB para recordar las últimas alertas y obligarlo a buscar la siguiente mejor opción si la ganadora de hoy ya fue anunciada recientemente.
+
+## 4. Próximos Pasos Futuros (Ideas para iterar) - [Pendiente]
+* [ ] **Backtesting Integrado:** Implementar una ruta en TypeScript que permita simular resultados pasados de la estrategia.
+* [ ] **Notificaciones con Gráficas:** Añadir generación de una imagen o enlace de TradingView al mensaje de Telegram.
+* [ ] **Cálculo Dinámico del Stop Loss (ATR):** En lugar de un SL fijo del 1.5%, utilizar el indicador de volatilidad ATR para darle "respiración" a la moneda según su volatilidad natural.
+* [ ] **Gestión Activa del Trade:** Una vez enviada la señal de compra, monitorear si el precio llega al "Breakeven" para sugerir al usuario asegurar ganancias.

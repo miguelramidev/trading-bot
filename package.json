@@ -1,0 +1,31 @@
+{
+  "name": "cypto-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "sst dev --stage local",
+    "deploy": "sst deploy --stage prod",
+    "db:push": "drizzle-kit push",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "ccxt": "^4.5.76",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "protobufjs": "^7.6.6",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "drizzle-kit": "^0.31.10",
+    "sst": "^4.17.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}

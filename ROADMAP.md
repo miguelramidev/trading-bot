@@ -25,6 +25,7 @@
 ## 4. Próximos Pasos Futuros (Ideas para iterar) - [Pendiente]
 * [x] **Backtesting Integrado:** Implementar una ruta en TypeScript que permita simular resultados pasados de la estrategia.
 * [x] **Notificaciones con Gráficas:** Añadir enlaces profundos (deep links) interactivos de TradingView al mensaje de Telegram.
+* [ ] **One-Click Trading (Semi-Automático):** Implementar la ejecución de órdenes reales mediante un botón en Telegram, conectando las API Keys de los usuarios a la DB para colocar Limit, Stop Loss y Take Profit automáticamente desde el chat.
 * [x] **Cálculo Dinámico del Stop Loss (ATR):** En lugar de un SL fijo del 1.5%, utilizar el indicador de volatilidad ATR para darle "respiración" a la moneda según su volatilidad natural.
 * [x] **Gestión Activa del Trade:** Una vez enviada la señal de compra, sugerir al usuario el punto exacto de "Breakeven" para asegurar ganancias.
 * [x] **Migración a Futuros 1x (SMC Long/Short):** Adaptación bidireccional del motor para operar "Swing Lows" en tendencia alcista y "Swing Highs" en tendencia bajista, con integración de márgenes mínimos (`minNotional`) e inclusión de Blue Chips (BTC/ETH).

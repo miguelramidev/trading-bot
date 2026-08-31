@@ -96,10 +96,24 @@ export async function handler() {
         const amount = position.contracts || 0;
         const oppositeSide = isLong ? "sell" : "buy";
         
+        // Calcular el Breakeven Real (Comisiones de Binance: 0.02% Maker Entrada + 0.05% Taker Salida = ~0.07%)
+        // Le damos un buffer de 0.08% para asegurar $0 de pérdida o ganancia marginal
+        const feeBuffer = 0.0008; 
+        let trueBreakevenPrice = isLong 
+          ? entryPrice * (1 + feeBuffer) 
+          : entryPrice * (1 - feeBuffer);
+
         try {
           if (amount > 0) {
+            // Ajustamos precisión del precio de stop según el mercado
+            await exchange.loadMarkets();
+            const market = exchange.markets[signal.symbol];
+            if (market) {
+              trueBreakevenPrice = parseFloat(exchange.priceToPrecision(signal.symbol, trueBreakevenPrice));
+            }
+
             await exchange.createOrder(signal.symbol, 'STOP_MARKET', oppositeSide, amount, undefined, {
-              stopPrice: entryPrice,
+              stopPrice: trueBreakevenPrice,
               reduceOnly: true
             });
           }
@@ -108,11 +122,11 @@ export async function handler() {
             .set({ breakevenMoved: true })
             .where(eq(signalHistory.id, signal.id));
 
-          const msg = `🛡️ <b>¡Protección Activada!</b>\n\n` +
+          const msg = `🛡️ <b>¡Protección Activada (Comisiones Cubiertas)!</b>\n\n` +
                       `🪙 Par: ${signal.symbol}\n` +
-                      `📈 El precio ha cruzado tu meta de seguridad.\n` +
-                      `✅ El Stop Loss se ha movido automáticamente a tu precio de entrada (<b>${entryPrice}</b>).\n\n` +
-                      `<i>Tu riesgo en esta operación ahora es $0.</i>`;
+                      `📈 El precio cruzó tu meta de seguridad.\n` +
+                      `✅ El Stop Loss se movió a <b>${trueBreakevenPrice}</b> (Incluye ~0.08% para cubrir comisiones Maker/Taker).\n\n` +
+                      `<i>Riesgo absoluto = $0.</i>`;
 
           for (const u of activeUsers) {
             await bot.telegram.sendMessage(u.chatId, msg, { parse_mode: "HTML" });

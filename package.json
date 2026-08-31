@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "sst dev",
     "build": "sst build",
-    "deploy": "sst deploy",
+    "deploy": "sst deploy --stage prod",
     "remove": "sst remove",
     "backtest": "tsx src/scripts/backtest.ts",
     "db:push": "drizzle-kit push",

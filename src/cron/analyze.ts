@@ -63,14 +63,19 @@ async function runAnalysis(timeframe: string) {
   }
 
   if (bestSignal) {
-    console.log(`Ganadora encontrada: ${bestSignal.symbol}`);
-    await sendSignalToUsers(timeframe, bestSignal, activeUsers.map(u => u.chatId), btcTrend);
-    
-    // Guardar en el historial
-    await db.insert(signalHistory).values({
+    // Guardar en el historial primero para obtener el ID
+    const [inserted] = await db.insert(signalHistory).values({
       symbol: bestSignal.symbol,
       timeframe: timeframe,
-    });
+      direction: bestSignal.direction,
+      entry: bestSignal.entry.toString(),
+      stopLoss: bestSignal.stopLoss.toString(),
+      takeProfit: bestSignal.takeProfit.toString(),
+      minNotional: bestSignal.minNotional.toString(),
+    }).returning({ id: signalHistory.id });
+
+    console.log(`Ganadora encontrada: ${bestSignal.symbol} (ID: ${inserted.id})`);
+    await sendSignalToUsers(timeframe, bestSignal, activeUsers.map(u => u.chatId), btcTrend, inserted.id);
 
     // Limpieza de base de datos: Mantener solo un máximo de 5 registros por temporalidad
     const keepRecords = await db.query.signalHistory.findMany({
@@ -99,7 +104,7 @@ async function runAnalysis(timeframe: string) {
   }
 }
 
-async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: string[], btcTrend: string = "UP") {
+async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: string[], btcTrend: string = "UP", signalId: number = 0) {
   const strategy = new PullbackStrategy();
   const htf = strategy.getHigherTimeframe(timeframe);
 
@@ -144,13 +149,49 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `⏳ <b>Expiración de Orden (Limit):</b> Cancelar si no entra en <b>${expStr}</b> (${signal.expirationCandles} velas).\n` +
     `⏱️ <b>Time Stop (Operación):</b> Cerrar manualmente si no toca SL o TP en <b>${timeStopStr}</b>.\n` +
     `🛡️ <b>Gestión Activa:</b> Mueve tu Stop Loss a precio de Entrada (Breakeven) cuando el precio alcance <b>${signal.breakevenTarget.toFixed(4)}</b>\n\n` +
-    `🔗 <a href="https://www.binance.com/es/futures/${binanceSymbol}"><b>📱 ABRIR EN BINANCE (App/Web)</b></a>\n` +
-    `🔗 <a href="https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}"><b>🖥️ ABRIR EN TRADINGVIEW</b></a>\n\n` +
     `<i>💡 Recuerda verificar la gráfica antes de colocar la orden.</i>`;
+
+  const hasBinanceKeys = !!process.env.BINANCE_API_KEY && !!process.env.BINANCE_API_SECRET;
+  
+  let reply_markup = undefined;
+
+  if (hasBinanceKeys && signalId > 0) {
+    // Si tenemos keys, enviamos los botones interactivos
+    reply_markup = {
+      inline_keyboard: [
+        [
+          { text: "🖥️ TradingView", url: `https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}` }
+        ],
+        [
+          { text: "⚡ EJECUTAR $15", callback_data: `execute_${signalId}_15` },
+          { text: "⚡ EJECUTAR $20", callback_data: `execute_${signalId}_20` }
+        ],
+        [
+          { text: "⚡ EJECUTAR $25", callback_data: `execute_${signalId}_25` },
+          { text: "⚡ EJECUTAR $30", callback_data: `execute_${signalId}_30` }
+        ]
+      ]
+    };
+  } else {
+    // Fallback: solo links convencionales
+    reply_markup = {
+      inline_keyboard: [
+        [
+          { text: "📱 Binance (App/Web)", url: `https://www.binance.com/es/futures/${binanceSymbol}` }
+        ],
+        [
+          { text: "🖥️ TradingView", url: `https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}` }
+        ]
+      ]
+    };
+  }
 
   for (const chatId of chatIds) {
     try {
-      await bot.telegram.sendMessage(chatId, message, { parse_mode: "HTML" });
+      await bot.telegram.sendMessage(chatId, message, { 
+        parse_mode: "HTML",
+        reply_markup 
+      });
     } catch (error) {
       console.error(`Error sending message to ${chatId}:`, error);
     }

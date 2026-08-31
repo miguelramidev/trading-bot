@@ -13,4 +13,9 @@ export const signalHistory = pgTable("signal_history", {
   symbol: text("symbol").notNull(),
   timeframe: text("timeframe").notNull(),
   evaluatedAt: timestamp("evaluated_at").defaultNow().notNull(),
+  direction: text("direction"), // "LONG" | "SHORT"
+  entry: text("entry"), // guardamos como texto para no perder precisión decimal
+  stopLoss: text("stopLoss"),
+  takeProfit: text("takeProfit"),
+  minNotional: text("minNotional"),
 });

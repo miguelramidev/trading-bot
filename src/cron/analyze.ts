@@ -124,6 +124,10 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     expStr = `${(totalMinutes / 60 / 24).toFixed(1).replace(".0", "")} días`;
   }
 
+  let timeStopStr = "48 horas";
+  if (timeframe === "1h") timeStopStr = "5 días";
+  else if (timeframe === "4h") timeStopStr = "14 días";
+
   const message = `🔔 <b>SEÑAL FUTUROS 1x (${timeframe})</b> 🔔\n\n` +
     `🪙 <b>Par:</b> ${signal.symbol}\n` +
     `🧭 <b>Dirección:</b> ${emoji} <b>${signal.direction}</b>\n` +
@@ -136,7 +140,8 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `🛒 <b>Orden Limit:</b> ${signal.entry.toFixed(4)}\n` +
     `🛑 <b>Stop Loss:</b> ${signal.stopLoss.toFixed(4)}\n` +
     `🎯 <b>Take Profit:</b> ${signal.takeProfit.toFixed(4)}\n\n` +
-    `⏳ <b>Expiración de Orden:</b> Cancelar si no entra en <b>${expStr}</b> (${signal.expirationCandles} velas).\n` +
+    `⏳ <b>Expiración de Orden (Limit):</b> Cancelar si no entra en <b>${expStr}</b> (${signal.expirationCandles} velas).\n` +
+    `⏱️ <b>Time Stop (Operación):</b> Cerrar manualmente si no toca SL o TP en <b>${timeStopStr}</b>.\n` +
     `🛡️ <b>Gestión Activa:</b> Mueve tu Stop Loss a precio de Entrada (Breakeven) cuando el precio alcance <b>${signal.breakevenTarget.toFixed(4)}</b>\n\n` +
     `<i>💡 Recuerda verificar la gráfica antes de colocar la orden.</i>`;
 

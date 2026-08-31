@@ -31,7 +31,7 @@ export class PullbackStrategy {
   private maxDistancePercent: number;
   private emaPeriod: number;
 
-  constructor(riskRewardRatio = 3.0, atrMultiplier = 1.5, maxDistancePercent = 5.0, emaPeriod = 200) {
+  constructor(riskRewardRatio = 3.0, atrMultiplier = 2.5, maxDistancePercent = 5.0, emaPeriod = 200) {
     this.rrRatio = riskRewardRatio;
     this.atrMultiplier = atrMultiplier;
     this.maxDistancePercent = maxDistancePercent / 100.0;
@@ -45,7 +45,7 @@ export class PullbackStrategy {
     return "1d"; // default fallback
   }
 
-  analyze(ltfCandles: Candle[], htfCandles: Candle[], fetcher: DataFetcher): Omit<Signal, "symbol" | "minNotional"> | null {
+  analyze(ltfCandles: Candle[], htfCandles: Candle[], fetcher: DataFetcher, btcTrend: "UP" | "DOWN"): Omit<Signal, "symbol" | "minNotional"> | null {
     if (!ltfCandles || ltfCandles.length < this.emaPeriod) return null;
     if (!htfCandles || htfCandles.length < 10) return null;
 
@@ -59,6 +59,10 @@ export class PullbackStrategy {
     const currentATR = atrArray[atrArray.length - 1];
 
     const isLong = currentPrice > currentEMA;
+
+    // Filtro Maestro de Bitcoin (Macro Trend)
+    if (isLong && btcTrend === "DOWN") return null;
+    if (!isLong && btcTrend === "UP") return null;
 
     // 2. DETECCIÓN DE ZONAS INSTITUCIONALES (en gráfica mayor HTF)
     const swingPoints: number[] = [];
@@ -168,7 +172,7 @@ export class PullbackStrategy {
     };
   }
 
-  async runCompetition(fetcher: DataFetcher, symbols: string[], timeframe: string): Promise<Signal | null> {
+  async runCompetition(fetcher: DataFetcher, symbols: string[], timeframe: string, btcTrend: "UP" | "DOWN"): Promise<Signal | null> {
     let bestSignal: Signal | null = null;
     let bestScore = -1;
     const higherTimeframe = this.getHigherTimeframe(timeframe);
@@ -182,7 +186,7 @@ export class PullbackStrategy {
       const htfCandles = await fetcher.fetchOhlcv(symbol, higherTimeframe, 200);
       if (!htfCandles) continue;
 
-      const signal = this.analyze(ltfCandles, htfCandles, fetcher);
+      const signal = this.analyze(ltfCandles, htfCandles, fetcher, btcTrend);
       
       if (signal && signal.score > bestScore) {
         bestScore = signal.score;

@@ -194,4 +194,23 @@ export class DataFetcher {
 
     return smaArray;
   }
+
+  // Utilidad para evaluar el Macro Trend usando Bitcoin (EMA 50)
+  async getBtcTrend(timeframe: string): Promise<"UP" | "DOWN"> {
+    try {
+      const btcCandles = await this.fetchOHLCV("BTC/USDT", timeframe, 100);
+      if (!btcCandles || btcCandles.length < 50) return "UP"; // fallback
+
+      const closingPrices = btcCandles.map(c => c.close);
+      const ema50 = this.calculateEMA(closingPrices, 50);
+      
+      const currentPrice = closingPrices[closingPrices.length - 1];
+      const currentEma = ema50[ema50.length - 1];
+
+      return currentPrice > currentEma ? "UP" : "DOWN";
+    } catch (e) {
+      console.error("Error fetching BTC trend:", e);
+      return "UP"; // fallback
+    }
+  }
 }

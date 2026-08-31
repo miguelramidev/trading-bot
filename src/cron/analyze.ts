@@ -43,9 +43,12 @@ async function runAnalysis(timeframe: string) {
 
   if (topPairs.length === 0) return;
 
-  const pullbackSignal = await strategy.runCompetition(fetcher, topPairs, timeframe);
+  const btcTrend = await fetcher.getBtcTrend(timeframe);
+  console.log(`Filtro Maestro BTC (${timeframe}): ${btcTrend}`);
+
+  const pullbackSignal = await strategy.runCompetition(fetcher, topPairs, timeframe, btcTrend);
   const momentumStrategy = new MomentumStrategy();
-  const momentumSignal = await momentumStrategy.runCompetition(fetcher, topPairs, timeframe);
+  const momentumSignal = await momentumStrategy.runCompetition(fetcher, topPairs, timeframe, btcTrend);
 
   let bestSignal: Signal | null = null;
 
@@ -61,7 +64,7 @@ async function runAnalysis(timeframe: string) {
 
   if (bestSignal) {
     console.log(`Ganadora encontrada: ${bestSignal.symbol}`);
-    await sendSignalToUsers(timeframe, bestSignal, activeUsers.map(u => u.chatId));
+    await sendSignalToUsers(timeframe, bestSignal, activeUsers.map(u => u.chatId), btcTrend);
     
     // Guardar en el historial
     await db.insert(signalHistory).values({
@@ -96,7 +99,7 @@ async function runAnalysis(timeframe: string) {
   }
 }
 
-async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: string[]) {
+async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: string[], btcTrend: string = "UP") {
   const strategy = new PullbackStrategy();
   const htf = strategy.getHigherTimeframe(timeframe);
 
@@ -124,6 +127,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
   const message = `🔔 <b>SEÑAL FUTUROS 1x (${timeframe})</b> 🔔\n\n` +
     `🪙 <b>Par:</b> ${signal.symbol}\n` +
     `🧭 <b>Dirección:</b> ${emoji} <b>${signal.direction}</b>\n` +
+    `👑 <b>Macro BTC:</b> ${btcTrend === "UP" ? "Alcista (Permitiendo Longs)" : "Bajista (Permitiendo Shorts)"}\n` +
     `📈 <b>Filtro:</b> ${filterMsg}\n` +
     `📊 <b>Estrategia:</b> ${strategyMsg} (Zona de ${htf})\n` +
     `💵 <b>Precio Actual:</b> ${signal.currentPrice.toFixed(4)} (${signal.distancePct.toFixed(2)}% hasta entrada)\n` +

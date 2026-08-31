@@ -62,12 +62,70 @@ bot.command("status", async (ctx) => {
   await ctx.reply(`Estado del bot: ${status}`);
 });
 
-bot.action(/^execute_(\d+)_(\d+)$/, async (ctx) => {
+bot.action(/^ask_amount_(\d+)$/, async (ctx) => {
   const signalId = parseInt(ctx.match[1]);
-  const usdAmount = parseInt(ctx.match[2]); // 15, 20, 25, 30
+  const chatId = ctx.chat?.id.toString();
+  if (!chatId) return;
 
-  // Respond to Telegram immediately to clear loading state
-  await ctx.answerCbQuery(`Procesando orden de $${usdAmount}...`);
+  await ctx.answerCbQuery("Consultando balance en Binance...");
+
+  if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
+    await ctx.reply("❌ Error: API Keys de Binance no configuradas en el .env");
+    return;
+  }
+
+  try {
+    const exchange = new ccxt.binance({
+      apiKey: process.env.BINANCE_API_KEY,
+      secret: process.env.BINANCE_API_SECRET,
+      enableRateLimit: true,
+      options: { defaultType: 'future' }
+    });
+
+    const balance = await exchange.fetchBalance();
+    const usdtBalance = balance.USDT?.free || 0;
+
+    // Guardar el estado en la base de datos
+    await db.update(userConfig)
+      .set({ pendingSignalId: signalId, updatedAt: new Date() })
+      .where(eq(userConfig.chatId, chatId));
+
+    await ctx.reply(`💰 <b>Balance Disponible:</b> $${usdtBalance.toFixed(2)} USDT\n\n` +
+      `✍️ <b>Escribe en el chat el monto en USDT que deseas invertir en esta operación:</b>\n` +
+      `(Ejemplo: escribe <i>25</i> o <i>100</i>)`, { parse_mode: "HTML" });
+
+  } catch (error: any) {
+    console.error("Balance Error:", error);
+    await ctx.reply(`❌ Error al consultar balance en Binance: ${error.message}`);
+  }
+});
+
+bot.on(message("text"), async (ctx) => {
+  const chatId = ctx.chat.id.toString();
+  const text = ctx.message.text.trim();
+
+  // Buscar si el usuario tiene una señal pendiente de ejecución
+  const config = await db.query.userConfig.findFirst({
+    where: eq(userConfig.chatId, chatId),
+  });
+
+  if (!config || !config.pendingSignalId) {
+    // No hay operación pendiente, ignorar el texto o responder a comandos normales
+    return;
+  }
+
+  const signalId = config.pendingSignalId;
+  const usdAmount = parseFloat(text);
+
+  if (isNaN(usdAmount) || usdAmount <= 0) {
+    await ctx.reply("❌ Por favor, escribe un número válido mayor a 0.");
+    return;
+  }
+
+  // Limpiar el estado de pending (para evitar reintentos accidentales)
+  await db.update(userConfig)
+    .set({ pendingSignalId: null, updatedAt: new Date() })
+    .where(eq(userConfig.chatId, chatId));
 
   try {
     const signal = await db.query.signalHistory.findFirst({
@@ -75,12 +133,7 @@ bot.action(/^execute_(\d+)_(\d+)$/, async (ctx) => {
     });
 
     if (!signal || !signal.entry || !signal.stopLoss || !signal.takeProfit) {
-      await ctx.reply("❌ Error: No se encontró la señal o expiró de la base de datos.");
-      return;
-    }
-
-    if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
-      await ctx.reply("❌ Error: API Keys de Binance no configuradas.");
+      await ctx.reply("❌ Error: No se encontró la señal o expiró.");
       return;
     }
 
@@ -98,11 +151,8 @@ bot.action(/^execute_(\d+)_(\d+)$/, async (ctx) => {
     const side = isLong ? "buy" : "sell";
     const oppositeSide = isLong ? "sell" : "buy";
 
-    // Calcular la cantidad de monedas exacta (Size)
-    // Formula: cantidad = Capital / Precio Entrada (apalancamiento 1x)
     let amount = usdAmount / entryPrice;
 
-    // Obtener la precisión del mercado (Tick Size, Step Size)
     await exchange.loadMarkets();
     const market = exchange.markets[signal.symbol];
     if (market) {
@@ -111,14 +161,14 @@ bot.action(/^execute_(\d+)_(\d+)$/, async (ctx) => {
 
     const minNotional = parseFloat(signal.minNotional || "5");
     if (amount * entryPrice < minNotional) {
-      await ctx.reply(`❌ El tamaño de la orden ($${(amount*entryPrice).toFixed(2)}) es menor al mínimo requerido de $${minNotional.toFixed(2)}.`);
+      await ctx.reply(`❌ El tamaño de la orden ($${(amount*entryPrice).toFixed(2)}) es menor al mínimo requerido de $${minNotional.toFixed(2)} USDT en Binance para este par.`);
       return;
     }
 
-    await ctx.reply(`⏳ Colocando orden Limit en ${signal.symbol} por $${usdAmount} (${amount} tokens)...`);
+    const initialMsg = await ctx.reply(`⏳ Colocando orden Limit en ${signal.symbol} por $${usdAmount} (${amount} tokens)...`);
 
     // 1. Crear Orden Limit
-    const limitOrder = await exchange.createOrder(signal.symbol, 'limit', side, amount, entryPrice, {
+    await exchange.createOrder(signal.symbol, 'limit', side, amount, entryPrice, {
       timeInForce: 'GTC'
     });
 
@@ -134,17 +184,14 @@ bot.action(/^execute_(\d+)_(\d+)$/, async (ctx) => {
       reduceOnly: true
     });
 
-    await ctx.reply(`✅ <b>¡Operación Colocada con Éxito!</b> 🚀\n` +
+    await ctx.telegram.editMessageText(chatId, initialMsg.message_id, undefined, 
+      `✅ <b>¡Operación Colocada con Éxito!</b> 🚀\n` +
       `🪙 Par: ${signal.symbol}\n` +
+      `💵 Inversión: $${usdAmount}\n` +
       `🛒 Limit: ${entryPrice}\n` +
       `🛑 Stop Loss: ${slPrice}\n` +
       `🎯 Take Profit: ${tpPrice}`, { parse_mode: "HTML" });
 
-    // Modificar el mensaje original para que el botón ya no aparezca
-    if (ctx.callbackQuery && ctx.callbackQuery.message) {
-      const msg = ctx.callbackQuery.message;
-      await ctx.editMessageReplyMarkup(undefined);
-    }
   } catch (error: any) {
     console.error("Execute Order Error:", error);
     await ctx.reply(`❌ Error al ejecutar orden en Binance: ${error.message}`);

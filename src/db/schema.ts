@@ -1,9 +1,10 @@
-import { pgTable, text, boolean, timestamp, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, serial, integer } from "drizzle-orm/pg-core";
 
 // Guardamos la configuración de cada chat
 export const userConfig = pgTable("user_config", {
   chatId: text("chat_id").primaryKey(),
   isPaused: boolean("is_paused").default(false).notNull(),
+  pendingSignalId: integer("pending_signal_id").references(() => signalHistory.id), // guardamos qué señal quiere operar
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

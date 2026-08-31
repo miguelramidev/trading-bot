@@ -163,12 +163,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
           { text: "🖥️ TradingView", url: `https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}` }
         ],
         [
-          { text: "⚡ EJECUTAR $15", callback_data: `execute_${signalId}_15` },
-          { text: "⚡ EJECUTAR $20", callback_data: `execute_${signalId}_20` }
-        ],
-        [
-          { text: "⚡ EJECUTAR $25", callback_data: `execute_${signalId}_25` },
-          { text: "⚡ EJECUTAR $30", callback_data: `execute_${signalId}_30` }
+          { text: "⚡ EJECUTAR OPERACIÓN", callback_data: `ask_amount_${signalId}` }
         ]
       ]
     };

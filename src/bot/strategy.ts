@@ -13,6 +13,7 @@ export type Signal = {
   strategyName: string;
   symbol: string;
   direction: "LONG" | "SHORT";
+  expirationCandles: number;
   minNotional: number;
   supportLevel: number;
   currentPrice: number;
@@ -155,6 +156,7 @@ export class PullbackStrategy {
     return {
       strategyName: "Pullback Institucional",
       direction: isLong ? "LONG" : "SHORT",
+      expirationCandles: 12, // Pullbacks pueden tomar más tiempo en desarrollarse
       supportLevel: level,
       currentPrice,
       entry: entryPrice,

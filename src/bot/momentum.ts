@@ -125,6 +125,7 @@ export class MomentumStrategy {
     return {
       strategyName: "Breakout & Retest (Momentum)",
       direction: isLong ? "LONG" : "SHORT",
+      expirationCandles: 4, // El momentum se invalida muy rápido si no hay retest inmediato
       supportLevel: keyLevel, // El antiguo techo ahora es piso (o viceversa)
       currentPrice: currentCandle.close,
       entry: entryPrice,

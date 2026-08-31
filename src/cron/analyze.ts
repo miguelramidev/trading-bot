@@ -109,6 +109,18 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     strategyMsg = isLong ? "Soporte Institucional Múltiple" : "Resistencia Institucional Múltiple";
   }
 
+  let minutesPerCandle = 15;
+  if (timeframe === "1h") minutesPerCandle = 60;
+  else if (timeframe === "4h") minutesPerCandle = 240;
+  
+  const totalMinutes = minutesPerCandle * signal.expirationCandles;
+  let expStr = `${totalMinutes} minutos`;
+  if (totalMinutes >= 60 && totalMinutes < 24 * 60) {
+    expStr = `${(totalMinutes / 60).toFixed(1).replace(".0", "")} horas`;
+  } else if (totalMinutes >= 24 * 60) {
+    expStr = `${(totalMinutes / 60 / 24).toFixed(1).replace(".0", "")} días`;
+  }
+
   const message = `🔔 <b>SEÑAL FUTUROS 1x (${timeframe})</b> 🔔\n\n` +
     `🪙 <b>Par:</b> ${signal.symbol}\n` +
     `🧭 <b>Dirección:</b> ${emoji} <b>${signal.direction}</b>\n` +
@@ -120,6 +132,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `🛒 <b>Orden Limit:</b> ${signal.entry.toFixed(4)}\n` +
     `🛑 <b>Stop Loss:</b> ${signal.stopLoss.toFixed(4)}\n` +
     `🎯 <b>Take Profit:</b> ${signal.takeProfit.toFixed(4)}\n\n` +
+    `⏳ <b>Expiración de Orden:</b> Cancelar si no entra en <b>${expStr}</b> (${signal.expirationCandles} velas).\n` +
     `🛡️ <b>Gestión Activa:</b> Mueve tu Stop Loss a precio de Entrada (Breakeven) cuando el precio alcance <b>${signal.breakevenTarget.toFixed(4)}</b>\n\n` +
     `<i>💡 Recuerda verificar la gráfica antes de colocar la orden.</i>`;
 

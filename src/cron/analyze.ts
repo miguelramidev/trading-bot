@@ -143,7 +143,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `📊 <b>Estrategia:</b> ${strategyMsg} (Zona de ${htf})\n` +
     `💵 <b>Precio Actual:</b> ${signal.currentPrice.toFixed(4)} (${signal.distancePct.toFixed(2)}% hasta entrada)\n` +
     `💰 <b>Min Notional (Binance):</b> ~$${Math.ceil(signal.minNotional)} USDT\n\n` +
-    `📝 <b>PLAN DE TRADING (Ratio 1:1.5)</b>\n` +
+    `📝 <b>PLAN DE TRADING (Ratio 1:1)</b>\n` +
     `🛒 <b>Orden Limit:</b> ${signal.entry.toFixed(4)}\n` +
     `🛑 <b>Stop Loss:</b> ${signal.stopLoss.toFixed(4)}\n` +
     `🎯 <b>Take Profit:</b> ${signal.takeProfit.toFixed(4)}\n\n` +

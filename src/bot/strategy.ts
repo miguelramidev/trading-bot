@@ -10,6 +10,7 @@ type Candle = {
 };
 
 export type Signal = {
+  strategyName: string;
   symbol: string;
   direction: "LONG" | "SHORT";
   minNotional: number;
@@ -152,6 +153,7 @@ export class PullbackStrategy {
     const score = distanceScore + touchBonus;
 
     return {
+      strategyName: "Pullback Institucional",
       direction: isLong ? "LONG" : "SHORT",
       supportLevel: level,
       currentPrice,

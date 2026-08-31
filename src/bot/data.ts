@@ -167,4 +167,31 @@ export class DataFetcher {
 
     return atrArray;
   }
+
+  // Utilidad para calcular la Media Móvil Simple (SMA) - útil para el Volumen
+  calculateSMA(values: number[], period: number): number[] {
+    if (values.length < period) return [];
+
+    const smaArray: number[] = [];
+    
+    // Rellenar los primeros espacios vacíos con ceros para mantener la alineación
+    for (let i = 0; i < period - 1; i++) {
+      smaArray.push(0);
+    }
+
+    let currentSum = 0;
+    // Suma inicial de los primeros 'period' elementos
+    for (let i = 0; i < period; i++) {
+      currentSum += values[i];
+    }
+    smaArray.push(currentSum / period);
+
+    // Ventana deslizante para el resto
+    for (let i = period; i < values.length; i++) {
+      currentSum = currentSum - values[i - period] + values[i];
+      smaArray.push(currentSum / period);
+    }
+
+    return smaArray;
+  }
 }

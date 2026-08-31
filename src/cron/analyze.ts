@@ -4,6 +4,7 @@ import { db } from "../db/index.js";
 import { signalHistory } from "../db/schema.js";
 import { DataFetcher } from "../bot/data.js";
 import { PullbackStrategy, Signal } from "../bot/strategy.js";
+import { MomentumStrategy } from "../bot/momentum.js";
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN!);
 
@@ -42,7 +43,21 @@ async function runAnalysis(timeframe: string) {
 
   if (topPairs.length === 0) return;
 
-  const bestSignal = await strategy.runCompetition(fetcher, topPairs, timeframe);
+  const pullbackSignal = await strategy.runCompetition(fetcher, topPairs, timeframe);
+  const momentumStrategy = new MomentumStrategy();
+  const momentumSignal = await momentumStrategy.runCompetition(fetcher, topPairs, timeframe);
+
+  let bestSignal: Signal | null = null;
+
+  if (pullbackSignal && momentumSignal) {
+    if (momentumSignal.score > pullbackSignal.score) {
+      bestSignal = momentumSignal;
+    } else {
+      bestSignal = pullbackSignal;
+    }
+  } else {
+    bestSignal = pullbackSignal || momentumSignal;
+  }
 
   if (bestSignal) {
     console.log(`Ganadora encontrada: ${bestSignal.symbol}`);
@@ -88,7 +103,11 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
   const isLong = signal.direction === "LONG";
   const emoji = isLong ? "🟢" : "🔴";
   const filterMsg = isLong ? "Tendencia Alcista (Sobre EMA 200)" : "Tendencia Bajista (Bajo EMA 200)";
-  const strategyMsg = isLong ? "Soporte Institucional Múltiple" : "Resistencia Institucional Múltiple";
+  
+  let strategyMsg = signal.strategyName;
+  if (strategyMsg === "Pullback Institucional") {
+    strategyMsg = isLong ? "Soporte Institucional Múltiple" : "Resistencia Institucional Múltiple";
+  }
 
   const message = `🔔 <b>SEÑAL FUTUROS 1x (${timeframe})</b> 🔔\n\n` +
     `🪙 <b>Par:</b> ${signal.symbol}\n` +

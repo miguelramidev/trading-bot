@@ -31,7 +31,7 @@ export class PullbackStrategy {
   private maxDistancePercent: number;
   private emaPeriod: number;
 
-  constructor(riskRewardRatio = 1.5, atrMultiplier = 2.0, maxDistancePercent = 5.0, emaPeriod = 200) {
+  constructor(riskRewardRatio = 1.0, atrMultiplier = 2.0, maxDistancePercent = 5.0, emaPeriod = 200) {
     this.rrRatio = riskRewardRatio;
     this.atrMultiplier = atrMultiplier;
     this.maxDistancePercent = maxDistancePercent / 100.0;

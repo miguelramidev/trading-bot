@@ -16,7 +16,7 @@ export class MomentumStrategy {
   private emaPeriod: number;
   private volumeMultiplier: number;
 
-  constructor(riskRewardRatio = 1.5, atrMultiplier = 2.0, emaPeriod = 200, volumeMultiplier = 1.5) {
+  constructor(riskRewardRatio = 1.0, atrMultiplier = 2.0, emaPeriod = 200, volumeMultiplier = 1.5) {
     this.rrRatio = riskRewardRatio;
     this.atrMultiplier = atrMultiplier;
     this.emaPeriod = emaPeriod;

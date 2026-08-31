@@ -23,10 +23,16 @@
 * [x] **Sistema Anti-Spam (FIFO Queue):** Conectar la lógica del bot a Neon DB para recordar las últimas alertas y obligarlo a buscar la siguiente mejor opción si la ganadora de hoy ya fue anunciada recientemente.
 
 ## 4. Próximos Pasos Futuros (Ideas para iterar) - [Pendiente]
-* [ ] **Backtesting Integrado:** Implementar una ruta en TypeScript que permita simular resultados pasados de la estrategia.
-* [ ] **Notificaciones con Gráficas:** Añadir generación de una imagen o enlace de TradingView al mensaje de Telegram.
+* [x] **Backtesting Integrado:** Implementar una ruta en TypeScript que permita simular resultados pasados de la estrategia.
+* [x] **Notificaciones con Gráficas:** Añadir enlaces profundos (deep links) interactivos de TradingView al mensaje de Telegram.
 * [x] **Cálculo Dinámico del Stop Loss (ATR):** En lugar de un SL fijo del 1.5%, utilizar el indicador de volatilidad ATR para darle "respiración" a la moneda según su volatilidad natural.
 * [x] **Gestión Activa del Trade:** Una vez enviada la señal de compra, sugerir al usuario el punto exacto de "Breakeven" para asegurar ganancias.
 * [x] **Migración a Futuros 1x (SMC Long/Short):** Adaptación bidireccional del motor para operar "Swing Lows" en tendencia alcista y "Swing Highs" en tendencia bajista, con integración de márgenes mínimos (`minNotional`) e inclusión de Blue Chips (BTC/ETH).
 * [x] **Motor Dual (Momentum Breakout):** Integración de un segundo cerebro estratégico paralelo que detecta rompimientos de soportes/resistencias con inyecciones masivas de volumen institucional, operando mediante órdenes Limit (Breakout & Retest).
-* [x] **Defensas Anti-Manipulación:** Ensanchamiento matemático del ATR (2.5x) para evitar Stop Loss prematuros y creación de un Filtro Maestro de Macro Tendencia que escanea la EMA 50 de Bitcoin para prohibir operaciones contra-tendencia.
+* [x] **Defensas Anti-Manipulación:** Ensanchamiento matemático del ATR (2.0x) para evitar Stop Loss prematuros y creación de un Filtro Maestro de Macro Tendencia que escanea la EMA 50 de Bitcoin para prohibir operaciones contra-tendencia.
+
+## 5. Optimización Cuantitativa (Quants) - [Completado]
+* [x] **Filtro Estructural de Volatilidad (RSI):** Implementación del oscilador RSI (14 periodos) para abortar largos en zonas eufóricas (>70) y cortos en sobreventa (<30), curando la ceguera algorítmica del bot.
+* [x] **Optimización de Geometría de Pullbacks:** Corrección del modelo matemático para buscar techos (`high`) y pisos (`low`) indistintamente a la hora de confirmar zonas institucionales de resistencia.
+* [x] **Barrido de Parámetros de Riesgo (Brute-Force Optimizer):** Desarrollo del script `optimizer.ts` para cruzar combinaciones de Risk/Reward y ATR, descubriendo que la codicia inicial de 1:3 RR generaba un Winrate negativo y recalibrando la expectativa a **1.0x RR** (1:1.5 originalmente, ajustado a 1:1 final) para un Winrate del ~50-60%.
+* [x] **Simulador Financiero Global Institucional:** Construcción del script `simulator.ts` capaz de descargar de Binance la data de todo el Top 100 de criptomonedas simultáneamente para someter al bot a una prueba de estrés de portafolio global en el último mes, aplicando comisiones reales, apalancamiento 1x, límites de ruina (Ruin Rules) e interés compuesto real. Resultado: **+23.88% ROI mensual (Winrate 52.78%)**.

@@ -25,5 +25,5 @@
 ## 4. Próximos Pasos Futuros (Ideas para iterar) - [Pendiente]
 * [ ] **Backtesting Integrado:** Implementar una ruta en TypeScript que permita simular resultados pasados de la estrategia.
 * [ ] **Notificaciones con Gráficas:** Añadir generación de una imagen o enlace de TradingView al mensaje de Telegram.
-* [ ] **Cálculo Dinámico del Stop Loss (ATR):** En lugar de un SL fijo del 1.5%, utilizar el indicador de volatilidad ATR para darle "respiración" a la moneda según su volatilidad natural.
-* [ ] **Gestión Activa del Trade:** Una vez enviada la señal de compra, monitorear si el precio llega al "Breakeven" para sugerir al usuario asegurar ganancias.
+* [x] **Cálculo Dinámico del Stop Loss (ATR):** En lugar de un SL fijo del 1.5%, utilizar el indicador de volatilidad ATR para darle "respiración" a la moneda según su volatilidad natural.
+* [x] **Gestión Activa del Trade:** Una vez enviada la señal de compra, sugerir al usuario el punto exacto de "Breakeven" para asegurar ganancias.

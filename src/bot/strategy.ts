@@ -16,19 +16,20 @@ export type Signal = {
   entry: number;
   stopLoss: number;
   takeProfit: number;
+  breakevenTarget: number;
   distancePct: number;
   score: number;
 };
 
 export class PullbackStrategy {
   private rrRatio: number;
-  private slPercent: number;
+  private atrMultiplier: number;
   private maxDistancePercent: number;
   private emaPeriod: number;
 
-  constructor(riskRewardRatio = 3.0, slPercent = 1.5, maxDistancePercent = 5.0, emaPeriod = 200) {
+  constructor(riskRewardRatio = 3.0, atrMultiplier = 1.5, maxDistancePercent = 5.0, emaPeriod = 200) {
     this.rrRatio = riskRewardRatio;
-    this.slPercent = slPercent / 100.0;
+    this.atrMultiplier = atrMultiplier;
     this.maxDistancePercent = maxDistancePercent / 100.0;
     this.emaPeriod = emaPeriod;
   }
@@ -47,9 +48,11 @@ export class PullbackStrategy {
     // 1. FILTRO DE TENDENCIA (EMA 200 en la gráfica operativa LTF)
     const closingPrices = ltfCandles.map(c => c.close);
     const emaArray = fetcher.calculateEMA(closingPrices, this.emaPeriod);
+    const atrArray = fetcher.calculateATR(ltfCandles, 14);
     
     const currentPrice = ltfCandles[ltfCandles.length - 1].close;
     const currentEMA = emaArray[emaArray.length - 1];
+    const currentATR = atrArray[atrArray.length - 1];
 
     // Si el precio actual está por debajo de la EMA 200, estamos en tendencia bajista -> Descartamos la moneda
     if (currentPrice < currentEMA) {
@@ -112,9 +115,16 @@ export class PullbackStrategy {
     if (distanceToSupport > this.maxDistancePercent) return null;
 
     const entryPrice = supportLevel * 1.001; // 0.1% buffer de entrada
-    const stopLoss = entryPrice * (1 - this.slPercent);
+    const stopLoss = entryPrice - (currentATR * this.atrMultiplier);
+    
+    // Si por alguna razón el ATR es extremadamente volátil y genera SL negativo
+    if (stopLoss <= 0) return null;
+
     const riskPerCoin = entryPrice - stopLoss;
     const takeProfit = entryPrice + (riskPerCoin * this.rrRatio);
+
+    // Breakeven target: Ratio 1:1 + 5% del riesgo extra para comisiones de Binance
+    const breakevenTarget = entryPrice + (riskPerCoin * 1.05);
 
     // Score: Premiamos las monedas que están más cerca del precio de entrada
     // y damos un bonus por la cantidad de toques que tuvo la zona en la HTF.
@@ -128,6 +138,7 @@ export class PullbackStrategy {
       entry: entryPrice,
       stopLoss,
       takeProfit,
+      breakevenTarget,
       distancePct: distanceToSupport * 100,
       score,
     };

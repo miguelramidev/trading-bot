@@ -102,4 +102,52 @@ export class DataFetcher {
     
     return emaArray;
   }
+
+  // Utilidad para calcular el Average True Range (ATR)
+  calculateATR(candles: {high: number, low: number, close: number}[], period: number = 14): number[] {
+    if (candles.length < period) return [];
+
+    const trueRanges: number[] = [];
+    
+    // El primer True Range es simplemente High - Low (no hay close anterior)
+    trueRanges.push(candles[0].high - candles[0].low);
+
+    for (let i = 1; i < candles.length; i++) {
+      const high = candles[i].high;
+      const low = candles[i].low;
+      const prevClose = candles[i - 1].close;
+
+      const tr1 = high - low;
+      const tr2 = Math.abs(high - prevClose);
+      const tr3 = Math.abs(low - prevClose);
+
+      const trueRange = Math.max(tr1, tr2, tr3);
+      trueRanges.push(trueRange);
+    }
+
+    // Calcular RMA (Wilder's Smoothing) para el ATR
+    const atrArray: number[] = [];
+    
+    // El primer ATR es la media simple de los primeros N periodos del TR
+    let sumTR = 0;
+    for (let i = 0; i < period; i++) {
+      sumTR += trueRanges[i];
+    }
+    let previousATR = sumTR / period;
+
+    // Rellenamos el array con ceros para alinear los índices con el array de velas
+    for (let i = 0; i < period - 1; i++) {
+      atrArray.push(0);
+    }
+    atrArray.push(previousATR);
+
+    // Wilder's Smoothing Method: ATR_t = (ATR_{t-1} * (n - 1) + TR_t) / n
+    for (let i = period; i < trueRanges.length; i++) {
+      const currentATR = ((previousATR * (period - 1)) + trueRanges[i]) / period;
+      atrArray.push(currentATR);
+      previousATR = currentATR;
+    }
+
+    return atrArray;
+  }
 }

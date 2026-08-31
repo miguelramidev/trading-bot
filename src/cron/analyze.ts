@@ -161,7 +161,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     reply_markup = {
       inline_keyboard: [
         [
-          { text: "🖥️ TradingView", url: `https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}` }
+          { text: "🖥️ TradingView", url: `https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}.P` }
         ],
         [
           { text: "⚡ EJECUTAR OPERACIÓN", callback_data: `ask_amount_${signalId}` }
@@ -176,7 +176,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
           { text: "📱 Binance (App/Web)", url: `https://www.binance.com/es/futures/${binanceSymbol}` }
         ],
         [
-          { text: "🖥️ TradingView", url: `https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}` }
+          { text: "🖥️ TradingView", url: `https://www.tradingview.com/chart/?symbol=BINANCE:${binanceSymbol}.P` }
         ]
       ]
     };

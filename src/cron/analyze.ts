@@ -65,37 +65,6 @@ async function runAnalysis(timeframe: string) {
   }
 
   if (bestSignal) {
-    // === FILTRO INSTITUCIONAL DE FUNDING RATES ===
-    try {
-      const publicExchange = new ccxt.binance({
-        enableRateLimit: true,
-        options: { defaultType: 'future' }
-      });
-      
-      const fundingData = await publicExchange.fetchFundingRate(bestSignal.symbol);
-      const fundingRate = fundingData.fundingRate || 0;
-      
-      const isLong = bestSignal.direction === "LONG";
-      
-      // Umbrales de peligro extremo (0.05% = 0.0005)
-      if (isLong && fundingRate >= 0.0005) {
-        console.log(`🚨 ALERTA INSTITUCIONAL: Funding rate extremo (${(fundingRate * 100).toFixed(4)}%) para ${bestSignal.symbol} en LONG. Abortando operación por riesgo de Long Squeeze...`);
-        return;
-      }
-      
-      if (!isLong && fundingRate <= -0.0005) {
-        console.log(`🚨 ALERTA INSTITUCIONAL: Funding rate extremo (${(fundingRate * 100).toFixed(4)}%) para ${bestSignal.symbol} en SHORT. Abortando operación por riesgo de Short Squeeze...`);
-        return;
-      }
-      
-      // Inject funding rate into signal object to pass it down to Telegram
-      (bestSignal as any).fundingRate = fundingRate;
-      
-    } catch (e: any) {
-      console.log(`Error obteniendo funding rate para ${bestSignal.symbol}, saltando filtro:`, e.message);
-      (bestSignal as any).fundingRate = 0;
-    }
-
     // Guardar en el historial primero para obtener el ID
     const [inserted] = await db.insert(signalHistory).values({
       symbol: bestSignal.symbol,
@@ -172,7 +141,6 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `🪙 <b>Par:</b> ${signal.symbol}\n` +
     `🧭 <b>Dirección:</b> ${emoji} <b>${signal.direction}</b>\n` +
     `👑 <b>Macro BTC:</b> ${btcTrend === "UP" ? "Alcista (Permitiendo Longs)" : "Bajista (Permitiendo Shorts)"}\n` +
-    `💸 <b>Funding Rate:</b> ${((signal as any).fundingRate * 100).toFixed(4)}% (Sano)\n` +
     `📈 <b>Filtro:</b> ${filterMsg}\n` +
     `📊 <b>Estrategia:</b> ${strategyMsg} (Zona de ${htf})\n` +
     `💵 <b>Precio Actual:</b> ${signal.currentPrice.toFixed(4)} (${signal.distancePct.toFixed(2)}% hasta entrada)\n` +

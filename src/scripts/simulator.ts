@@ -38,7 +38,7 @@ async function runPortfolioSimulation() {
   const startTime = endTime - ONE_MONTH_MS;
 
   console.log(`Descargando historial de ${symbols.length} monedas...`);
-  const marketData: Record<string, { ltf: Candle[], htf: Candle[] }> = {};
+  const marketData: Record<string, { ltf: Candle[], htf: Candle[], funding: { timestamp: number, fundingRate: number }[] }> = {};
 
   for (let i = 0; i < symbols.length; i++) {
     const sym = symbols[i];
@@ -46,8 +46,9 @@ async function runPortfolioSimulation() {
     try {
       const ltf = await fetcher.fetchOhlcv(sym, timeframe, 1500);
       const htfData = await fetcher.fetchOhlcv(sym, htf, 1500);
+      const funding = await fetcher.fetchFundingRateHistory(sym, 1000); // 1000 candles is max for ccxt (usually 8h intervals, enough for 1 month)
       if (ltf && htfData) {
-        marketData[sym] = { ltf, htf: htfData };
+        marketData[sym] = { ltf, htf: htfData, funding };
       }
       // Pequeño delay para no romper el Rate Limit de Binance
       await new Promise(r => setTimeout(r, 150));
@@ -68,8 +69,8 @@ async function runPortfolioSimulation() {
   let totalTrades = 0;
   let wins = 0;
   let losses = 0;
-  let breakevens = 0;
   let totalFeesPaid = 0;
+  let filteredByFunding = 0; // Contabilizar cuántas señales se abortaron por Funding Rate extremo
   // Extraer todos los timestamps únicos
   const allTimestamps = new Set<number>();
   for (const sym of symbols) {
@@ -120,27 +121,12 @@ async function runPortfolioSimulation() {
       if (activeTrade && activeTrade.isFilled) {
         let hitTP = false;
         let hitSL = false;
-        let hitBreakeven = false;
 
         if (activeTrade.direction === "LONG") {
-          if (!activeTrade.breakevenHit && currentCandle.high >= activeTrade.breakevenTarget) {
-            activeTrade.breakevenHit = true;
-            activeTrade.stopLoss = activeTrade.entry;
-          }
-          if (currentCandle.low <= activeTrade.stopLoss) {
-            hitSL = true;
-            if (activeTrade.breakevenHit) hitBreakeven = true;
-          }
+          if (currentCandle.low <= activeTrade.stopLoss) hitSL = true;
           if (currentCandle.high >= activeTrade.takeProfit) hitTP = true;
         } else {
-          if (!activeTrade.breakevenHit && currentCandle.low <= activeTrade.breakevenTarget) {
-            activeTrade.breakevenHit = true;
-            activeTrade.stopLoss = activeTrade.entry;
-          }
-          if (currentCandle.high >= activeTrade.stopLoss) {
-            hitSL = true;
-            if (activeTrade.breakevenHit) hitBreakeven = true;
-          }
+          if (currentCandle.high >= activeTrade.stopLoss) hitSL = true;
           if (currentCandle.low <= activeTrade.takeProfit) hitTP = true;
         }
 
@@ -163,13 +149,8 @@ async function runPortfolioSimulation() {
           balance = balancePostTrade - exitFee;
 
           if (hitSL) {
-            if (hitBreakeven) {
-              breakevens++;
-              console.log(`[${new Date(time).toISOString()}] ⚪ BREAKEVEN ${activeTrade.symbol}. Balance: $${balance.toFixed(2)}`);
-            } else {
-              losses++;
-              console.log(`[${new Date(time).toISOString()}] ❌ STOP LOSS ${activeTrade.symbol}. Balance: $${balance.toFixed(2)}`);
-            }
+            losses++;
+            console.log(`[${new Date(time).toISOString()}] ❌ STOP LOSS ${activeTrade.symbol}. Balance: $${balance.toFixed(2)}`);
           } else if (hitTP) {
             wins++;
             console.log(`[${new Date(time).toISOString()}] 🏆 TAKE PROFIT ${activeTrade.symbol}. Balance: $${balance.toFixed(2)}`);
@@ -216,8 +197,30 @@ async function runPortfolioSimulation() {
       }
 
       if (bestGlobalSignal) {
-        // console.log(`[${new Date(time).toISOString()}] 🚨 SEÑAL DETECTADA: ${bestGlobalSignal.symbol}`);
-        activeTrade = { ...bestGlobalSignal, isFilled: false, candlesSinceSignal: 0, breakevenHit: false };
+        // === FILTRO DE FUNDING RATE HISTORICO ===
+        const data = marketData[bestGlobalSignal.symbol];
+        let currentFundingRate = 0;
+        
+        // Buscar el último funding rate registrado antes o igual al momento de la señal
+        if (data && data.funding && data.funding.length > 0) {
+          const pastFundings = data.funding.filter(f => f.timestamp <= time);
+          if (pastFundings.length > 0) {
+            // El último del array filtrado es el más reciente
+            currentFundingRate = pastFundings[pastFundings.length - 1].fundingRate;
+          }
+        }
+        
+        const isLong = bestGlobalSignal.direction === "LONG";
+        
+        // Umbrales de 0.05%
+        if (isLong && currentFundingRate >= 0.0005) {
+          filteredByFunding++;
+        } else if (!isLong && currentFundingRate <= -0.0005) {
+          filteredByFunding++;
+        } else {
+          // console.log(`[${new Date(time).toISOString()}] 🚨 SEÑAL DETECTADA: ${bestGlobalSignal.symbol}`);
+          activeTrade = { ...bestGlobalSignal, isFilled: false, candlesSinceSignal: 0, breakevenHit: false };
+        }
       }
     }
   }
@@ -235,9 +238,9 @@ async function runPortfolioSimulation() {
   console.log(`Trades Totales Llenados: ${totalTrades}`);
   console.log(`Victorias (TP): ${wins}`);
   console.log(`Derrotas (SL): ${losses}`);
-  console.log(`Breakevens (0R): ${breakevens}`);
+  console.log(`Señales Abortadas por Funding (>0.05%): ${filteredByFunding}`);
   
-  const winrate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(2) : 0;
+  const winrate = totalTrades > 0 ? ((wins / (wins + losses)) * 100).toFixed(2) : 0;
   console.log(`Winrate: ${winrate}%`);
   console.log(`===========================================\n`);
 }

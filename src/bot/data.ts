@@ -77,6 +77,20 @@ export class DataFetcher {
     }
   }
 
+  async fetchFundingRateHistory(symbol: string, limit = 1000) {
+    try {
+      const history = await this.exchange.fetchFundingRateHistory(symbol, undefined, limit);
+      // Returns array of { symbol, fundingRate, timestamp, datetime }
+      return history.map((h: any) => ({
+        timestamp: h.timestamp as number,
+        fundingRate: h.fundingRate as number,
+      }));
+    } catch (error) {
+      // console.error(`Error fetching funding rate history for ${symbol}:`, error.message);
+      return [];
+    }
+  }
+
   async getMinNotional(symbol: string): Promise<number> {
     try {
       await this.exchange.loadMarkets();

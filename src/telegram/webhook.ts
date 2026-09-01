@@ -64,7 +64,7 @@ bot.command("status", async (ctx) => {
   await ctx.reply(`Estado del bot: ${status}`);
 });
 
-bot.command("posiciones", async (ctx) => {
+bot.command("positions", async (ctx) => {
   await ctx.reply("⏳ Consultando operaciones abiertas en Binance...");
   
   const binanceKey = process.env.BINANCE_API_KEY || Resource.BINANCE_API_KEY.value;

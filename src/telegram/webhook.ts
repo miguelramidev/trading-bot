@@ -64,6 +64,57 @@ bot.command("status", async (ctx) => {
   await ctx.reply(`Estado del bot: ${status}`);
 });
 
+bot.command("posiciones", async (ctx) => {
+  await ctx.reply("⏳ Consultando operaciones abiertas en Binance...");
+  
+  const binanceKey = process.env.BINANCE_API_KEY || Resource.BINANCE_API_KEY.value;
+  const binanceSecret = process.env.BINANCE_API_SECRET || Resource.BINANCE_API_SECRET.value;
+
+  if (!binanceKey || !binanceSecret) {
+    await ctx.reply("❌ Error: Faltan credenciales de Binance.");
+    return;
+  }
+
+  try {
+    const secretKey = binanceSecret.replace(/\\n/g, '\n');
+    const exchange = new ccxt.binance({
+      apiKey: binanceKey,
+      secret: secretKey,
+      enableRateLimit: true,
+      options: { defaultType: 'future' }
+    });
+
+    const positions = await exchange.fetchPositions();
+    const openPositions = positions.filter((p: any) => p.contracts && p.contracts > 0);
+
+    if (openPositions.length === 0) {
+      await ctx.reply("No tienes ninguna operación abierta en este momento. 😴");
+      return;
+    }
+
+    let message = `📊 <b>POSICIONES ABIERTAS (${openPositions.length})</b>\n\n`;
+
+    for (const p of openPositions) {
+      const isLong = p.side === 'long' || p.positionSide === 'LONG';
+      const sideEmoji = isLong ? "🟢 LONG" : "🔴 SHORT";
+      const pnl = p.unrealizedPnl || 0;
+      const roe = p.percentage || 0;
+      const pnlEmoji = pnl >= 0 ? "🤑" : "🩸";
+      
+      message += `🪙 <b>${p.symbol}</b> (${sideEmoji})\n`;
+      message += `🛒 Entrada: ${p.entryPrice}\n`;
+      message += `💵 Actual: ${p.markPrice}\n`;
+      message += `${pnlEmoji} PnL: <b>$${pnl.toFixed(2)} USDT</b> (${roe.toFixed(2)}%)\n\n`;
+    }
+
+    await ctx.reply(message, { parse_mode: "HTML" });
+
+  } catch (error: any) {
+    console.error("Posiciones Error:", error);
+    await ctx.reply(`❌ Error al consultar posiciones: ${error.message}`);
+  }
+});
+
 bot.action(/^ask_amount_(\d+)$/, async (ctx) => {
   const signalId = parseInt(ctx.match[1]);
   const chatId = ctx.chat?.id.toString();

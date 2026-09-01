@@ -6,6 +6,22 @@
 
 declare module "sst" {
   export interface Resource {
+    "BINANCE_API_KEY": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "BINANCE_API_SECRET": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "DATABASE_URL": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TELEGRAM_TOKEN": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "TelegramWebhook": {
       "type": "sst.aws.ApiGatewayV2"
       "url": string

@@ -46,5 +46,5 @@
 * [x] **Precisión Matemática Institucional (Lot Size):** Adaptación del bot a las restricciones de "Step Size" de Binance mediante el redondeo perfecto de compras de tokens de alto valor (ej. SKHYNIXUSDT a >$1200).
 * [x] **Reporte Diario de PnL:** Script `report.ts` integrado en AWS Cron para consultar el PnL Realizado vía `fetchIncome` de Binance y enviar un resumen ejecutivo a Telegram todas las noches a las 23:00 (PYT).
 * [ ] **Multiplicador de Apalancamiento desde Telegram:** Opciones dinámicas en el chat para operar a 5x, 10x o 20x en vez de 1x.
-* [ ] **Filtro Institucional de Tasas de Financiación (Funding Rates):** Evitar Longs cuando las ballenas están sobre-apalancadas y a punto de ser liquidadas.
+* [x] **Filtro Institucional de Tasas de Financiación (Funding Rates):** Evitar Longs cuando las ballenas están sobre-apalancadas y a punto de ser liquidadas (umbral ±0.05%).
 * [ ] **Análisis de Libro de Órdenes (Order Book):** Analizar murallas de compras/ventas reales en milisegundos antes de confirmar un setup.

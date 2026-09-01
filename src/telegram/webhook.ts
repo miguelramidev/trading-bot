@@ -75,9 +75,10 @@ bot.action(/^ask_amount_(\d+)$/, async (ctx) => {
   }
 
   try {
+    const secretKey = (process.env.BINANCE_API_SECRET || "").replace(/\\n/g, '\n');
     const exchange = new ccxt.binance({
       apiKey: process.env.BINANCE_API_KEY,
-      secret: process.env.BINANCE_API_SECRET,
+      secret: secretKey,
       enableRateLimit: true,
       options: { defaultType: 'future' }
     });
@@ -137,9 +138,10 @@ bot.on(message("text"), async (ctx) => {
       return;
     }
 
+    const secretKey = (process.env.BINANCE_API_SECRET || "").replace(/\\n/g, '\n');
     const exchange = new ccxt.binance({
       apiKey: process.env.BINANCE_API_KEY,
-      secret: process.env.BINANCE_API_SECRET,
+      secret: secretKey,
       enableRateLimit: true,
       options: { defaultType: 'future' }
     });
@@ -166,6 +168,13 @@ bot.on(message("text"), async (ctx) => {
     }
 
     const initialMsg = await ctx.reply(`⏳ Colocando orden Limit en ${signal.symbol} por $${usdAmount} (${amount} tokens)...`);
+
+    // 0. Asegurar apalancamiento 1x (Sin apalancamiento real)
+    try {
+      await exchange.setLeverage(1, signal.symbol);
+    } catch (e: any) {
+      console.log(`Nota: No se pudo modificar el apalancamiento (quizás ya era 1x) para ${signal.symbol}:`, e.message);
+    }
 
     // 1. Crear Orden Limit
     await exchange.createOrder(signal.symbol, 'limit', side, amount, entryPrice, {

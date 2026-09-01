@@ -14,6 +14,9 @@ export async function handler() {
     return;
   }
 
+  // AWS a veces escapa los saltos de línea. Aseguramos que sea multilínea.
+  const secretKey = (process.env.BINANCE_API_SECRET || "").replace(/\\n/g, '\n');
+
   // 1. Obtener señales activas en DB que aún no han movido su SL
   const activeSignals = await db.query.signalHistory.findMany({
     where: and(
@@ -30,7 +33,7 @@ export async function handler() {
   try {
     const exchange = new ccxt.binance({
       apiKey: process.env.BINANCE_API_KEY,
-      secret: process.env.BINANCE_API_SECRET,
+      secret: secretKey,
       enableRateLimit: true,
       options: { defaultType: 'future' }
     });
@@ -53,7 +56,15 @@ export async function handler() {
         const limitOrder = openOrders.find(o => o.type === 'limit');
 
         if (!limitOrder) {
-          console.log(`[${signal.symbol}] Ya no hay posición ni orden Limit. Marcando inactiva.`);
+          console.log(`[${signal.symbol}] Ya no hay posición ni orden Limit. Marcando inactiva y limpiando órdenes huérfanas.`);
+          
+          try {
+            // Limpiar SL/TP huérfanos
+            await exchange.cancelAllOrders(signal.symbol);
+          } catch (e: any) {
+            console.log(`Nota: No se pudieron limpiar las órdenes huérfanas de ${signal.symbol}:`, e.message);
+          }
+
           await db.update(signalHistory)
             .set({ isActiveTrade: false })
             .where(eq(signalHistory.id, signal.id));

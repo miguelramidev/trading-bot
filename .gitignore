@@ -4,3 +4,5 @@ node_modules/
 dist/
 archive/venv/
 .DS_Store
+binance_private_key.pem
+binance_public_key.pem

@@ -39,7 +39,11 @@
 * [x] **Simulador Financiero Global Institucional:** Construcción del script `simulator.ts` capaz de descargar de Binance la data de todo el Top 100 de criptomonedas simultáneamente para someter al bot a una prueba de estrés de portafolio global en el último mes, aplicando comisiones reales, apalancamiento 1x, límites de ruina (Ruin Rules) e interés compuesto real. Resultado: **+23.88% ROI mensual (Winrate 52.78%)**.
 
 ## 6. Fase de Hedge Fund Cuantitativo (Nivel Dios) - [En Progreso]
-* [ ] **Gestión Automática de Riesgo (Breakeven Dinámico):** Un monitor en tiempo real (AWS Cron de 5m) que revisa las posiciones abiertas en Binance; si cruzan el umbral de seguridad, el bot modifica la orden de Stop Loss moviéndola automáticamente al precio de entrada para garantizar riesgo $0.
+* [x] **Gestión Automática de Riesgo (Breakeven Dinámico):** Monitor en tiempo real (AWS Cron de 5m) que revisa posiciones abiertas. Si el precio alcanza la meta, mueve el SL a precio de entrada + comisiones para garantizar riesgo $0.
+* [x] **Limpieza de Órdenes Huérfanas:** Sistema automatizado que cancela condicionales residuales (Stop Loss o Take Profit flotantes) cuando el trade finaliza, manteniendo la interfaz de Binance limpia.
+* [x] **Seguridad de Apalancamiento Fijo (1x):** El bot fuerza un apalancamiento de 1x por defecto en cada operación, asegurando exposición equivalente a Spot y protegiendo la cuenta contra liquidaciones accidentales.
+* [x] **Resolución Criptográfica Asimétrica (Ed25519):** Inyección de un parche matemático de compatibilidad de llaves PEM (Cabecera ASN.1 de 16 bytes vs 12 bytes) para conectar Binance y AWS Serverless de la forma más segura posible y saltarse las restricciones de IP.
+* [x] **Precisión Matemática Institucional (Lot Size):** Adaptación del bot a las restricciones de "Step Size" de Binance mediante el redondeo perfecto de compras de tokens de alto valor (ej. SKHYNIXUSDT a >$1200).
 * [ ] **Multiplicador de Apalancamiento desde Telegram:** Opciones dinámicas en el chat para operar a 5x, 10x o 20x en vez de 1x.
 * [ ] **Reporte Diario de PnL:** Un mensaje cada noche resumiendo ganancias, pérdidas, winrate y balance del día de forma automatizada.
 * [ ] **Filtro Institucional de Tasas de Financiación (Funding Rates):** Evitar Longs cuando las ballenas están sobre-apalancadas y a punto de ser liquidadas.

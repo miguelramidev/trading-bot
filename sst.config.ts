@@ -18,6 +18,8 @@ export default $config({
     const envVars = {
       TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN || "",
       DATABASE_URL: process.env.DATABASE_URL || "",
+      BINANCE_API_KEY: process.env.BINANCE_API_KEY || "",
+      BINANCE_API_SECRET: process.env.BINANCE_API_SECRET || "",
     };
 
     // 1. API Gateway para el Webhook de Telegram

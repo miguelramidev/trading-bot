@@ -61,11 +61,11 @@ export default $config({
       }
     });
 
-    // Monitor de posiciones (cada 5 minutos)
-    new sst.aws.Cron("MonitorBreakeven", {
-      schedule: "rate(5 minutes)",
+    // Reporte Diario de PnL (A las 23:00 PYT -> 03:00 UTC)
+    new sst.aws.Cron("DailyReport", {
+      schedule: "cron(0 3 * * ? *)",
       job: {
-        handler: "src/cron/monitor.handler",
+        handler: "src/cron/report.handler",
         timeout: "60 seconds",
         environment: envVars
       }

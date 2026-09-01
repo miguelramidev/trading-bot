@@ -193,10 +193,7 @@ bot.on(message("text"), async (ctx) => {
       reduceOnly: true
     });
 
-    // 4. Marcar la señal como activa en la base de datos para monitoreo de Breakeven
-    await db.update(signalHistory)
-      .set({ isActiveTrade: true, breakevenMoved: false })
-      .where(eq(signalHistory.id, signalId));
+    // (Omitido) No guardamos estado de operaciones activas porque la estrategia es 1:1 estática
 
     await ctx.telegram.editMessageText(chatId, initialMsg.message_id, undefined, 
       `✅ <b>¡Operación Colocada con Éxito!</b> 🚀\n` +

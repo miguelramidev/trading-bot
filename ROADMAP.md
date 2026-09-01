@@ -48,3 +48,7 @@
 * [ ] **Multiplicador de Apalancamiento desde Telegram:** Opciones dinámicas en el chat para operar a 5x, 10x o 20x en vez de 1x.
 * [x] **Filtro Institucional de Tasas de Financiación (Funding Rates):** Evitar Longs cuando las ballenas están sobre-apalancadas y a punto de ser liquidadas.
 * [ ] **Análisis de Libro de Órdenes (Order Book):** Analizar murallas de compras/ventas reales en milisegundos antes de confirmar un setup.
+
+## 7. Gran Reseteo (Nueva Estrategia) - [En Progreso]
+* [x] **Purga de Código:** Eliminación completa de todas las estrategias anteriores (Pullback, Momentum, Volume Profile, Triple Screen), limpieza de la lógica del order book, tendencia y soportes. Preparación en limpio para iniciar desde cero.
+* [ ] **Análisis de Nueva Estrategia:** Leer detalladamente `PROMPT_GUIDE.md` y, basándose en su contenido, reestructurar este `ROADMAP.md` para planificar la nueva fase del bot. *(Nota para la siguiente sesión: ¡Este es el paso 1 antes de programar nada!)*

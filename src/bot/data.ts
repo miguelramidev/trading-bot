@@ -59,11 +59,23 @@ export class DataFetcher {
     }
   }
 
-  async fetchOhlcv(symbol: string, timeframe = "1h", limit = 200) {
+  async fetchOhlcv(symbol: string, timeframe = "1h", limit = 200, since?: number) {
     try {
-      const ohlcv = await this.exchange.fetchOHLCV(symbol, timeframe, undefined, limit);
-      // ccxt returns [timestamp, open, high, low, close, volume]
-      return ohlcv.map((candle) => ({
+      let allCandles: any[] = [];
+      let currentSince = since;
+      
+      while (allCandles.length < limit) {
+        const fetchLimit = Math.min(1500, limit - allCandles.length);
+        const ohlcv = await this.exchange.fetchOHLCV(symbol, timeframe, currentSince, fetchLimit);
+        if (!ohlcv || ohlcv.length === 0) break;
+        
+        allCandles = allCandles.concat(ohlcv);
+        currentSince = ohlcv[ohlcv.length - 1][0] + 1; // Start from next candle
+        
+        if (ohlcv.length < fetchLimit) break; // Reached end of available data
+      }
+
+      return allCandles.map((candle) => ({
         timestamp: candle[0] as number,
         open: candle[1] as number,
         high: candle[2] as number,
@@ -77,9 +89,9 @@ export class DataFetcher {
     }
   }
 
-  async fetchFundingRateHistory(symbol: string, limit = 1000) {
+  async fetchFundingRateHistory(symbol: string, limit = 1000, since?: number) {
     try {
-      const history = await this.exchange.fetchFundingRateHistory(symbol, undefined, limit);
+      const history = await this.exchange.fetchFundingRateHistory(symbol, since, limit);
       // Returns array of { symbol, fundingRate, timestamp, datetime }
       return history.map((h: any) => ({
         timestamp: h.timestamp as number,

@@ -4,6 +4,7 @@ import { pgTable, text, boolean, timestamp, serial, integer } from "drizzle-orm/
 export const userConfig = pgTable("user_config", {
   chatId: text("chat_id").primaryKey(),
   isPaused: boolean("is_paused").default(false).notNull(),
+  leverage: integer("leverage").default(1).notNull(),
   pendingSignalId: integer("pending_signal_id").references(() => signalHistory.id), // guardamos qué señal quiere operar
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

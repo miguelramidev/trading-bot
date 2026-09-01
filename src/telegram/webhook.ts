@@ -61,7 +61,37 @@ bot.command("status", async (ctx) => {
   }
   
   const status = config.isPaused ? "Pausado ⏸️" : "Activo ▶️";
-  await ctx.reply(`Estado del bot: ${status}`);
+  await ctx.reply(`Estado del bot: ${status}\nApalancamiento actual: ${config.leverage}x`);
+});
+
+bot.command("leverage", async (ctx) => {
+  const chatId = ctx.chat.id.toString();
+  const args = ctx.message.text.split(" ");
+  
+  if (args.length < 2) {
+    const config = await db.query.userConfig.findFirst({
+      where: eq(userConfig.chatId, chatId),
+    });
+    const current = config?.leverage || 1;
+    await ctx.reply(`Apalancamiento actual: ${current}x\nUsa /leverage [1-125] para cambiarlo.`);
+    return;
+  }
+  
+  const newLeverage = parseInt(args[1]);
+  if (isNaN(newLeverage) || newLeverage < 1 || newLeverage > 125) {
+    await ctx.reply("❌ Multiplicador inválido. Usa un número entre 1 y 125.");
+    return;
+  }
+  
+  await db
+    .insert(userConfig)
+    .values({ chatId, leverage: newLeverage })
+    .onConflictDoUpdate({
+      target: userConfig.chatId,
+      set: { leverage: newLeverage, updatedAt: new Date() },
+    });
+    
+  await ctx.reply(`✅ Apalancamiento actualizado a ${newLeverage}x.`);
 });
 
 bot.command("positions", async (ctx) => {
@@ -142,14 +172,20 @@ bot.action(/^ask_amount_(\d+)$/, async (ctx) => {
     const balance = await exchange.fetchBalance();
     const usdtBalance = balance.USDT?.free || 0;
 
+    const config = await db.query.userConfig.findFirst({
+      where: eq(userConfig.chatId, chatId),
+    });
+    const leverage = config?.leverage || 1;
+
     // Guardar el estado en la base de datos
     await db.update(userConfig)
       .set({ pendingSignalId: signalId, updatedAt: new Date() })
       .where(eq(userConfig.chatId, chatId));
 
-    await ctx.reply(`💰 <b>Balance Disponible:</b> $${usdtBalance.toFixed(2)} USDT\n\n` +
-      `✍️ <b>Escribe en el chat el monto en USDT que deseas invertir en esta operación:</b>\n` +
-      `(Ejemplo: escribe <i>25</i> o <i>100</i>)`, { parse_mode: "HTML" });
+    await ctx.reply(`💰 <b>Balance Disponible:</b> $${usdtBalance.toFixed(2)} USDT\n` +
+      `⚡ <b>Apalancamiento Actual:</b> ${leverage}x\n\n` +
+      `✍️ <b>Escribe en el chat el margen en USDT que deseas invertir en esta operación:</b>\n` +
+      `(Ejemplo: si escribes <i>25</i> con 5x, la posición será de $125)`, { parse_mode: "HTML" });
 
   } catch (error: any) {
     console.error("Balance Error:", error);
@@ -208,8 +244,10 @@ bot.on(message("text"), async (ctx) => {
     const isLong = signal.direction === "LONG";
     const side = isLong ? "buy" : "sell";
     const oppositeSide = isLong ? "sell" : "buy";
+    
+    const leverage = config.leverage || 1;
 
-    let amount = usdAmount / entryPrice;
+    let amount = (usdAmount * leverage) / entryPrice;
 
     await exchange.loadMarkets();
     const market = exchange.markets[signal.symbol];
@@ -219,17 +257,17 @@ bot.on(message("text"), async (ctx) => {
 
     const minNotional = parseFloat(signal.minNotional || "5");
     if (amount * entryPrice < minNotional) {
-      await ctx.reply(`❌ El tamaño de la orden ($${(amount*entryPrice).toFixed(2)}) es menor al mínimo requerido de $${minNotional.toFixed(2)} USDT en Binance para este par.`);
+      await ctx.reply(`❌ El tamaño de la orden pos-apalancamiento ($${(amount*entryPrice).toFixed(2)}) es menor al mínimo requerido de $${minNotional.toFixed(2)} USDT en Binance para este par.`);
       return;
     }
 
-    const initialMsg = await ctx.reply(`⏳ Colocando orden Limit en ${signal.symbol} por $${usdAmount} (${amount} tokens)...`);
+    const initialMsg = await ctx.reply(`⏳ Colocando orden Limit en ${signal.symbol} por un valor total de $${(usdAmount * leverage).toFixed(2)} (${amount} tokens)...`);
 
-    // 0. Asegurar apalancamiento 1x (Sin apalancamiento real)
+    // 0. Configurar apalancamiento real
     try {
-      await exchange.setLeverage(1, signal.symbol);
+      await exchange.setLeverage(leverage, signal.symbol);
     } catch (e: any) {
-      console.log(`Nota: No se pudo modificar el apalancamiento (quizás ya era 1x) para ${signal.symbol}:`, e.message);
+      console.log(`Nota: No se pudo modificar el apalancamiento para ${signal.symbol}:`, e.message);
     }
 
     // 1. Crear Orden Limit

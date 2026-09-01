@@ -14,20 +14,19 @@ export default $config({
     };
   },
   async run() {
-    // Shared environment variables for lambdas
-    const envVars = {
-      TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN || "",
-      DATABASE_URL: process.env.DATABASE_URL || "",
-      BINANCE_API_KEY: process.env.BINANCE_API_KEY || "",
-      BINANCE_API_SECRET: process.env.BINANCE_API_SECRET || "",
-    };
+    // 1. Secretos Nativos de SST (Sustituyen al .env en Producción)
+    const TELEGRAM_TOKEN = new sst.Secret("TELEGRAM_TOKEN");
+    const DATABASE_URL = new sst.Secret("DATABASE_URL");
+    const BINANCE_API_KEY = new sst.Secret("BINANCE_API_KEY");
+    const BINANCE_API_SECRET = new sst.Secret("BINANCE_API_SECRET");
+    const ALL_SECRETS = [TELEGRAM_TOKEN, DATABASE_URL, BINANCE_API_KEY, BINANCE_API_SECRET];
 
     // 1. API Gateway para el Webhook de Telegram
     const api = new sst.aws.ApiGatewayV2("TelegramWebhook");
     
     api.route("POST /webhook", {
       handler: "src/telegram/webhook.handler",
-      environment: envVars
+      link: ALL_SECRETS
     });
 
     // 2. Cron Jobs para el análisis del mercado
@@ -37,7 +36,7 @@ export default $config({
       job: {
         handler: "src/cron/analyze.handler15m",
         timeout: "120 seconds", // Le damos tiempo para descargar las 100 velas
-        environment: envVars
+        link: ALL_SECRETS
       }
     });
 
@@ -47,7 +46,7 @@ export default $config({
       job: {
         handler: "src/cron/analyze.handler1h",
         timeout: "120 seconds",
-        environment: envVars
+        link: ALL_SECRETS
       }
     });
 
@@ -57,7 +56,7 @@ export default $config({
       job: {
         handler: "src/cron/analyze.handler4h",
         timeout: "120 seconds",
-        environment: envVars
+        link: ALL_SECRETS
       }
     });
 
@@ -67,7 +66,7 @@ export default $config({
       job: {
         handler: "src/cron/report.handler",
         timeout: "60 seconds",
-        environment: envVars
+        link: ALL_SECRETS
       }
     });
 

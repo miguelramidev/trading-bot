@@ -4,8 +4,10 @@ import { db } from "../db/index.js";
 import { userConfig, signalHistory } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import ccxt from "ccxt";
+import { Resource } from "sst";
 
-const bot = new Telegraf(process.env.TELEGRAM_TOKEN!);
+const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.value;
+const bot = new Telegraf(telegramToken);
 
 bot.command("start", async (ctx) => {
   const chatId = ctx.chat.id.toString();
@@ -69,15 +71,18 @@ bot.action(/^ask_amount_(\d+)$/, async (ctx) => {
 
   await ctx.answerCbQuery("Consultando balance en Binance...");
 
-  if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
-    await ctx.reply("❌ Error: API Keys de Binance no configuradas en el .env");
+  const binanceKey = process.env.BINANCE_API_KEY || Resource.BINANCE_API_KEY.value;
+  const binanceSecret = process.env.BINANCE_API_SECRET || Resource.BINANCE_API_SECRET.value;
+
+  if (!binanceKey || !binanceSecret) {
+    await ctx.reply("❌ Error: Faltan credenciales de Binance (API_KEY o SECRET) en el entorno.");
     return;
   }
 
   try {
-    const secretKey = (process.env.BINANCE_API_SECRET || "").replace(/\\n/g, '\n');
+    const secretKey = binanceSecret.replace(/\\n/g, '\n');
     const exchange = new ccxt.binance({
-      apiKey: process.env.BINANCE_API_KEY,
+      apiKey: binanceKey,
       secret: secretKey,
       enableRateLimit: true,
       options: { defaultType: 'future' }
@@ -138,9 +143,9 @@ bot.on(message("text"), async (ctx) => {
       return;
     }
 
-    const secretKey = (process.env.BINANCE_API_SECRET || "").replace(/\\n/g, '\n');
+    const secretKey = binanceSecret.replace(/\\n/g, '\n');
     const exchange = new ccxt.binance({
-      apiKey: process.env.BINANCE_API_KEY,
+      apiKey: binanceKey,
       secret: secretKey,
       enableRateLimit: true,
       options: { defaultType: 'future' }

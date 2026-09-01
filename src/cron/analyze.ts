@@ -5,8 +5,10 @@ import { signalHistory } from "../db/schema.js";
 import { DataFetcher } from "../bot/data.js";
 import { PullbackStrategy, Signal } from "../bot/strategy.js";
 import { MomentumStrategy } from "../bot/momentum.js";
+import { Resource } from "sst";
 
-const bot = new Telegraf(process.env.TELEGRAM_TOKEN!);
+const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.value;
+const bot = new Telegraf(telegramToken);
 
 async function runAnalysis(timeframe: string) {
   console.log(`[${timeframe}] Iniciando análisis cron...`);
@@ -152,7 +154,9 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `🛡️ <b>Gestión Activa:</b> Mueve tu Stop Loss a precio de Entrada (Breakeven) cuando el precio alcance <b>${signal.breakevenTarget.toFixed(4)}</b>\n\n` +
     `<i>💡 Recuerda verificar la gráfica antes de colocar la orden.</i>`;
 
-  const hasBinanceKeys = !!process.env.BINANCE_API_KEY && !!process.env.BINANCE_API_SECRET;
+  const binanceKey = process.env.BINANCE_API_KEY || Resource.BINANCE_API_KEY.value;
+  const binanceSecret = process.env.BINANCE_API_SECRET || Resource.BINANCE_API_SECRET.value;
+  const hasBinanceKeys = !!binanceKey && !!binanceSecret;
   
   let reply_markup = undefined;
 

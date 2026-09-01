@@ -1,21 +1,26 @@
 import { Telegraf } from "telegraf";
 import { db } from "../db/index.js";
 import ccxt from "ccxt";
+import { Resource } from "sst";
 
-const bot = new Telegraf(process.env.TELEGRAM_TOKEN!);
+const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.value;
+const bot = new Telegraf(telegramToken);
 
 export async function handler() {
   console.log("Generando reporte diario de PnL...");
 
-  if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
+  const binanceKey = process.env.BINANCE_API_KEY || Resource.BINANCE_API_KEY.value;
+  const binanceSecret = process.env.BINANCE_API_SECRET || Resource.BINANCE_API_SECRET.value;
+
+  if (!binanceKey || !binanceSecret) {
     console.log("No hay API Keys de Binance configuradas. Abortando reporte.");
     return;
   }
 
   try {
-    const rawSecret = (process.env.BINANCE_API_SECRET || "").replace(/\\n/g, '\n');
+    const rawSecret = binanceSecret.replace(/\\n/g, '\n');
     const exchange = new ccxt.binance({
-      apiKey: process.env.BINANCE_API_KEY,
+      apiKey: binanceKey,
       secret: rawSecret,
       enableRateLimit: true,
       options: { defaultType: 'future' }

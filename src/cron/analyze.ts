@@ -91,9 +91,45 @@ async function runAnalysis(timeframe: string) {
       // Inject funding rate into signal object to pass it down to Telegram
       (bestSignal as any).fundingRate = fundingRate;
       
+      // === FORWARD TESTING: ORDER BOOK ===
+      try {
+        const ob = await publicExchange.fetchOrderBook(bestSignal.symbol, 500);
+        
+        // Calcular sumatorias en 1%
+        const currentPrice = bestSignal.currentPrice;
+        const lowerBound = currentPrice * 0.99;
+        const upperBound = currentPrice * 1.01;
+        
+        let bidVol = 0;
+        let askVol = 0;
+        
+        for (const [price, amount] of ob.bids) {
+          if (price >= lowerBound) bidVol += amount * price; // Volumen en USD
+        }
+        for (const [price, amount] of ob.asks) {
+          if (price <= upperBound) askVol += amount * price;
+        }
+        
+        let obMsg = "Normal";
+        
+        if (isLong) {
+          if (askVol > bidVol * 1.5) obMsg = `⚠️ Peligro: Muralla Vendedora (${(askVol/bidVol).toFixed(1)}x)`;
+          else obMsg = "✅ Despejado (Bids >= Asks)";
+        } else {
+          if (bidVol > askVol * 1.5) obMsg = `⚠️ Peligro: Muralla Compradora (${(bidVol/askVol).toFixed(1)}x)`;
+          else obMsg = "✅ Despejado (Asks >= Bids)";
+        }
+        
+        (bestSignal as any).orderBookMsg = obMsg;
+      } catch (obError: any) {
+        console.log(`Error obteniendo order book para ${bestSignal.symbol}:`, obError.message);
+        (bestSignal as any).orderBookMsg = "No disponible";
+      }
+
     } catch (e: any) {
-      console.log(`Error obteniendo funding rate para ${bestSignal.symbol}, saltando filtro:`, e.message);
+      console.log(`Error obteniendo metricas (funding/OB) para ${bestSignal.symbol}:`, e.message);
       (bestSignal as any).fundingRate = 0;
+      (bestSignal as any).orderBookMsg = "Error de red";
     }
 
     // Guardar en el historial primero para obtener el ID
@@ -173,6 +209,7 @@ async function sendSignalToUsers(timeframe: string, signal: Signal, chatIds: str
     `🧭 <b>Dirección:</b> ${emoji} <b>${signal.direction}</b>\n` +
     `👑 <b>Macro BTC:</b> ${btcTrend === "UP" ? "Alcista (Permitiendo Longs)" : "Bajista (Permitiendo Shorts)"}\n` +
     `💸 <b>Funding Rate:</b> ${((signal as any).fundingRate * 100).toFixed(4)}% (Sano)\n` +
+    `🧱 <b>Order Book:</b> ${(signal as any).orderBookMsg || "No disponible"}\n` +
     `📈 <b>Filtro:</b> ${filterMsg}\n` +
     `📊 <b>Estrategia:</b> ${strategyMsg} (Zona de ${htf})\n` +
     `💵 <b>Precio Actual:</b> ${signal.currentPrice.toFixed(4)} (${signal.distancePct.toFixed(2)}% hasta entrada)\n` +

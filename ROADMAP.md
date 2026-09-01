@@ -49,6 +49,12 @@
 * [x] **Filtro Institucional de Tasas de Financiación (Funding Rates):** Evitar Longs cuando las ballenas están sobre-apalancadas y a punto de ser liquidadas.
 * [ ] **Análisis de Libro de Órdenes (Order Book):** Analizar murallas de compras/ventas reales en milisegundos antes de confirmar un setup.
 
-## 7. Gran Reseteo (Nueva Estrategia) - [En Progreso]
+## 7. Gran Reseteo Metodológico (Nueva Estrategia Institucional) - [En Progreso]
 * [x] **Purga de Código:** Eliminación completa de todas las estrategias anteriores (Pullback, Momentum, Volume Profile, Triple Screen), limpieza de la lógica del order book, tendencia y soportes. Preparación en limpio para iniciar desde cero.
-* [ ] **Análisis de Nueva Estrategia:** Leer detalladamente `PROMPT_GUIDE.md` y, basándose en su contenido, reestructurar este `ROADMAP.md` para planificar la nueva fase del bot. *(Nota para la siguiente sesión: ¡Este es el paso 1 antes de programar nada!)*
+* [x] **Análisis de Nueva Estrategia:** Lectura y asimilación de `PROMPT_GUIDE.md`. Adopción de rol de ingeniero Cuantitativo estricto y sin sesgos emocionales.
+* [ ] **Paso 1 — Restricciones y Objetivo:** Definir capital, drawdown máximo tolerable, frecuencia de revisión realista, motor de backtesting y fuente de datos históricos limpios.
+* [ ] **Paso 2 — Familia y Tesis:** Selección de la familia de estrategia (ej. Momentum Cross-Sectional) y redacción de una tesis de una sola frase que justifique el edge.
+* [ ] **Paso 3 — Universo de Activos:** Construcción de un universo libre de sesgo de supervivencia y look-ahead bias, definiendo cadencia de rebalanceo.
+* [ ] **Paso 4 — Riesgo y Salidas:** Position sizing, stop loss, cierres por tiempo/rotación y máximo de posiciones simultáneas (la verdadera fuente de rentabilidad).
+* [ ] **Paso 5 — Entrada:** Definición matemática de los triggers (indicadores, timeframes, filtros).
+* [ ] **Paso 6 — Validación (Out-of-Sample):** Testeo riguroso con costos duplicados, medición de Drawdown Máximo, ratio de operaciones y prueba final sin retocar parámetros (anti-overfitting).

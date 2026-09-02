@@ -6,3 +6,6 @@ archive/venv/
 .DS_Store
 binance_private_key.pem
 binance_public_key.pem
+venv/
+data/
+__pycache__/

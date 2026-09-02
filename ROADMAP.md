@@ -108,4 +108,6 @@
 * [ ] **Paso 6 — Validación (Out-of-Sample):** 
     - [x] Línea Base BTC validada (Buy & Hold BTC: 277% ROI, **53.7% Max DD**). 
     - [x] Prueba Unitaria BTC de la Estrategia EMA superó la línea base al reducir la caída (EMA BTC: 43.7% ROI, **19% Max DD**, Winrate 27%).
-    - [ ] Prueba Masiva del Portafolio Top 100: Ejecutar simulación completa (en la próxima sesión).
+    - [x] Primera iteración de Prueba Masiva detectó recortes temporales por fechas de listado recientes (ej. tokens nuevos bloquearon el inicio del test).
+    - [ ] **Próximo a hacer:** Modificar `ema_top100_test.py` para soportar *Longitudes de Datos Asimétricas* (`runonce=False`), permitiendo que el simulador arranque en 2023 con las monedas antiguas y sume las nuevas dinámicamente.
+    - [ ] Prueba Masiva Definitiva del Portafolio Top 100 y optimización del multiplicador ATR.

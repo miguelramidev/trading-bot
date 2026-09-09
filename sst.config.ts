@@ -40,26 +40,6 @@ export default $config({
       }
     });
 
-    // 1h (En el minuto 0 de cada hora)
-    new sst.aws.Cron("Cron1h", {
-      schedule: "cron(0 * * * ? *)",
-      job: {
-        handler: "src/cron/analyze.handler1h",
-        timeout: "120 seconds",
-        link: ALL_SECRETS
-      }
-    });
-
-    // 4h (En la hora 0, 4, 8, 12, 16, 20)
-    new sst.aws.Cron("Cron4h", {
-      schedule: "cron(0 0,4,8,12,16,20 * * ? *)",
-      job: {
-        handler: "src/cron/analyze.handler4h",
-        timeout: "120 seconds",
-        link: ALL_SECRETS
-      }
-    });
-
     // Reporte Diario de PnL (A las 23:00 PYT -> 03:00 UTC)
     new sst.aws.Cron("DailyReport", {
       schedule: "cron(0 3 * * ? *)",

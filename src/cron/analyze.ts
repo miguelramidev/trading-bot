@@ -9,12 +9,7 @@ const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.valu
 const bot = new Telegraf(telegramToken);
 
 async function runAnalysis(timeframe: string) {
-  if (timeframe !== "15m") {
-    console.log(`[${timeframe}] Ignorado por ahora. Estamos probando estrategia de 15m.`);
-    return;
-  }
-
-  console.log(`[${timeframe}] Iniciando análisis cron (Nueva Estrategia Paper Trading)...`);
+  console.log(`[${timeframe}] Iniciando análisis cron (Estrategia Paper Trading 15m)...`);
   
   const users = await db.query.userConfig.findMany();
   const activeUsers = users.filter((u) => !u.isPaused);
@@ -74,6 +69,16 @@ async function runAnalysis(timeframe: string) {
 
   const btcCandles = await dataFetcher.fetchOhlcv("BTC/USDT:USDT", "15m", 250);
   const btcCloses = btcCandles ? btcCandles.map(c => c.close) : [];
+  
+  let btcRegimeStr = "N/A";
+  if (btcCandles && btcCandles.length > 200) {
+    const { adx: btcAdxArr } = dataFetcher.calculateADX(btcCandles, 14);
+    const btcAdx = btcAdxArr[btcAdxArr.length - 1];
+    if (btcAdx > 25) btcRegimeStr = "Tendencial";
+    else if (btcAdx < 20) btcRegimeStr = "Rango";
+    else btcRegimeStr = "Transición";
+    btcRegimeStr += ` (${btcAdx.toFixed(2)})`;
+  }
 
   const pairs = await dataFetcher.getTop100Pairs();
 
@@ -208,7 +213,7 @@ async function runAnalysis(timeframe: string) {
           symbol, timeframe: "15m", direction: signal.direction,
           entry: signal.entry.toFixed(4), stopLoss: signal.stopLoss.toFixed(4), takeProfit: signal.takeProfit.toFixed(4),
           regime: signal.regime, bias4h: bias4h, strategy: signal.strategy, atr: currentAtr.toFixed(4),
-          volumeFilter: signal.volumeFilter, fundingRate: fundingRateText, openInterest: oiText, btcCorrelation: btcCorrStr,
+          volumeFilter: signal.volumeFilter, fundingRate: fundingRateText, openInterest: oiText, btcCorrelation: btcCorrStr, btcRegime: btcRegimeStr,
           decision: null // Pendiente
         }).returning({ id: signalHistory.id });
         
@@ -224,7 +229,8 @@ async function runAnalysis(timeframe: string) {
           `🛑 <b>Stop Loss:</b> ${signal.stopLoss.toFixed(4)}\n` +
           `🎯 <b>Take Profit:</b> ${signal.takeProfit.toFixed(4)}\n\n` +
           (signal.direction === "SHORT" ? `💰 <b>Funding:</b> ${fundingRateText}\n📈 <b>OI:</b> ${oiText}\n` : "") +
-          (btcCorrStr !== "N/A" ? `🔗 <b>Correlación BTC:</b> ${btcCorrStr}\n\n` : "\n") +
+          (btcCorrStr !== "N/A" ? `🔗 <b>Correlación BTC:</b> ${btcCorrStr}\n` : "") +
+          (btcRegimeStr !== "N/A" ? `👑 <b>Régimen BTC:</b> ${btcRegimeStr}\n\n` : "\n") +
           `💡 <i>Motivo: ${signal.reason}</i>`;
 
         for (const user of activeUsers) {
@@ -248,8 +254,15 @@ async function runAnalysis(timeframe: string) {
        console.error(`Error procesando ${symbol}:`, e);
     }
   }
+
+  // Si llegamos hasta aquí, no se generó ninguna señal
+  for (const user of activeUsers) {
+    await bot.telegram.sendMessage(
+      user.chatId, 
+      `⏳ <b>[${timeframe}] Ciclo Completado - Sin Operaciones</b>\nNinguna de las monedas cumple con todos los filtros de la estrategia en este momento. Sigo vigilando... 👀`, 
+      { parse_mode: "HTML" }
+    );
+  }
 }
 
 export async function handler15m() { await runAnalysis("15m"); }
-export async function handler1h() { await runAnalysis("1h"); }
-export async function handler4h() { await runAnalysis("4h"); }

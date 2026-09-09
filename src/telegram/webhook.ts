@@ -145,161 +145,58 @@ bot.command("positions", async (ctx) => {
   }
 });
 
-bot.action(/^ask_amount_(\d+)$/, async (ctx) => {
+bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
   const signalId = parseInt(ctx.match[1]);
-  const chatId = ctx.chat?.id.toString();
-  if (!chatId) return;
+  
+  await db.update(signalHistory)
+    .set({ decision: "Tomada", reason: "Confirmado manualmente en Telegram", isActiveTrade: true })
+    .where(eq(signalHistory.id, signalId));
 
-  await ctx.answerCbQuery("Consultando balance en Binance...");
-
-  const binanceKey = process.env.BINANCE_API_KEY || Resource.BINANCE_API_KEY.value;
-  const binanceSecret = process.env.BINANCE_API_SECRET || Resource.BINANCE_API_SECRET.value;
-
-  if (!binanceKey || !binanceSecret) {
-    await ctx.reply("❌ Error: Faltan credenciales de Binance (API_KEY o SECRET) en el entorno.");
-    return;
-  }
-
-  try {
-    const secretKey = binanceSecret.replace(/\\n/g, '\n');
-    const exchange = new ccxt.binance({
-      apiKey: binanceKey,
-      secret: secretKey,
-      enableRateLimit: true,
-      options: { defaultType: 'future' }
-    });
-
-    const balance = await exchange.fetchBalance();
-    const usdtBalance = balance.USDT?.free || 0;
-
-    const config = await db.query.userConfig.findFirst({
-      where: eq(userConfig.chatId, chatId),
-    });
-    const leverage = config?.leverage || 1;
-
-    // Guardar el estado en la base de datos
-    await db.update(userConfig)
-      .set({ pendingSignalId: signalId, updatedAt: new Date() })
-      .where(eq(userConfig.chatId, chatId));
-
-    await ctx.reply(`💰 <b>Balance Disponible:</b> $${usdtBalance.toFixed(2)} USDT\n` +
-      `⚡ <b>Apalancamiento Actual:</b> ${leverage}x\n\n` +
-      `✍️ <b>Escribe en el chat el margen en USDT que deseas invertir en esta operación:</b>\n` +
-      `(Ejemplo: si escribes <i>25</i> con 5x, la posición será de $125)`, { parse_mode: "HTML" });
-
-  } catch (error: any) {
-    console.error("Balance Error:", error);
-    await ctx.reply(`❌ Error al consultar balance en Binance: ${error.message}`);
+  await ctx.answerCbQuery("✅ Trade simulado aceptado y registrado en el log.");
+  
+  const originalMsg = ctx.callbackQuery.message;
+  if (originalMsg && 'text' in originalMsg) {
+     await ctx.editMessageText(originalMsg.text + "\n\n✅ <b>DECISIÓN: TOMADA (Paper Trading)</b>", { parse_mode: "HTML" });
   }
 });
 
-bot.on(message("text"), async (ctx) => {
-  const chatId = ctx.chat.id.toString();
-  const text = ctx.message.text.trim();
+bot.action(/^paper_reject_(\d+)$/, async (ctx) => {
+  const signalId = parseInt(ctx.match[1]);
+  
+  await db.update(signalHistory)
+    .set({ decision: "Descartada", isActiveTrade: true })
+    .where(eq(signalHistory.id, signalId));
 
-  // Buscar si el usuario tiene una señal pendiente de ejecución
-  const config = await db.query.userConfig.findFirst({
-    where: eq(userConfig.chatId, chatId),
+  await ctx.answerCbQuery("❌ Trade descartado. Te preguntaré el motivo.");
+  
+  const originalMsg = ctx.callbackQuery.message;
+  if (originalMsg && 'text' in originalMsg) {
+     await ctx.editMessageText(originalMsg.text + "\n\n❌ <b>DECISIÓN: DESCARTADA</b>", { parse_mode: "HTML" });
+  }
+
+  await ctx.reply(`✍️ Responde a este mensaje indicando el motivo por el cual descartaste la señal #${signalId}:`, {
+    reply_markup: {
+      force_reply: true
+    }
   });
+});
 
-  if (!config || !config.pendingSignalId) {
-    // No hay operación pendiente, ignorar el texto o responder a comandos normales
-    return;
-  }
-
-  const signalId = config.pendingSignalId;
-  const usdAmount = parseFloat(text);
-
-  if (isNaN(usdAmount) || usdAmount <= 0) {
-    await ctx.reply("❌ Por favor, escribe un número válido mayor a 0.");
-    return;
-  }
-
-  // Limpiar el estado de pending (para evitar reintentos accidentales)
-  await db.update(userConfig)
-    .set({ pendingSignalId: null, updatedAt: new Date() })
-    .where(eq(userConfig.chatId, chatId));
-
-  try {
-    const signal = await db.query.signalHistory.findFirst({
-      where: eq(signalHistory.id, signalId),
-    });
-
-    if (!signal || !signal.entry || !signal.stopLoss || !signal.takeProfit) {
-      await ctx.reply("❌ Error: No se encontró la señal o expiró.");
+bot.on(message("text"), async (ctx) => {
+  // Manejar la respuesta del motivo de descarte
+  if (ctx.message.reply_to_message && 'text' in ctx.message.reply_to_message) {
+    const promptText = ctx.message.reply_to_message.text;
+    const match = promptText.match(/señal #(\d+)/);
+    if (match) {
+      const signalId = parseInt(match[1]);
+      const reason = ctx.message.text.trim();
+      
+      await db.update(signalHistory)
+        .set({ reason: reason })
+        .where(eq(signalHistory.id, signalId));
+        
+      await ctx.reply(`✅ Motivo registrado para la señal #${signalId}. El bot seguirá monitoreando la moneda en silencio para que luego puedas auditar si hiciste bien en descartarla.`);
       return;
     }
-
-    const secretKey = binanceSecret.replace(/\\n/g, '\n');
-    const exchange = new ccxt.binance({
-      apiKey: binanceKey,
-      secret: secretKey,
-      enableRateLimit: true,
-      options: { defaultType: 'future' }
-    });
-
-    const entryPrice = parseFloat(signal.entry);
-    const slPrice = parseFloat(signal.stopLoss);
-    const tpPrice = parseFloat(signal.takeProfit);
-    const isLong = signal.direction === "LONG";
-    const side = isLong ? "buy" : "sell";
-    const oppositeSide = isLong ? "sell" : "buy";
-    
-    const leverage = config.leverage || 1;
-
-    let amount = (usdAmount * leverage) / entryPrice;
-
-    await exchange.loadMarkets();
-    const market = exchange.markets[signal.symbol];
-    if (market) {
-      amount = parseFloat(exchange.amountToPrecision(signal.symbol, amount));
-    }
-
-    const minNotional = parseFloat(signal.minNotional || "5");
-    if (amount * entryPrice < minNotional) {
-      await ctx.reply(`❌ El tamaño de la orden pos-apalancamiento ($${(amount*entryPrice).toFixed(2)}) es menor al mínimo requerido de $${minNotional.toFixed(2)} USDT en Binance para este par.`);
-      return;
-    }
-
-    const initialMsg = await ctx.reply(`⏳ Colocando orden Limit en ${signal.symbol} por un valor total de $${(usdAmount * leverage).toFixed(2)} (${amount} tokens)...`);
-
-    // 0. Configurar apalancamiento real
-    try {
-      await exchange.setLeverage(leverage, signal.symbol);
-    } catch (e: any) {
-      console.log(`Nota: No se pudo modificar el apalancamiento para ${signal.symbol}:`, e.message);
-    }
-
-    // 1. Crear Orden Limit
-    await exchange.createOrder(signal.symbol, 'limit', side, amount, entryPrice, {
-      timeInForce: 'GTC'
-    });
-
-    // 2. Crear Stop Loss (Condicional Reduce Only)
-    await exchange.createOrder(signal.symbol, 'STOP_MARKET', oppositeSide, amount, undefined, {
-      stopPrice: slPrice,
-      reduceOnly: true
-    });
-
-    // 3. Crear Take Profit (Condicional Reduce Only)
-    await exchange.createOrder(signal.symbol, 'TAKE_PROFIT_MARKET', oppositeSide, amount, undefined, {
-      stopPrice: tpPrice,
-      reduceOnly: true
-    });
-
-    // (Omitido) No guardamos estado de operaciones activas porque la estrategia es 1:1 estática
-
-    await ctx.telegram.editMessageText(chatId, initialMsg.message_id, undefined, 
-      `✅ <b>¡Operación Colocada con Éxito!</b> 🚀\n` +
-      `🪙 Par: ${signal.symbol}\n` +
-      `💵 Inversión: $${usdAmount}\n` +
-      `🛒 Limit: ${entryPrice}\n` +
-      `🛑 Stop Loss: ${slPrice}\n` +
-      `🎯 Take Profit: ${tpPrice}`, { parse_mode: "HTML" });
-
-  } catch (error: any) {
-    console.error("Execute Order Error:", error);
-    await ctx.reply(`❌ Error al ejecutar orden en Binance: ${error.message}`);
   }
 });
 

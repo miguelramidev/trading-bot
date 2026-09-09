@@ -1,7 +1,7 @@
 import ccxt from "ccxt";
 
 export class DataFetcher {
-  private exchange: ccxt.binance;
+  public exchange: ccxt.binance;
   private excludedCoins = [
     "USDC/USDT", "FDUSD/USDT", "TUSD/USDT", "BUSD/USDT", "DAI/USDT", "USDP/USDT", "EUR/USDT"
   ];
@@ -224,7 +224,7 @@ export class DataFetcher {
   // Utilidad para evaluar el Macro Trend usando Bitcoin (EMA 50)
   async getBtcTrend(timeframe: string): Promise<"UP" | "DOWN"> {
     try {
-      const btcCandles = await this.fetchOHLCV("BTC/USDT", timeframe, 100);
+      const btcCandles = await this.fetchOhlcv("BTC/USDT", timeframe, 100);
       if (!btcCandles || btcCandles.length < 50) return "UP"; // fallback
 
       const closingPrices = btcCandles.map(c => c.close);
@@ -278,5 +278,169 @@ export class DataFetcher {
     const padding = new Array(period).fill(50);
     return padding.concat(rsiArray);
   }
-}
 
+  async fetchOpenInterest(symbol: string): Promise<number | null> {
+    try {
+      const oi = await this.exchange.fetchOpenInterest(symbol);
+      return oi ? oi.openInterestValue || oi.openInterestAmount || oi.baseVolume || 0 : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async fetchOpenInterestChange4h(symbol: string): Promise<string> {
+    try {
+      if (this.exchange.has['fetchOpenInterestHistory']) {
+        const history = await this.exchange.fetchOpenInterestHistory(symbol, '4h', undefined, 2);
+        if (history && history.length >= 2) {
+          const past = history[0].openInterestValue || history[0].openInterestAmount || history[0].baseVolume || 0;
+          const current = history[1].openInterestValue || history[1].openInterestAmount || history[1].baseVolume || 0;
+          if (past > 0) {
+            const pct = ((current - past) / past) * 100;
+            return pct > 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`;
+          }
+        }
+      }
+      return "N/A";
+    } catch (error) {
+      return "N/A";
+    }
+  }
+
+  calculateBollingerBands(prices: number[], period: number = 20, multiplier: number = 2): {upper: number[], middle: number[], lower: number[], width: number[]} {
+    if (prices.length < period) return {upper: [], middle: [], lower: [], width: []};
+    
+    const middle = this.calculateSMA(prices, period);
+    const upper: number[] = new Array(period - 1).fill(0);
+    const lower: number[] = new Array(period - 1).fill(0);
+    const width: number[] = new Array(period - 1).fill(0);
+
+    for (let i = period - 1; i < prices.length; i++) {
+      const slice = prices.slice(i - period + 1, i + 1);
+      const mean = middle[i];
+      
+      const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / period;
+      const stdDev = Math.sqrt(variance);
+      
+      const up = mean + (multiplier * stdDev);
+      const low = mean - (multiplier * stdDev);
+      
+      upper.push(up);
+      lower.push(low);
+      // Width as a percentage of the middle band
+      width.push(mean > 0 ? (up - low) / mean : 0);
+    }
+    
+    return { upper, middle, lower, width };
+  }
+
+  calculateADX(candles: {high: number, low: number, close: number}[], period: number = 14): {adx: number[], plusDI: number[], minusDI: number[]} {
+    if (candles.length < period + 1) return {adx: [], plusDI: [], minusDI: []};
+
+    const tr: number[] = [];
+    const plusDM: number[] = [];
+    const minusDM: number[] = [];
+
+    // Primer elemento = 0 para alinear
+    tr.push(0);
+    plusDM.push(0);
+    minusDM.push(0);
+
+    for (let i = 1; i < candles.length; i++) {
+      const high = candles[i].high;
+      const low = candles[i].low;
+      const prevClose = candles[i-1].close;
+      const prevHigh = candles[i-1].high;
+      const prevLow = candles[i-1].low;
+
+      tr.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
+      
+      const upMove = high - prevHigh;
+      const downMove = prevLow - low;
+
+      if (upMove > downMove && upMove > 0) {
+        plusDM.push(upMove);
+      } else {
+        plusDM.push(0);
+      }
+
+      if (downMove > upMove && downMove > 0) {
+        minusDM.push(downMove);
+      } else {
+        minusDM.push(0);
+      }
+    }
+
+    // Wilder's Smoothing Function
+    const smooth = (values: number[], p: number) => {
+      const smoothed: number[] = new Array(p).fill(0);
+      let sum = 0;
+      for (let i = 1; i <= p; i++) sum += values[i];
+      smoothed.push(sum);
+      for (let i = p + 1; i < values.length; i++) {
+        smoothed.push(smoothed[i-1] - (smoothed[i-1] / p) + values[i]);
+      }
+      return smoothed;
+    };
+
+    const smoothedTR = smooth(tr, period);
+    const smoothedPlusDM = smooth(plusDM, period);
+    const smoothedMinusDM = smooth(minusDM, period);
+
+    const plusDI: number[] = new Array(period).fill(0);
+    const minusDI: number[] = new Array(period).fill(0);
+    const dx: number[] = new Array(period).fill(0);
+
+    for (let i = period; i < candles.length; i++) {
+      const pDI = smoothedTR[i] === 0 ? 0 : (smoothedPlusDM[i] / smoothedTR[i]) * 100;
+      const mDI = smoothedTR[i] === 0 ? 0 : (smoothedMinusDM[i] / smoothedTR[i]) * 100;
+      plusDI.push(pDI);
+      minusDI.push(mDI);
+      
+      const diff = Math.abs(pDI - mDI);
+      const sum = pDI + mDI;
+      dx.push(sum === 0 ? 0 : (diff / sum) * 100);
+    }
+
+    const adx: number[] = new Array(period * 2 - 1).fill(0);
+    let adxSum = 0;
+    for (let i = period; i < period * 2; i++) {
+      if (dx[i]) adxSum += dx[i];
+    }
+    let currentADX = adxSum / period;
+    adx.push(currentADX);
+
+    for (let i = period * 2; i < candles.length; i++) {
+      currentADX = ((currentADX * (period - 1)) + dx[i]) / period;
+      adx.push(currentADX);
+    }
+
+    return { adx, plusDI, minusDI };
+  }
+
+  calculateCorrelation(x: number[], y: number[]): number {
+    const n = Math.min(x.length, y.length);
+    if (n === 0) return 0;
+    
+    const xSlice = x.slice(-n);
+    const ySlice = y.slice(-n);
+    
+    let sumX = 0, sumY = 0, sumX2 = 0, sumY2 = 0, sumXY = 0;
+    
+    for (let i = 0; i < n; i++) {
+      const vx = xSlice[i];
+      const vy = ySlice[i];
+      sumX += vx;
+      sumY += vy;
+      sumX2 += vx * vx;
+      sumY2 += vy * vy;
+      sumXY += vx * vy;
+    }
+    
+    const numerator = (n * sumXY) - (sumX * sumY);
+    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+    
+    if (denominator === 0) return 0;
+    return numerator / denominator;
+  }
+}

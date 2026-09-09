@@ -111,3 +111,13 @@
     - [x] Primera iteración de Prueba Masiva detectó recortes temporales por fechas de listado recientes (ej. tokens nuevos bloquearon el inicio del test).
     - [ ] **Próximo a hacer:** Modificar `ema_top100_test.py` para soportar *Longitudes de Datos Asimétricas* (`runonce=False`), permitiendo que el simulador arranque en 2023 con las monedas antiguas y sume las nuevas dinámicamente.
     - [ ] Prueba Masiva Definitiva del Portafolio Top 100 y optimización del multiplicador ATR.
+
+## 8. Paper Trading Institucional (Estrategia 15m) - [Completado]
+* [x] **Motor de Estrategia Dual:** Análisis algorítmico dividido por el régimen del mercado usando ADX. Gatillo de "Pullback" si está en tendencia (ADX > 25) y gatillo de "Reversión" si está en Rango (ADX < 20).
+* [x] **Gestor de Posiciones en Telegram:** Transición del bot para operar 100% en *Paper Trading*, enviando alertas ricas a Telegram con botones interactivos (`✅ Tomar Trade`, `❌ Descartar`) apoyado en Neon DB.
+* [x] **Auditoría Estricta de Acción del Precio:** Prevención de "cuchillos cayendo". Ahora los pullbacks exigen matemáticamente una vela de rechazo y conformación (vela verde cerrando encima de EMA 21 con inyección de volumen).
+* [x] **Rastreo de Datos Institucionales:** Incorporación de *Funding Rate* y el porcentaje de cambio del *Open Interest* (OI 4h) para predecir posibles *Short Squeezes* y asimetrías del mercado.
+* [x] **Correlación Automática con BTC:** Inclusión del cálculo estadístico de Pearson en tiempo real respecto al comportamiento de Bitcoin para registrar el grado de independencia de la altcoin (0% a 100%).
+* [x] **Limitadores de Exposición:** Lógica incorporada para restringir un máximo de 2 operaciones abiertas simultáneamente en la misma dirección (Long/Short) para evitar riesgos direccionales catastróficos si el mercado entero gira de repente.
+* [x] **Feedback Loop Cualitativo:** Prompt automatizado de Telegram (Force Reply) para capturar en texto plano el *motivo humano* por el cual se descartó una señal, guardándolo en la base de datos junto con el resultado final simulado de esa moneda.
+* [x] **Monitor de Trades Abiertos:** Cronjob en 15m que vigila constantemente las operaciones de Paper Trading en curso y las cierra simulando precisión de mercado real al tocar los niveles de SL o TP propuestos, notificando el PnL final en Telegram.

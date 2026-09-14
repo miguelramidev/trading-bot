@@ -1,16 +1,30 @@
 import ccxt from "ccxt";
+import { Resource } from "sst";
 
 export class DataFetcher {
   public exchange: ccxt.binance;
-  private excludedCoins = [
-    "USDC/USDT", "FDUSD/USDT", "TUSD/USDT", "BUSD/USDT", "DAI/USDT", "USDP/USDT", "EUR/USDT"
-  ];
 
   constructor() {
+    const apiKey = process.env.BINANCE_API_KEY || (Resource.BINANCE_API_KEY ? Resource.BINANCE_API_KEY.value : undefined);
+    const secret = process.env.BINANCE_API_SECRET || (Resource.BINANCE_API_SECRET ? Resource.BINANCE_API_SECRET.value : undefined);
+
     this.exchange = new ccxt.binance({
+      apiKey: apiKey,
+      secret: secret,
       enableRateLimit: true,
       options: { defaultType: 'future' },
     });
+  }
+
+  async getUSDTBalance(): Promise<number> {
+    try {
+      if (!this.exchange.apiKey) return 0;
+      const balance = await this.exchange.fetchBalance();
+      return parseFloat(balance['USDT']?.free || '0');
+    } catch(e) {
+      console.error("Error fetching balance:", e);
+      return 0;
+    }
   }
 
   async getTop100Pairs(): Promise<string[]> {
@@ -23,16 +37,22 @@ export class DataFetcher {
         const market = this.exchange.markets[symbol];
         
         // Filtrar solo contratos perpetuos lineales de USDT
-        if (market && market.linear && market.quote === 'USDT' && market.active !== false && !this.excludedCoins.includes(symbol)) {
+        if (market && market.linear && market.quote === 'USDT' && market.active !== false) {
           
           const base = market.base;
           
+          if (["USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "EUR", "XAUT", "PAXG", "DRAM", "SPY", "GOOGL", "EWY", "SOXL", "SOXS"].includes(base)) {
+            continue;
+          }
+
           // Filtrar monedas fiat, stablecoins y tokens apalancados dinámicamente
           if (
             base.endsWith("USD") || // Atrapa USDC, FDUSD, RLUSD, TUSD, BUSD, SUSD...
             base.endsWith("EUR") || // Atrapa EUR, AEUR...
             ["DAI", "USDP", "VAI", "USTC", "USDE", "EURI"].includes(base) || // Otras stables (EURI vale ~1.10 por eso escapó la heurística del $1)
-            ["UP", "DOWN", "BULL", "BEAR"].some(t => base.endsWith(t)) // Tokens apalancados
+            ["UP", "DOWN", "BULL", "BEAR"].some(t => base.endsWith(t)) || // Tokens apalancados
+            (market.info && market.info.underlyingType && market.info.underlyingType !== 'COIN') || // Filtra EQUITIES (GOOGL, SPY), etc.
+            (market.info && market.info.contractType && market.info.contractType !== 'PERPETUAL') // Filtra Delivery Contracts (vencimientos)
           ) {
             continue;
           }
@@ -114,6 +134,22 @@ export class DataFetcher {
     } catch (e) {
       return 5;
     }
+  }
+
+  async fetchAllCandles(symbol: string, timeframe: string, since: number): Promise<any[]> {
+    let allCandles: any[] = [];
+    let currentSince = since;
+    while (true) {
+      const candles = await this.exchange.fetchOHLCV(symbol, timeframe, currentSince, 1000);
+      if (!candles || candles.length === 0) break;
+      
+      allCandles = allCandles.concat(candles);
+      
+      if (candles.length < 1000) break;
+      // Mover el currentSince a la última vela + 1ms para no duplicar
+      currentSince = candles[candles.length - 1][0] + 1;
+    }
+    return allCandles;
   }
 
   // Utilidad para calcular Media Móvil Exponencial (EMA)

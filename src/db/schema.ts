@@ -6,6 +6,7 @@ export const userConfig = pgTable("user_config", {
   isPaused: boolean("is_paused").default(false).notNull(),
   leverage: integer("leverage").default(1).notNull(),
   pendingSignalId: integer("pending_signal_id").references(() => signalHistory.id), // guardamos qué señal quiere operar
+  startingBalance: text("starting_balance").default("41.78"), // Starting balance for auditing
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -35,4 +36,21 @@ export const signalHistory = pgTable("signal_history", {
   btcRegime: text("btc_regime"),
   decision: text("decision"), // "Tomada", "Descartada", null (pendiente)
   reason: text("reason"), // Por qué se tomó/descartó
+  // --- Nuevos campos exclusivos para Grid Trading ---
+  accountBalance: text("account_balance"), // Saldo de Binance al emitir señal
+  numGrids: integer("num_grids"), // Cantidad de grillas calculadas
+  gridStep: text("grid_step"), // Separación % (ej: 0.005)
+  gridSL: text("grid_sl"), // Kill Switch Inferior
+  gridTP: text("grid_tp"), // Kill Switch Superior
+});
+
+// Tabla para snapshots diarios del rendimiento de la cuenta
+export const dailyReports = pgTable("daily_reports", {
+  id: serial("id").primaryKey(),
+  reportDate: timestamp("report_date").defaultNow().notNull(),
+  balance: text("balance").notNull(), // Saldo real en Binance a las 23:00
+  netPnl: text("net_pnl"), // Diferencia vs el balance del día anterior
+  tradesTaken: integer("trades_taken").default(0), // Operaciones tomadas ese día
+  wins: integer("wins").default(0),
+  losses: integer("losses").default(0),
 });

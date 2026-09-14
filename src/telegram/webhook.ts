@@ -145,8 +145,77 @@ bot.command("positions", async (ctx) => {
   }
 });
 
+bot.command("report_daily", async (ctx) => {
+  await ctx.reply("⏳ Generando reporte diario en vivo...");
+  try {
+    const { generateDailyReportText } = await import("../cron/report.js");
+    const reportText = await generateDailyReportText();
+    let msg = `🔥 <b>REPORTE DIARIO SOLICITADO MANUALMENTE</b> 🔥\n\n`;
+    msg += reportText;
+    await ctx.reply(msg, { parse_mode: "HTML" });
+  } catch (e: any) {
+    console.error("Error generating daily report manually:", e);
+    await ctx.reply("❌ Ocurrió un error al generar el reporte diario.");
+  }
+});
+
+bot.command("report_global", async (ctx) => {
+  await ctx.reply("⏳ Generando auditoría global en vivo...");
+  try {
+    const { generateGlobalReportText } = await import("../cron/report.js");
+    const reportText = await generateGlobalReportText();
+    let msg = `🔥 <b>AUDITORÍA GLOBAL SOLICITADA MANUALMENTE</b> 🔥\n\n`;
+    msg += reportText;
+    await ctx.reply(msg, { parse_mode: "HTML" });
+  } catch (e: any) {
+    console.error("Error generating global report manually:", e);
+    await ctx.reply("❌ Ocurrió un error al generar la auditoría global.");
+  }
+});
+
+bot.command("report_advisor", async (ctx) => {
+  await ctx.reply("⏳ Recopilando datos cuantitativos y de simulación para el asesor...");
+  try {
+    const { generateGlobalReportText, generateSimulationText } = await import("../cron/report.js");
+    const globalText = await generateGlobalReportText();
+    const simText = await generateSimulationText();
+    let msg = `🔥 <b>DOSSIER PARA ASESOR</b> 🔥\n\n`;
+    msg += globalText;
+    msg += simText;
+    await ctx.reply(msg, { parse_mode: "HTML" });
+  } catch (e: any) {
+    console.error("Error generating advisor report manually:", e);
+    await ctx.reply("❌ Ocurrió un error al generar el reporte para el asesor.");
+  }
+});
+
 bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
   const signalId = parseInt(ctx.match[1]);
+  
+  const signal = await db.query.signalHistory.findFirst({
+    where: eq(signalHistory.id, signalId)
+  });
+
+  if (!signal) {
+    await ctx.answerCbQuery("❌ Señal no encontrada.");
+    return;
+  }
+
+  if (signal.decision) {
+    await ctx.answerCbQuery(`❌ Esta señal ya fue procesada (${signal.decision.split("->")[0].trim()}).`);
+    return;
+  }
+
+  const timeDiff = Date.now() - signal.evaluatedAt.getTime();
+  if (timeDiff > 15 * 60 * 1000) {
+    await db.update(signalHistory).set({ decision: "Ignorada" }).where(eq(signalHistory.id, signalId));
+    await ctx.answerCbQuery("⏳ Esta señal ha expirado (pasaron más de 15 min).");
+    const originalMsg = ctx.callbackQuery.message;
+    if (originalMsg && 'text' in originalMsg) {
+       await ctx.editMessageText(originalMsg.text + "\n\n⏳ <b>DECISIÓN: IGNORADA (Expiró)</b>", { parse_mode: "HTML" });
+    }
+    return;
+  }
   
   await db.update(signalHistory)
     .set({ decision: "Tomada", reason: "Confirmado manualmente en Telegram", isActiveTrade: true })
@@ -163,6 +232,31 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
 bot.action(/^paper_reject_(\d+)$/, async (ctx) => {
   const signalId = parseInt(ctx.match[1]);
   
+  const signal = await db.query.signalHistory.findFirst({
+    where: eq(signalHistory.id, signalId)
+  });
+
+  if (!signal) {
+    await ctx.answerCbQuery("❌ Señal no encontrada.");
+    return;
+  }
+
+  if (signal.decision) {
+    await ctx.answerCbQuery(`❌ Esta señal ya fue procesada (${signal.decision.split("->")[0].trim()}).`);
+    return;
+  }
+
+  const timeDiff = Date.now() - signal.evaluatedAt.getTime();
+  if (timeDiff > 15 * 60 * 1000) {
+    await db.update(signalHistory).set({ decision: "Ignorada" }).where(eq(signalHistory.id, signalId));
+    await ctx.answerCbQuery("⏳ Esta señal ha expirado (pasaron más de 15 min).");
+    const originalMsg = ctx.callbackQuery.message;
+    if (originalMsg && 'text' in originalMsg) {
+       await ctx.editMessageText(originalMsg.text + "\n\n⏳ <b>DECISIÓN: IGNORADA (Expiró)</b>", { parse_mode: "HTML" });
+    }
+    return;
+  }
+
   await db.update(signalHistory)
     .set({ decision: "Descartada", isActiveTrade: true })
     .where(eq(signalHistory.id, signalId));

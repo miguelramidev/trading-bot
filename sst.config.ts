@@ -40,9 +40,9 @@ export default $config({
       }
     });
 
-    // Reporte Diario de PnL (A las 23:00 PYT -> 03:00 UTC)
+    // Reporte Diario de PnL (A las 23:00 PYT -> 02:00 UTC, ya que PYT es UTC-3 todo el año)
     new sst.aws.Cron("DailyReport", {
-      schedule: "cron(0 3 * * ? *)",
+      schedule: "cron(0 2 * * ? *)",
       job: {
         handler: "src/cron/report.handler",
         timeout: "60 seconds",

@@ -13,7 +13,6 @@ async function runAnalysis(timeframe: string) {
   
   const users = await db.query.userConfig.findMany();
   const activeUsers = users.filter((u) => !u.isPaused);
-  if (activeUsers.length === 0) return;
 
   const dataFetcher = new DataFetcher();
   
@@ -28,8 +27,9 @@ async function runAnalysis(timeframe: string) {
       const currentPrice = ticker.last;
       if (!currentPrice) continue;
       
-      const sl = parseFloat(trade.stopLoss!);
-      const tp = parseFloat(trade.takeProfit!);
+      // Usar los Kill Switches del Grid si existen, si no, fallback al SL/TP original
+      const sl = parseFloat(trade.gridSL || trade.stopLoss!);
+      const tp = parseFloat(trade.gridTP || trade.takeProfit!);
       
       let closed = false;
       let closeReason = "";
@@ -50,14 +50,32 @@ async function runAnalysis(timeframe: string) {
           
         if (trade.decision === "Tomada") {
           const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
-          for (const user of activeUsers) {
-            await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Paper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}`, { parse_mode: "HTML" });
+          for (const user of users) {
+            await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Grid Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}`, { parse_mode: "HTML" });
+          }
+        } else if (trade.decision === "Descartada") {
+          const hitTP = closeReason.includes("TP");
+          let msg = "";
+          if (hitTP) {
+             msg = `🤦‍♂️ <b>Oportunidad Perdida:</b> Descartaste ${trade.symbol} y acaba de tocar Take Profit (El Grid hubiera ganado).\nÚltimo precio: ${currentPrice}\n\n📝 <i>Motivo de descarte: ${trade.reason || "Ninguno"}</i>`;
+          } else {
+             msg = `😎 <b>¡Esquivaste una bala!</b> Descartaste ${trade.symbol} y efectivamente terminó tocando el Kill Switch (SL).\nÚltimo precio: ${currentPrice}\n\n📝 <i>Motivo de descarte: ${trade.reason || "Ninguno"}</i>`;
+          }
+          
+          for (const user of users) {
+             await bot.telegram.sendMessage(user.chatId, msg, { parse_mode: "HTML" });
           }
         }
       }
     } catch (e) {
       console.error(`Error monitoreando ${trade.symbol}:`, e);
     }
+  }
+
+  // Si no hay usuarios activos (todos están en pausa), abortamos el escaneo de nuevas señales
+  if (activeUsers.length === 0) {
+    console.log("No hay usuarios activos. Abortando escaneo de nuevas señales.");
+    return;
   }
   
   const currentlyActiveTrades = await db.query.signalHistory.findMany({
@@ -78,6 +96,20 @@ async function runAnalysis(timeframe: string) {
     else if (btcAdx < 20) btcRegimeStr = "Rango";
     else btcRegimeStr = "Transición";
     btcRegimeStr += ` (${btcAdx.toFixed(2)})`;
+  }
+
+  const currentBinanceBalance = await dataFetcher.getUSDTBalance();
+  
+  if (currentBinanceBalance < 15) {
+    console.log(`Balance insuficiente (${currentBinanceBalance}). Abortando análisis.`);
+    for (const user of activeUsers) {
+      await bot.telegram.sendMessage(
+        user.chatId,
+        `⚠️ <b>Balance Insuficiente</b>\nTu saldo libre es de <b>$${currentBinanceBalance.toFixed(2)} USDT</b> (Mínimo requerido: $15).\n\n<i>El bot no escaneará el mercado. Usa /pause si deseas silenciar estos avisos.</i>`,
+        { parse_mode: "HTML" }
+      );
+    }
+    return; // No se esfuerza en analizar
   }
 
   const pairs = await dataFetcher.getTop100Pairs();
@@ -204,34 +236,83 @@ async function runAnalysis(timeframe: string) {
         }
         
         let btcCorrStr = "N/A";
+        let btcCorrVal = 0;
         if (!symbol.includes("BTC") && btcCloses.length > 0) {
-           const corr = dataFetcher.calculateCorrelation(closes15m, btcCloses);
-           btcCorrStr = (corr * 100).toFixed(2) + "%";
+           btcCorrVal = dataFetcher.calculateCorrelation(closes15m, btcCloses);
+           btcCorrStr = (btcCorrVal * 100).toFixed(2) + "%";
         }
+
+        const btcActiveTrades = currentlyActiveTrades.filter(t => t.symbol.includes("BTC"));
+        if (!symbol.includes("BTC") && btcActiveTrades.length > 0) {
+           const btcTrade = btcActiveTrades[0];
+           if (signal.direction === btcTrade.direction && btcCorrVal > 0.65) {
+              console.log(`Saltando ${symbol} por alta correlación (${btcCorrStr}) con BTC (mira misma dirección).`);
+              continue;
+           }
+        }
+
+        let gridDirection = signal.direction === "LONG" ? "🟢 LONG GRID" : "🔴 SHORT GRID";
+        const lowerPrice = Math.min(signal.stopLoss, signal.takeProfit);
+        const upperPrice = Math.max(signal.stopLoss, signal.takeProfit);
+        
+        // Cálculo Dinámico de Grilla basado en Volatilidad (ATR)
+        let stepSize = currentAtr / 3;
+        let stepPct = stepSize / signal.entry;
+        
+        // UMBRAL DE SEGURIDAD: Mínimo 0.35% para que las comisiones no coman la ganancia
+        if (stepPct < 0.0035) {
+            stepPct = 0.0035;
+            stepSize = signal.entry * stepPct;
+        }
+        // UMBRAL MÁXIMO: Máximo 1.20% para que el Grid no quede demasiado holgado
+        if (stepPct > 0.012) {
+            stepPct = 0.012;
+            stepSize = signal.entry * stepPct;
+        }
+
+        let numGrids = Math.floor((upperPrice - lowerPrice) / stepSize);
+        if (numGrids < 2) numGrids = 2; 
+        
+        // Kill Switches separados dinámicamente según el step
+        const gridSL = signal.direction === "LONG" ? (lowerPrice - stepSize) : (upperPrice + stepSize);
+        const gridTP = signal.direction === "LONG" ? (upperPrice + stepSize) : (lowerPrice - stepSize);
+        
+        const displayStepPct = (stepPct * 100).toFixed(2) + "%";
+
+        const fmt = (n: number) => n < 0.1 ? n.toFixed(6) : n.toFixed(4);
 
         const inserted = await db.insert(signalHistory).values({
           symbol, timeframe: "15m", direction: signal.direction,
-          entry: signal.entry.toFixed(4), stopLoss: signal.stopLoss.toFixed(4), takeProfit: signal.takeProfit.toFixed(4),
-          regime: signal.regime, bias4h: bias4h, strategy: signal.strategy, atr: currentAtr.toFixed(4),
+          entry: fmt(signal.entry), stopLoss: fmt(signal.stopLoss), takeProfit: fmt(signal.takeProfit),
+          regime: signal.regime, bias4h: bias4h, strategy: signal.strategy, atr: fmt(currentAtr),
           volumeFilter: signal.volumeFilter, fundingRate: fundingRateText, openInterest: oiText, btcCorrelation: btcCorrStr, btcRegime: btcRegimeStr,
-          decision: null // Pendiente
+          decision: null, // Pendiente
+          accountBalance: currentBinanceBalance.toFixed(2),
+          numGrids: numGrids,
+          gridStep: displayStepPct,
+          gridSL: fmt(gridSL),
+          gridTP: fmt(gridTP)
         }).returning({ id: signalHistory.id });
         
         const signalId = inserted[0].id;
 
-        const msg = `🚨 <b>NUEVA SEÑAL PAPER TRADING (15m)</b>\n\n` +
+        const msg = `⚡ <b>NUEVA SEÑAL GRID</b> ⚡\n` +
           `🪙 <b>Par:</b> ${symbol}\n` +
-          `📈 <b>Dirección:</b> ${signal.direction === "LONG" ? "🟢 LONG" : "🔴 SHORT"}\n` +
-          `🧠 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
-          `🧭 <b>Sesgo 4h:</b> ${bias4h}\n` +
-          `📊 <b>Volumen:</b> ${signal.volumeFilter}\n\n` +
-          `🛒 <b>Entrada:</b> ${signal.entry.toFixed(4)}\n` +
-          `🛑 <b>Stop Loss:</b> ${signal.stopLoss.toFixed(4)}\n` +
-          `🎯 <b>Take Profit:</b> ${signal.takeProfit.toFixed(4)}\n\n` +
-          (signal.direction === "SHORT" ? `💰 <b>Funding:</b> ${fundingRateText}\n📈 <b>OI:</b> ${oiText}\n` : "") +
-          (btcCorrStr !== "N/A" ? `🔗 <b>Correlación BTC:</b> ${btcCorrStr}\n` : "") +
-          (btcRegimeStr !== "N/A" ? `👑 <b>Régimen BTC:</b> ${btcRegimeStr}\n\n` : "\n") +
-          `💡 <i>Motivo: ${signal.reason}</i>`;
+          `🧭 <b>Dirección:</b> ${gridDirection}\n` +
+          `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
+          `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
+          `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
+          `⚙️ <b>PARÁMETROS DE LA MALLA (BINANCE GRID):</b>\n` +
+          `👇 <b>Precio Inferior (Lower):</b> $${fmt(lowerPrice)} <i>(Zona Inf)</i>\n` +
+          `👆 <b>Precio Superior (Upper):</b> $${fmt(upperPrice)} <i>(Zona Sup)</i>\n` +
+          `🧮 <b>Número de Grillas:</b> ${numGrids} <i>(Separación: ${displayStepPct})</i>\n\n` +
+          `🛑 <b>TERMINACIÓN AVANZADA (Kill Switches a ${displayStepPct} extra):</b>\n` +
+          `🩸 <b>Stop Loss:</b> $${fmt(gridSL)} <i>(Si rompe la malla)</i>\n` +
+          `🏆 <b>Take Profit:</b> $${fmt(gridTP)} <i>(Si rompe la malla)</i>\n\n` +
+          (signal.direction === "SHORT" ? `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` : "") +
+          (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n") +
+          `💡 <i>Motivo: ${signal.reason}</i>\n` +
+          `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, crea el Grid a mercado.`;
 
         for (const user of activeUsers) {
           await bot.telegram.sendMessage(user.chatId, msg, {
@@ -239,7 +320,7 @@ async function runAnalysis(timeframe: string) {
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: "✅ Tomar Trade (Paper)", callback_data: `paper_accept_${signalId}` },
+                  { text: "✅ Tomar Trade (Grid)", callback_data: `paper_accept_${signalId}` },
                   { text: "❌ Descartar", callback_data: `paper_reject_${signalId}` }
                 ]
               ]

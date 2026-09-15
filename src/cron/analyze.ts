@@ -23,9 +23,12 @@ async function runAnalysis(timeframe: string) {
   
   for (const trade of activeTrades) {
     try {
-      const ticker = await dataFetcher.exchange.fetchTicker(trade.symbol);
-      const currentPrice = ticker.last;
-      if (!currentPrice) continue;
+      const recentCandles = await dataFetcher.fetchOhlcv(trade.symbol, "15m", 2);
+      if (!recentCandles || recentCandles.length === 0) continue;
+      
+      const maxHigh = Math.max(...recentCandles.map(c => c.high));
+      const minLow = Math.min(...recentCandles.map(c => c.low));
+      const currentPrice = recentCandles[recentCandles.length - 1].close;
       
       // Usar los Kill Switches del Grid si existen, si no, fallback al SL/TP original
       const sl = parseFloat(trade.gridSL || trade.stopLoss!);
@@ -35,11 +38,11 @@ async function runAnalysis(timeframe: string) {
       let closeReason = "";
       
       if (trade.direction === "LONG") {
-        if (currentPrice <= sl) { closed = true; closeReason = "Cerrada (SL Tocado)"; }
-        if (currentPrice >= tp) { closed = true; closeReason = "Cerrada (TP Tocado)"; }
+        if (minLow <= sl) { closed = true; closeReason = "Cerrada (SL Tocado)"; }
+        else if (maxHigh >= tp) { closed = true; closeReason = "Cerrada (TP Tocado)"; }
       } else {
-        if (currentPrice >= sl) { closed = true; closeReason = "Cerrada (SL Tocado)"; }
-        if (currentPrice <= tp) { closed = true; closeReason = "Cerrada (TP Tocado)"; }
+        if (maxHigh >= sl) { closed = true; closeReason = "Cerrada (SL Tocado)"; }
+        else if (minLow <= tp) { closed = true; closeReason = "Cerrada (TP Tocado)"; }
       }
       
       if (closed) {
@@ -114,12 +117,16 @@ async function runAnalysis(timeframe: string) {
 
   const pairs = await dataFetcher.getTop100Pairs();
 
-  const last5Signals = await db.query.signalHistory.findMany({
+  const thirtyFiveMinsAgo = new Date(Date.now() - 35 * 60 * 1000);
+  const lastSignals = await db.query.signalHistory.findMany({
     orderBy: (history, { desc }) => [desc(history.evaluatedAt)],
-    limit: 5
+    limit: 15
   });
-  const recentSymbols = last5Signals.map(s => s.symbol);
+  const recentSymbols = lastSignals
+    .filter(s => s.evaluatedAt > thirtyFiveMinsAgo)
+    .map(s => s.symbol);
 
+  let signalsFound = 0;
   for (const symbol of pairs) {
     if (recentSymbols.includes(symbol)) continue;
     if (activeSymbolsToBlock.includes(symbol)) continue; // Candado: ignorar moneda si el paper trade sigue abierto
@@ -226,14 +233,12 @@ async function runAnalysis(timeframe: string) {
         let fundingRateText = "N/A";
         let oiText = "N/A";
 
-        if (signal.direction === "SHORT") {
-          const frHistory = await dataFetcher.fetchFundingRateHistory(symbol, 1);
-          if (frHistory && frHistory.length > 0) fundingRateText = frHistory[0].fundingRate.toString();
-          
-          const oiChange = await dataFetcher.fetchOpenInterestChange4h(symbol);
-          const oi = await dataFetcher.fetchOpenInterest(symbol);
-          if (oi !== null) oiText = `${oi.toString()} (${oiChange})`;
-        }
+        const frHistory = await dataFetcher.fetchFundingRateHistory(symbol, 1);
+        if (frHistory && frHistory.length > 0) fundingRateText = frHistory[0].fundingRate.toString();
+        
+        const oiChange = await dataFetcher.fetchOpenInterestChange4h(symbol);
+        const oi = await dataFetcher.fetchOpenInterest(symbol);
+        if (oi !== null) oiText = `${oi.toString()} (${oiChange})`;
         
         let btcCorrStr = "N/A";
         let btcCorrVal = 0;
@@ -294,11 +299,24 @@ async function runAnalysis(timeframe: string) {
           gridTP: fmt(gridTP)
         }).returning({ id: signalHistory.id });
         
+        signal.symbol = symbol;
+        signal.timeframe = timeframe;
         const signalId = inserted[0].id;
 
-        const msg = `⚡ <b>NUEVA SEÑAL GRID</b> ⚡\n` +
-          `🪙 <b>Par:</b> ${symbol}\n` +
-          `🧭 <b>Dirección:</b> ${gridDirection}\n` +
+        let frWarning = "";
+        if (fundingRateText !== "N/A") {
+          const frVal = parseFloat(fundingRateText);
+          if (signal.direction === "LONG" && frVal > 0) {
+            frWarning = `⚠️ <b>Peligro: Funding Rate en contra (${fundingRateText}).</b> (Válido descartar para monitorear)\n`;
+          } else if (signal.direction === "SHORT" && frVal < 0) {
+            frWarning = `⚠️ <b>Peligro: Funding Rate en contra (${fundingRateText}). Riesgo de Short Squeeze!</b> (Válido descartar para monitorear)\n`;
+          }
+        }
+
+        const msg = `🚨 <b>NUEVA SEÑAL GRID ENCONTRADA</b> 🚨\n\n` +
+          `🪙 <b>Par:</b> ${signal.symbol}\n` +
+          `📈 <b>Dirección:</b> ${signal.direction}\n` +
+          `⏳ <b>Temporalidad:</b> ${signal.timeframe}\n` +
           `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
           `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
           `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
@@ -309,8 +327,9 @@ async function runAnalysis(timeframe: string) {
           `🛑 <b>TERMINACIÓN AVANZADA (Kill Switches a ${displayStepPct} extra):</b>\n` +
           `🩸 <b>Stop Loss:</b> $${fmt(gridSL)} <i>(Si rompe la malla)</i>\n` +
           `🏆 <b>Take Profit:</b> $${fmt(gridTP)} <i>(Si rompe la malla)</i>\n\n` +
-          (signal.direction === "SHORT" ? `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` : "") +
-          (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n") +
+          `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
+          (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
+          frWarning +
           `💡 <i>Motivo: ${signal.reason}</i>\n` +
           `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, crea el Grid a mercado.`;
 
@@ -328,21 +347,26 @@ async function runAnalysis(timeframe: string) {
           });
         }
         
-        // Terminar el cron, enviamos 1 sola señal (la mejor del top)
-        return;
+        // Terminar el cron si alcanzamos el máximo de 3 señales por sesión
+        signalsFound++;
+        if (signalsFound >= 3) {
+          return;
+        }
       }
     } catch (e) {
        console.error(`Error procesando ${symbol}:`, e);
     }
   }
 
-  // Si llegamos hasta aquí, no se generó ninguna señal
-  for (const user of activeUsers) {
-    await bot.telegram.sendMessage(
-      user.chatId, 
-      `⏳ <b>[${timeframe}] Ciclo Completado - Sin Operaciones</b>\nNinguna de las monedas cumple con todos los filtros de la estrategia en este momento. Sigo vigilando... 👀`, 
-      { parse_mode: "HTML" }
-    );
+  // Si llegamos hasta aquí y no se generó NINGUNA señal, avisamos
+  if (signalsFound === 0) {
+    for (const user of activeUsers) {
+      await bot.telegram.sendMessage(
+        user.chatId, 
+        `⏳ <b>[${timeframe}] Ciclo Completado - Sin Operaciones</b>\nNinguna de las monedas cumple con todos los filtros de la estrategia en este momento. Sigo vigilando... 👀`, 
+        { parse_mode: "HTML" }
+      );
+    }
   }
 }
 

@@ -76,10 +76,16 @@ export async function generateDailyReportText(): Promise<string> {
   const dailyTrades = allTrades.filter(t => t.evaluatedAt >= yesterday);
   const dailyStats = calculateStats(dailyTrades);
 
-  let msg = `📊 <b>RESUMEN DEL DÍA (Últimas 24h)</b>\n`;
-  msg += `<b>Tomadas (${dailyStats.tomadas.count}):</b> WR ${dailyStats.tomadas.winrate.toFixed(1)}% | E(R) = ${dailyStats.tomadas.exp.toFixed(2)}R\n`;
-  msg += `<b>Descartadas (${dailyStats.desc.count}):</b> WR ${dailyStats.desc.winrate.toFixed(1)}% | E(R) = ${dailyStats.desc.exp.toFixed(2)}R\n`;
-  msg += `Resultado Neto Diario: <b>${dailyStats.tomadas.totalR > 0 ? '+' : ''}${dailyStats.tomadas.totalR.toFixed(2)} R</b>\n`;
+  let msg = `📊 <b>RESUMEN DE SEÑALES DEL DÍA (Últimas 24h)</b>\n`;
+  msg += `<b>Operaciones que TOMASTE (${dailyStats.tomadas.count}):</b>\n`;
+  msg += `  ✅ Ganadas (TP): ${dailyTrades.filter(t => t.decision?.includes("Tomada") && t.decision?.includes("TP")).length}\n`;
+  msg += `  ❌ Perdidas (SL): ${dailyTrades.filter(t => t.decision?.includes("Tomada") && t.decision?.includes("SL")).length}\n`;
+  msg += `  🎯 Tasa de Acierto: ${dailyStats.tomadas.winrate.toFixed(1)}%\n\n`;
+  
+  msg += `<b>Operaciones que DESCARTASTE (${dailyStats.desc.count}):</b>\n`;
+  msg += `  ✅ Hubieran ganado (TP): ${dailyTrades.filter(t => t.decision?.includes("Descartada") && t.decision?.includes("TP")).length}\n`;
+  msg += `  ❌ Hubieran perdido (SL): ${dailyTrades.filter(t => t.decision?.includes("Descartada") && t.decision?.includes("SL")).length}\n`;
+  msg += `  🎯 Tasa de Acierto: ${dailyStats.desc.winrate.toFixed(1)}%\n`;
   return msg;
 }
 
@@ -97,96 +103,35 @@ export async function generateGlobalReportText(): Promise<string> {
     diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  let msg = `📈 <b>AUDITORÍA CUANTITATIVA GLOBAL (${diffDays} días operando)</b>\n`;
-  msg += `<b>Muestra Tomada (${totalStats.tomadas.count}):</b> WR ${totalStats.tomadas.winrate.toFixed(1)}% | Expectativa: ${totalStats.tomadas.exp.toFixed(2)}R por trade.\n`;
-  msg += `<b>Muestra Descartada (${totalStats.desc.count}):</b> WR ${totalStats.desc.winrate.toFixed(1)}% | Expectativa: ${totalStats.desc.exp.toFixed(2)}R por trade.\n`;
+  let msg = `📈 <b>AUDITORÍA GLOBAL (Tras ${diffDays} días operando)</b>\n`;
+  
+  msg += `<b>Operaciones TOMASTE en total (${totalStats.tomadas.count}):</b>\n`;
+  msg += `  ✅ Ganadas: ${allTrades.filter(t => t.decision?.includes("Tomada") && t.decision?.includes("TP")).length}\n`;
+  msg += `  ❌ Perdidas: ${allTrades.filter(t => t.decision?.includes("Tomada") && t.decision?.includes("SL")).length}\n`;
+  msg += `  🎯 Tasa de Acierto: ${totalStats.tomadas.winrate.toFixed(1)}%\n\n`;
+
+  msg += `<b>Operaciones DESCARTASTE en total (${totalStats.desc.count}):</b>\n`;
+  msg += `  ✅ Hubieran ganado: ${allTrades.filter(t => t.decision?.includes("Descartada") && t.decision?.includes("TP")).length}\n`;
+  msg += `  ❌ Hubieran perdido: ${allTrades.filter(t => t.decision?.includes("Descartada") && t.decision?.includes("SL")).length}\n`;
+  msg += `  🎯 Tasa de Acierto: ${totalStats.desc.winrate.toFixed(1)}%\n\n`;
   
   const difWr = totalStats.tomadas.winrate - totalStats.desc.winrate;
   
-  msg += `\n🧠 <b>Evaluación del Filtro Humano (Descartes):</b>\n`;
-  msg += `Diferencia de Winrate (Tomadas vs Descartadas): ${difWr > 0 ? '+' : ''}${difWr.toFixed(1)}%\n`;
+  msg += `🧠 <b>Evaluación de tus decisiones (Filtro Humano):</b>\n`;
   
-  if (totalStats.desc.exp > 0) {
-    msg += `❌ <b>Atención:</b> Las operaciones que descartas tienen expectativa positiva (+${totalStats.desc.exp.toFixed(2)}R).\n`;
-    msg += `👉 El filtro manual te está <b>costando</b> ${totalStats.desc.exp.toFixed(2)}R por decisión.\n`;
-  } else if (totalStats.desc.exp < 0) {
-    msg += `✅ <b>Bien visto:</b> Las operaciones que descartas tienen expectativa negativa (${totalStats.desc.exp.toFixed(2)}R).\n`;
-    msg += `👉 El filtro manual te está <b>salvando</b> ${Math.abs(totalStats.desc.exp).toFixed(2)}R por decisión.\n`;
+  if (difWr > 5) {
+    msg += `✅ <b>¡Excelente instinto!</b> Tu tasa de acierto es ${difWr.toFixed(1)}% mejor que si hubieras aceptado las que descartaste. Estás filtrando bien las trampas.\n`;
+  } else if (difWr < -5) {
+    msg += `❌ <b>Cuidado con el sesgo:</b> Las operaciones que descartas están ganando ${Math.abs(difWr).toFixed(1)}% más que las que aceptas. Intenta confiar un poco más en el modelo matemático.\n`;
   } else {
-    msg += `👉 El filtro manual tiene un impacto neutral (0.00R).\n`;
+    msg += `👉 Tus decisiones manuales están empatadas con el algoritmo. Tu instinto está perfectamente calibrado con la matemática.\n`;
   }
   
-  msg += `\nTotal R Acumulado (Solo Tomadas): <b>${totalStats.tomadas.totalR > 0 ? '+' : ''}${totalStats.tomadas.totalR.toFixed(2)} R</b>\n`;
-  msg += `Máximo Drawdown (Caída desde el pico): <b>${totalStats.tomadas.maxDrawdownR.toFixed(2)} R</b>\n`;
-  msg += `Peor Racha de Pérdidas: <b>${totalStats.tomadas.maxLosingStreak} operaciones seguidas</b>\n`;
-  return msg;
-}
-
-export async function generateSimulationText(): Promise<string> {
-  const allTrades = await db.query.signalHistory.findMany({
-    orderBy: (history, { asc }) => [asc(history.evaluatedAt)]
-  });
-  
-  const tomadas = allTrades.filter(t => t.decision && t.decision.startsWith("Tomada"));
-  
-  const calculateSim = (allocation: number) => {
-    let balance = 1000;
-    let totalCommissions = 0;
-    let grossPnl = 0;
-    const MAKER_FEE_ENTRY = 0.0002; // Limit Entry
-    const TAKER_FEE_EXIT = 0.0005;  // Market Exit (SL/TP trigger)
-    
-    tomadas.forEach((t) => {
-      const entry = parseFloat(t.entry!);
-      const sl = parseFloat(t.stopLoss!);
-      const tp = parseFloat(t.takeProfit!);
-      
-      let exitPrice = 0;
-      if (t.decision!.includes("TP")) exitPrice = tp;
-      else if (t.decision!.includes("SL")) exitPrice = sl;
-      else return; 
-      
-      const entryFee = allocation * MAKER_FEE_ENTRY;
-      const exitPositionSize = allocation * (exitPrice / entry);
-      const exitFee = exitPositionSize * TAKER_FEE_EXIT;
-      const tradeFee = entryFee + exitFee;
-      
-      let pnl = 0;
-      if (t.direction === "LONG") {
-        pnl = allocation * ((exitPrice - entry) / entry);
-      } else {
-        pnl = allocation * ((entry - exitPrice) / entry);
-      }
-      
-      const netPnl = pnl - tradeFee;
-      balance += netPnl;
-      grossPnl += pnl;
-      totalCommissions += tradeFee;
-    });
-    
-    return { grossPnl, totalCommissions, balance };
-  };
-
-  const sim1 = calculateSim(500); // 1x nominal (500 USDT risk per trade out of 1000)
-
-  let msg = `\n### 📊 SIMULACIÓN CUANTITATIVA (Muestra: ${tomadas.length} Operaciones Tomadas)\n`;
-  msg += `<b>Estrategia:</b> 15m Tendencia/Rango (Basado en datos de ejecución en vivo)\n`;
-  msg += `<b>Capital Inicial Base:</b> $1,000.00 USDT\n`;
-  msg += `<b>Comisiones Calculadas:</b> Maker 0.02% (Entrada Límite) / Taker 0.05% (Salida a Mercado)\n\n`;
-
-  msg += `<b>--- ESCENARIO: APALANCAMIENTO 1x (Estructural Base) ---</b>\n`;
-  msg += `* Tamaño Nominal por Operación: $500 USDT\n`;
-  msg += `* Riesgo por Operación (1 o 1.5 ATR): ~$2.50 a $7.50 USDT (0.25% - 0.75% de la cuenta)\n`;
-  msg += `* Ganancia Bruta: +$${sim1.grossPnl.toFixed(2)}\n`;
-  msg += `* Comisiones Binance: -$${sim1.totalCommissions.toFixed(2)}\n`;
-  msg += `* PnL Neto: +$${(sim1.balance - 1000).toFixed(2)}\n`;
-  msg += `* BALANCE FINAL: $${sim1.balance.toFixed(2)}\n`;
-
   return msg;
 }
 
 export async function handler() {
-  console.log("Generando reportes diarios y totales cuantitativos...");
+  console.log("Generando reportes diarios...");
 
   const users = await db.query.userConfig.findMany();
   if (users.length === 0) return;
@@ -209,13 +154,13 @@ export async function handler() {
   const dailyText = await generateDailyReportText();
   const globalText = await generateGlobalReportText();
   
-  let msg = `🌙 <b>FIN DE LA JORNADA INSTITUCIONAL (23:00 PYT)</b> 🌙\n`;
-  msg += `El bot entra en auto-suspensión hasta las 08:30 am.\n\n`;
+  let msg = `🌙 <b>REPORTE DIARIO DE RENDIMIENTO (23:00 PYT)</b> 🌙\n`;
+  msg += `<i>(El bot seguirá operando 24/7 a menos que envíes /pause)</i>\n\n`;
   
   msg += `💼 <b>Balance Actual (Binance):</b> $${liveBalance.toFixed(2)} USDT\n`;
-  msg += `📈 <b>PnL Real del Día:</b> ${netPnlReal >= 0 ? '+' : ''}$${netPnlReal.toFixed(2)} USDT\n\n`;
+  msg += `📈 <b>Ganancia/Pérdida (Últimas 24h):</b> ${netPnlReal >= 0 ? '+' : ''}$${netPnlReal.toFixed(2)} USDT\n\n`;
   
-  msg += dailyText + "\n\n" + globalText;
+  msg += dailyText + "\n" + globalText;
 
   for (const user of users) {
     try {

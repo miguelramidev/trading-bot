@@ -137,7 +137,8 @@ export async function handler() {
   if (users.length === 0) return;
   
   const fetcher = new DataFetcher();
-  const liveBalance = await fetcher.getUSDTBalance();
+  const balanceObj = await fetcher.getUSDTBalance();
+  const liveBalance = balanceObj.total; // Usamos TOTAL para no contar el margen bloqueado como pérdida
   
   const lastReport = await db.query.dailyReports.findFirst({
     orderBy: (reports, { desc }) => [desc(reports.reportDate)]

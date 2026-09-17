@@ -16,14 +16,17 @@ export class DataFetcher {
     });
   }
 
-  async getUSDTBalance(): Promise<number> {
+  async getUSDTBalance(): Promise<{ free: number, total: number }> {
     try {
-      if (!this.exchange.apiKey) return 0;
+      if (!this.exchange.apiKey) return { free: 0, total: 0 };
       const balance = await this.exchange.fetchBalance();
-      return parseFloat(balance['USDT']?.free || '0');
+      return {
+        free: parseFloat(balance['USDT']?.free || '0'),
+        total: parseFloat(balance['USDT']?.total || '0')
+      };
     } catch(e) {
       console.error("Error fetching balance:", e);
-      return 0;
+      return { free: 0, total: 0 };
     }
   }
 

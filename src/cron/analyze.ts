@@ -101,7 +101,30 @@ async function runAnalysis(timeframe: string) {
     btcRegimeStr += ` (${btcAdx.toFixed(2)})`;
   }
 
-  const currentBinanceBalance = await dataFetcher.getUSDTBalance();
+  let macroTrendWarning = "";
+  try {
+    const btcCandles1D = await dataFetcher.fetchOhlcv("BTC/USDT:USDT", "1d", 250);
+    if (btcCandles1D && btcCandles1D.length > 200) {
+      const closes1D = btcCandles1D.map(c => c.close);
+      const currentPrice1D = closes1D[closes1D.length - 1];
+      const ema20Arr = dataFetcher.calculateEMA(closes1D, 20);
+      const ema50Arr = dataFetcher.calculateEMA(closes1D, 50);
+      const ema200Arr = dataFetcher.calculateEMA(closes1D, 200);
+      
+      const ema20 = ema20Arr[ema20Arr.length - 1];
+      const ema50 = ema50Arr[ema50Arr.length - 1];
+      const ema200 = ema200Arr[ema200Arr.length - 1];
+
+      if (currentPrice1D > ema200 && ema20 > ema50) {
+        macroTrendWarning = "ALCISTA";
+      } else if (currentPrice1D < ema200 && ema20 < ema50) {
+        macroTrendWarning = "BAJISTA";
+      }
+    }
+  } catch(e) { console.error("Error fetching BTC 1D", e); }
+
+  const balanceObj = await dataFetcher.getUSDTBalance();
+  const currentBinanceBalance = balanceObj.free;
   
   if (currentBinanceBalance < 15) {
     console.log(`Balance insuficiente (${currentBinanceBalance}). Abortando análisis.`);
@@ -180,7 +203,7 @@ async function runAnalysis(timeframe: string) {
             if (currentVol > avgVol && prevCandle.volume < avgVol) {
               signal = {
                 strategy: "1", direction: "LONG", regime: "Tendencial",
-                entry: currentPrice, stopLoss: currentPrice - (1.5 * currentAtr), takeProfit: currentPrice + (2 * 1.5 * currentAtr),
+                entry: currentPrice, stopLoss: currentPrice - (1.0 * currentAtr), takeProfit: currentPrice + (2.0 * currentAtr),
                 volumeFilter: "Confirma (Vela Verde + Vol)", reason: "Rebote exitoso en EMA 21 con vela de confirmación"
               };
             }
@@ -194,7 +217,7 @@ async function runAnalysis(timeframe: string) {
              if (prevCandle.volume < avgVol) { // Volumen del rebote aflojado
                signal = {
                  strategy: "1", direction: "SHORT", regime: "Tendencial",
-                 entry: currentPrice, stopLoss: currentPrice + (1.5 * currentAtr), takeProfit: currentPrice - (2 * 1.5 * currentAtr),
+                 entry: currentPrice, stopLoss: currentPrice + (1.0 * currentAtr), takeProfit: currentPrice - (2.0 * currentAtr),
                  volumeFilter: "Rebote sin volumen", reason: "Rechazo bajista en EMA 21"
                };
              }
@@ -227,6 +250,27 @@ async function runAnalysis(timeframe: string) {
       }
 
       if (signal) {
+        let wasInverted = false;
+        
+        // MACRO BREAKOUT INVERSION
+        if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT") {
+           signal.direction = "LONG";
+           signal.stopLoss = currentPrice - (1.0 * currentAtr);
+           signal.takeProfit = currentPrice + (2.0 * currentAtr);
+           signal.strategy = "3";
+           signal.regime = "Macro Breakout";
+           signal.reason = "Inversión por tendencia Macro Alcista de BTC";
+           wasInverted = true;
+        } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG") {
+           signal.direction = "SHORT";
+           signal.stopLoss = currentPrice + (1.0 * currentAtr);
+           signal.takeProfit = currentPrice - (2.0 * currentAtr);
+           signal.strategy = "3";
+           signal.regime = "Macro Breakout";
+           signal.reason = "Inversión por tendencia Macro Bajista de BTC";
+           wasInverted = true;
+        }
+
         if (signal.direction === "LONG" && activeLongsCount >= 2) continue;
         if (signal.direction === "SHORT" && activeShortsCount >= 2) continue;
 
@@ -313,6 +357,15 @@ async function runAnalysis(timeframe: string) {
           }
         }
 
+        let macroWarningStr = "";
+        if (wasInverted) {
+          macroWarningStr = `🔥 <b>ESTRATEGIA 3 (MACRO BREAKOUT):</b> El bot detectó un setup técnico en contra, pero como Bitcoin está fuertemente <b>${macroTrendWarning}</b>, ¡hemos <b>INVERTIDO</b> la señal para cazar la ruptura de la resistencia a favor de la tendencia principal!\n\n`;
+        } else if (macroTrendWarning === "ALCISTA" && signal.direction === "LONG") {
+          macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente ALCISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
+        } else if (macroTrendWarning === "BAJISTA" && signal.direction === "SHORT") {
+          macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente BAJISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
+        }
+
         const msg = `🚨 <b>NUEVA SEÑAL GRID ENCONTRADA</b> 🚨\n\n` +
           `🪙 <b>Par:</b> ${signal.symbol}\n` +
           `📈 <b>Dirección:</b> ${signal.direction}\n` +
@@ -329,6 +382,7 @@ async function runAnalysis(timeframe: string) {
           `🏆 <b>Take Profit:</b> $${fmt(gridTP)} <i>(Si rompe la malla)</i>\n\n` +
           `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
           (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
+          macroWarningStr +
           frWarning +
           `💡 <i>Motivo: ${signal.reason}</i>\n` +
           `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, crea el Grid a mercado.`;

@@ -250,24 +250,31 @@ async function runAnalysis(timeframe: string) {
       }
 
       if (signal) {
+        let btcCorrStr = "N/A";
+        let btcCorrVal = 0;
+        if (!symbol.includes("BTC") && btcCloses.length > 0) {
+           btcCorrVal = dataFetcher.calculateCorrelation(closes15m, btcCloses);
+           btcCorrStr = (btcCorrVal * 100).toFixed(2) + "%";
+        }
+
         let wasInverted = false;
         
-        // MACRO BREAKOUT INVERSION
-        if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT") {
+        // MACRO BREAKOUT INVERSION (Requiere alineación 1D+4H y Correlación Positiva)
+        if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT" && bias4h === "UP" && btcCorrVal >= 0) {
            signal.direction = "LONG";
            signal.stopLoss = currentPrice - (1.0 * currentAtr);
            signal.takeProfit = currentPrice + (2.0 * currentAtr);
            signal.strategy = "3";
            signal.regime = "Macro Breakout";
-           signal.reason = "Inversión por tendencia Macro Alcista de BTC";
+           signal.reason = "Inversión por convergencia Alcista 1D+4H";
            wasInverted = true;
-        } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG") {
+        } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG" && bias4h === "DOWN" && btcCorrVal >= 0) {
            signal.direction = "SHORT";
            signal.stopLoss = currentPrice + (1.0 * currentAtr);
            signal.takeProfit = currentPrice - (2.0 * currentAtr);
            signal.strategy = "3";
            signal.regime = "Macro Breakout";
-           signal.reason = "Inversión por tendencia Macro Bajista de BTC";
+           signal.reason = "Inversión por convergencia Bajista 1D+4H";
            wasInverted = true;
         }
 
@@ -283,13 +290,6 @@ async function runAnalysis(timeframe: string) {
         const oiChange = await dataFetcher.fetchOpenInterestChange4h(symbol);
         const oi = await dataFetcher.fetchOpenInterest(symbol);
         if (oi !== null) oiText = `${oi.toString()} (${oiChange})`;
-        
-        let btcCorrStr = "N/A";
-        let btcCorrVal = 0;
-        if (!symbol.includes("BTC") && btcCloses.length > 0) {
-           btcCorrVal = dataFetcher.calculateCorrelation(closes15m, btcCloses);
-           btcCorrStr = (btcCorrVal * 100).toFixed(2) + "%";
-        }
 
         const btcActiveTrades = currentlyActiveTrades.filter(t => t.symbol.includes("BTC"));
         if (!symbol.includes("BTC") && btcActiveTrades.length > 0) {
@@ -359,7 +359,19 @@ async function runAnalysis(timeframe: string) {
 
         let macroWarningStr = "";
         if (wasInverted) {
-          macroWarningStr = `🔥 <b>ESTRATEGIA 3 (MACRO BREAKOUT):</b> El bot detectó un setup técnico en contra, pero como Bitcoin está fuertemente <b>${macroTrendWarning}</b>, ¡hemos <b>INVERTIDO</b> la señal para cazar la ruptura de la resistencia a favor de la tendencia principal!\n\n`;
+          macroWarningStr = `🔥 <b>ESTRATEGIA 3 (MACRO BREAKOUT):</b> El bot detectó un setup técnico en contra, pero como Bitcoin está fuertemente <b>${macroTrendWarning}</b> en 1D y 4H, ¡hemos <b>INVERTIDO</b> la señal para cazar la ruptura!\n\n`;
+        } else if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT") {
+           if (btcCorrVal < 0) {
+              macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está ALCISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el SHORT original.\n\n`;
+           } else {
+              macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está ALCISTA en 1D, pero no hay fuerza en 4H. No se invirtió la señal. Hacer SHORT es riesgoso.\n\n`;
+           }
+        } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG") {
+           if (btcCorrVal < 0) {
+              macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está BAJISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el LONG original.\n\n`;
+           } else {
+              macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está BAJISTA en 1D, pero no hay fuerza en 4H. No se invirtió la señal. Hacer LONG es riesgoso.\n\n`;
+           }
         } else if (macroTrendWarning === "ALCISTA" && signal.direction === "LONG") {
           macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente ALCISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
         } else if (macroTrendWarning === "BAJISTA" && signal.direction === "SHORT") {

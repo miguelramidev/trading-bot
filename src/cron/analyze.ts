@@ -410,20 +410,23 @@ async function runAnalysis(timeframe: string) {
           macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente BAJISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
         }
 
-        const msg = `🚨 <b>NUEVA SEÑAL GRID ENCONTRADA</b> 🚨\n\n` +
-          `🪙 <b>Par:</b> ${signal.symbol} (Top #${rank})\n` +
+        const cleanSymbolTV = symbol.split(":")[0].replace("/", "");
+        const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
+
+        const msg = `🚨 <b>NUEVA SEÑAL ENCONTRADA (Sniper)</b> 🚨\n\n` +
+          `🪙 <b>Par:</b> <a href="${tvLink}">${signal.symbol}</a> (Top #${rank})\n` +
           `📈 <b>Dirección:</b> ${signal.direction}\n` +
           `⏳ <b>Temporalidad:</b> ${signal.timeframe}\n` +
           `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
           `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
           `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
-          `⚙️ <b>PARÁMETROS DE LA MALLA (BINANCE GRID):</b>\n` +
-          `👇 <b>Precio Inferior (Lower):</b> $${fmt(lowerPrice)} <i>(Zona Inf)</i>\n` +
-          `👆 <b>Precio Superior (Upper):</b> $${fmt(upperPrice)} <i>(Zona Sup)</i>\n` +
-          `🧮 <b>Número de Grillas:</b> ${numGrids} <i>(Separación: ${displayStepPct})</i>\n\n` +
-          `🛑 <b>TERMINACIÓN AVANZADA (Kill Switches a ${displayStepPct} extra):</b>\n` +
-          `🩸 <b>Stop Loss:</b> $${fmt(gridSL)} <i>(Si rompe la malla)</i>\n` +
-          `🏆 <b>Take Profit:</b> $${fmt(gridTP)} <i>(Si rompe la malla)</i>\n\n` +
+          `🎯 <b>ZONA DE VOLATILIDAD (ATR):</b>\n` +
+          `👇 <b>Banda Inferior:</b> $${fmt(lowerPrice)}\n` +
+          `👆 <b>Banda Superior:</b> $${fmt(upperPrice)}\n` +
+          `🧮 <b>Tamaño del paso (ATR):</b> ${displayStepPct}\n\n` +
+          `🛑 <b>ÓRDENES OCO AUTOMÁTICAS (Sniper):</b>\n` +
+          `🩸 <b>Stop Loss:</b> $${fmt(gridSL)}\n` +
+          `🏆 <b>Take Profit:</b> $${fmt(gridTP)}\n\n` +
           `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
           (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
           macroWarningStr +
@@ -437,7 +440,7 @@ async function runAnalysis(timeframe: string) {
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: "✅ Tomar Trade (Grid)", callback_data: `paper_accept_${signalId}` },
+                  { text: "✅ Ejecutar Sniper (Mercado)", callback_data: `paper_accept_${signalId}` },
                   { text: "❌ Descartar", callback_data: `paper_reject_${signalId}` }
                 ]
               ]

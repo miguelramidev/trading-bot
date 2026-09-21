@@ -478,16 +478,16 @@ async function runAnalysis(timeframe: string) {
     }
   }
 
-  // Si llegamos hasta aquí y no se generó NINGUNA señal, avisamos
-  if (signalsFound === 0) {
-    for (const user of activeUsers) {
-      await bot.telegram.sendMessage(
-        user.chatId, 
-        `⏳ <b>[${timeframe}] Ciclo Completado - Sin Operaciones</b>\nNinguna de las monedas cumple con todos los filtros de la estrategia en este momento. Sigo vigilando... 👀`, 
-        { parse_mode: "HTML" }
-      );
-    }
-  }
+  // Si llegamos hasta aquí y no se generó NINGUNA señal, terminamos en silencio.
+  // if (signalsFound === 0) {
+  //   for (const user of activeUsers) {
+  //     await bot.telegram.sendMessage(
+  //       user.chatId, 
+  //       `⏳ <b>[${timeframe}] Ciclo Completado - Sin Operaciones</b>\nNinguna de las monedas cumple con todos los filtros de la estrategia en este momento. Sigo vigilando... 👀`, 
+  //       { parse_mode: "HTML" }
+  //     );
+  //   }
+  // }
 }
 
 export async function handler15m() { await runAnalysis("15m"); }

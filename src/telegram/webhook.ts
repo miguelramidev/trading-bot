@@ -5,6 +5,7 @@ import { userConfig, signalHistory } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import ccxt from "ccxt";
 import { Resource } from "sst";
+import { Trader } from "../bot/trader.js";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
@@ -217,15 +218,32 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
     return;
   }
   
-  await db.update(signalHistory)
-    .set({ decision: "Tomada", reason: "Confirmado manualmente en Telegram", isActiveTrade: true })
-    .where(eq(signalHistory.id, signalId));
+  await ctx.answerCbQuery("⏳ Ejecutando orden en Binance...");
 
-  await ctx.answerCbQuery("✅ Trade simulado aceptado y registrado en el log.");
+  const trader = new Trader();
+  const executionResult = await trader.executeTrade(
+     signal.symbol,
+     signal.direction!,
+     parseFloat(signal.gridSL || "0"),
+     parseFloat(signal.gridTP || "0")
+  );
+
+  let finalDecision = "Tomada";
+  let reasonText = "Ejecutado en Binance: OCO Sniper";
+
+  if (executionResult.includes("❌")) {
+      finalDecision = "Descartada";
+      reasonText = executionResult.substring(0, 100); // Guardamos el error de rechazo
+  }
+
+  await db.update(signalHistory)
+    .set({ decision: finalDecision, reason: reasonText, isActiveTrade: true })
+    .where(eq(signalHistory.id, signalId));
   
   const originalMsg = ctx.callbackQuery.message;
   if (originalMsg && 'text' in originalMsg) {
-     await ctx.editMessageText(originalMsg.text + "\n\n✅ <b>DECISIÓN: TOMADA (Paper Trading)</b>", { parse_mode: "HTML" });
+     const statusHeader = finalDecision === "Tomada" ? "✅ <b>TRADE EJECUTADO REAL (Sniper)</b>" : "❌ <b>TRADE RECHAZADO POR BINANCE</b>";
+     await ctx.editMessageText(originalMsg.text + `\n\n${statusHeader}\n\n${executionResult}`, { parse_mode: "HTML" });
   }
 });
 

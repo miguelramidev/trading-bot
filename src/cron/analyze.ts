@@ -1,8 +1,9 @@
 import { Telegraf } from "telegraf";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, gte } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { signalHistory } from "../db/schema.js";
+import { signalHistory, userConfig } from "../db/schema.js";
 import { DataFetcher } from "../bot/data.js";
+import { Trader } from "../bot/trader.js";
 import { Resource } from "sst";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.value;
@@ -15,6 +16,10 @@ async function runAnalysis(timeframe: string) {
   const activeUsers = users.filter((u) => !u.isPaused);
 
   const dataFetcher = new DataFetcher();
+  const trader = new Trader();
+  
+  // Limpieza de huérfanos antes de analizar
+  await trader.cleanOrphanOrders();
   
   // --- MONITOR DE OPERACIONES ACTIVAS ---
   const activeTrades = await db.query.signalHistory.findMany({

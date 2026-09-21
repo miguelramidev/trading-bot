@@ -432,7 +432,7 @@ async function runAnalysis(timeframe: string) {
           macroWarningStr +
           strat4Warning +
           `💡 <i>Motivo: ${signal.reason}</i>\n` +
-          `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, crea el Grid a mercado.`;
+          `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
 
         for (const user of activeUsers) {
           await bot.telegram.sendMessage(user.chatId, msg, {

@@ -124,7 +124,7 @@ async function runAnalysis(timeframe: string) {
   } catch(e) { console.error("Error fetching BTC 1D", e); }
 
   const balanceObj = await dataFetcher.getUSDTBalance();
-  const currentBinanceBalance = balanceObj.free;
+  const currentBinanceBalance = balanceObj.total;
   
   if (currentBinanceBalance < 15) {
     console.log(`Balance insuficiente (${currentBinanceBalance}). Abortando análisis.`);
@@ -335,7 +335,8 @@ async function runAnalysis(timeframe: string) {
           entry: fmt(signal.entry), stopLoss: fmt(signal.stopLoss), takeProfit: fmt(signal.takeProfit),
           regime: signal.regime, bias4h: bias4h, strategy: signal.strategy, atr: fmt(currentAtr),
           volumeFilter: signal.volumeFilter, fundingRate: fundingRateText, openInterest: oiText, btcCorrelation: btcCorrStr, btcRegime: btcRegimeStr,
-          decision: null, // Pendiente
+          decision: null, // Pendiente (pero rastreado de fondo)
+          isActiveTrade: true,
           accountBalance: currentBinanceBalance.toFixed(2),
           numGrids: numGrids,
           gridStep: displayStepPct,

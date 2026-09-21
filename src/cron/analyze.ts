@@ -326,10 +326,10 @@ async function runAnalysis(timeframe: string) {
            continue;
         }
 
-        // 2. Escudo de Riesgo Direccional Cruzado (Correlación BTC > 50%)
-        // Si esta moneda está altamente correlacionada con BTC (>50%) y va en la misma dirección que 
+        // 2. Escudo de Riesgo Direccional Cruzado (Correlación BTC > 20%)
+        // Si esta moneda está correlacionada con BTC (>20%) y va en la misma dirección que 
         // otro trade activo que TAMBIÉN está correlacionado con BTC, es riesgo duplicado. Se bloquea.
-        if (btcCorrVal > 0.50) {
+        if (btcCorrVal > 0.20) {
            const correlatedOverlap = currentlyActiveTrades.find(t => {
                if (t.direction !== signal.direction) return false; // Direcciones opuestas no suman riesgo
                
@@ -337,13 +337,13 @@ async function runAnalysis(timeframe: string) {
                
                if (t.btcCorrelation) {
                    const parsedCorr = parseFloat(t.btcCorrelation.replace('%', '')) / 100;
-                   if (parsedCorr > 0.50) return true; // Ambos son clones de BTC
+                   if (parsedCorr > 0.20) return true; // Ambos son clones de BTC
                }
                return false;
            });
 
            if (correlatedOverlap) {
-               console.log(`Bloqueo de Exposición: Saltando ${symbol}. Ya tienes ${correlatedOverlap.symbol} abierto en ${signal.direction} y ambos son clones de BTC (>50% correlación).`);
+               console.log(`Bloqueo de Exposición: Saltando ${symbol}. Ya tienes ${correlatedOverlap.symbol} abierto en ${signal.direction} y ambos están correlacionados con BTC (>20%).`);
                continue;
            }
         }

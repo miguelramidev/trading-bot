@@ -413,6 +413,23 @@ async function runAnalysis(timeframe: string) {
         const cleanSymbolTV = symbol.split(":")[0].replace("/", "");
         const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
 
+        const marginToInvest = currentBinanceBalance * 0.20;
+        const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
+        const targetNotional = Math.max(10.0, exchangeMinNotional);
+
+        let leverage = 1;
+        let notional = marginToInvest;
+
+        while (notional < targetNotional && leverage < 10) {
+          leverage++;
+          notional = marginToInvest * leverage;
+        }
+        
+        let positionWarning = "";
+        if (notional < targetNotional) {
+           positionWarning = `⚠️ <b>Riesgo:</b> Tu capital ($${marginToInvest.toFixed(2)}) a x10 no alcanza el mínimo ($${targetNotional.toFixed(2)}). Binance rechazará la orden.\n`;
+        }
+
         const msg = `🚨 <b>NUEVA SEÑAL ENCONTRADA (Sniper)</b> 🚨\n\n` +
           `🪙 <b>Par:</b> ${signal.symbol} (Top #${rank})\n` +
           `📈 <b>Dirección:</b> ${signal.direction}\n` +
@@ -420,6 +437,11 @@ async function runAnalysis(timeframe: string) {
           `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
           `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
           `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
+          `💰 <b>INVERSIÓN PROYECTADA (20%):</b>\n` +
+          `🛡️ <b>Margen (Capital):</b> $${marginToInvest.toFixed(2)} USDT\n` +
+          `⚙️ <b>Apalancamiento:</b> x${leverage}\n` +
+          `🚀 <b>Posición Total:</b> $${notional.toFixed(2)} USDT\n` +
+          positionWarning + `\n` +
           `🎯 <b>PARÁMETROS DEL TRADE (ATR: ${displayStepPct}):</b>\n` +
           `🛑 <b>Stop Loss (1 ATR):</b> $${fmt(gridSL)}\n` +
           `🏆 <b>Take Profit (2 ATR):</b> $${fmt(gridTP)}\n\n` +

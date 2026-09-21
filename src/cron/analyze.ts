@@ -281,14 +281,42 @@ async function runAnalysis(timeframe: string) {
            wasInverted = true;
         }
 
-        if (signal.direction === "LONG" && activeLongsCount >= 2) continue;
-        if (signal.direction === "SHORT" && activeShortsCount >= 2) continue;
-
         let fundingRateText = "N/A";
         let oiText = "N/A";
 
         const frHistory = await dataFetcher.fetchFundingRateHistory(symbol, 1);
-        if (frHistory && frHistory.length > 0) fundingRateText = frHistory[0].fundingRate.toString();
+        let frVal = 0;
+        if (frHistory && frHistory.length > 0) {
+            frVal = frHistory[0].fundingRate;
+            fundingRateText = frVal.toString();
+        }
+
+        // ESTRATEGIA 4: LIQUIDITY HUNTER (Inversión por Funding Rate en contra)
+        let strat4Inverted = false;
+        if (frVal !== 0) {
+           if (signal.direction === "LONG" && frVal > 0) {
+              // Masa apalancada en LONG -> Market Maker barrerá hacia abajo. Vamos SHORT.
+              signal.direction = "SHORT";
+              signal.stopLoss = currentPrice + (1.0 * currentAtr);
+              signal.takeProfit = currentPrice - (2.0 * currentAtr);
+              signal.strategy = "4";
+              signal.regime = "Liquidity Hunter";
+              signal.reason = "Inversión contra la masa (Funding Rate > 0)";
+              strat4Inverted = true;
+           } else if (signal.direction === "SHORT" && frVal < 0) {
+              // Masa apalancada en SHORT -> Market Maker barrerá hacia arriba. Vamos LONG.
+              signal.direction = "LONG";
+              signal.stopLoss = currentPrice - (1.0 * currentAtr);
+              signal.takeProfit = currentPrice + (2.0 * currentAtr);
+              signal.strategy = "4";
+              signal.regime = "Liquidity Hunter";
+              signal.reason = "Inversión contra la masa (Funding Rate < 0)";
+              strat4Inverted = true;
+           }
+        }
+
+        if (signal.direction === "LONG" && activeLongsCount >= 2) continue;
+        if (signal.direction === "SHORT" && activeShortsCount >= 2) continue;
         
         const oiChange = await dataFetcher.fetchOpenInterestChange4h(symbol);
         const oi = await dataFetcher.fetchOpenInterest(symbol);
@@ -351,18 +379,13 @@ async function runAnalysis(timeframe: string) {
         signal.timeframe = timeframe;
         const signalId = inserted[0].id;
 
-        let frWarning = "";
-        if (fundingRateText !== "N/A") {
-          const frVal = parseFloat(fundingRateText);
-          if (signal.direction === "LONG" && frVal > 0) {
-            frWarning = `⚠️ <b>Peligro: Funding Rate en contra (${fundingRateText}).</b> (Válido descartar para monitorear)\n`;
-          } else if (signal.direction === "SHORT" && frVal < 0) {
-            frWarning = `⚠️ <b>Peligro: Funding Rate en contra (${fundingRateText}). Riesgo de Short Squeeze!</b> (Válido descartar para monitorear)\n`;
-          }
+        let strat4Warning = "";
+        if (strat4Inverted) {
+          strat4Warning = `🩸 <b>ESTRATEGIA 4 (LIQUIDITY HUNTER):</b> La masa está sobre-apalancada equivocadamente (FR: ${fundingRateText}). ¡Hemos INVERTIDO la dirección para cazar sus Stop Loss junto al Market Maker!\n\n`;
         }
 
         let macroWarningStr = "";
-        if (wasInverted) {
+        if (wasInverted && !strat4Inverted) {
           macroWarningStr = `🔥 <b>ESTRATEGIA 3 (MACRO BREAKOUT):</b> El bot detectó un setup técnico en contra, pero como Bitcoin está fuertemente <b>${macroTrendWarning}</b> en 1D y 4H, ¡hemos <b>INVERTIDO</b> la señal para cazar la ruptura!\n\n`;
         } else if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT") {
            if (btcCorrVal < 0) {
@@ -399,7 +422,7 @@ async function runAnalysis(timeframe: string) {
           `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
           (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
           macroWarningStr +
-          frWarning +
+          strat4Warning +
           `💡 <i>Motivo: ${signal.reason}</i>\n` +
           `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, crea el Grid a mercado.`;
 

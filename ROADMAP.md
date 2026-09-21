@@ -123,16 +123,24 @@
 * [x] **Monitor de Trades Abiertos:** Cronjob en 15m que vigila constantemente las operaciones en curso y notifica resultados en Telegram basados en Stop Loss y Take Profit teóricos.
 * [x] **Depuración de Huso Horario Geográfico:** Sincronización absoluta de los cierres diarios, reportes PnL y reinicio de la base de datos a la hora de Asunción, Paraguay (UTC-3 estándar permanente), resolviendo los conflictos matemáticos del desfase de medianoche.
 
-## 9. Forward Testing Cuantitativo (Grid Trading en Binance) - [En Progreso]
-* [x] **Reestructuración a Grillas de Futuros:** Adaptación completa del motor del bot para que sus umbrales no funcionen como órdenes limitadas simples, sino como las fronteras superior e inferior para configurar manualmente **Bots de Malla (Grid Bots)** en Binance.
-* [x] **Kill Switches Matemáticos:** Reposicionamiento del Stop Loss y Take Profit (órdenes de terminación) exactamente a 1 "Step" fuera del rango interno de la malla para permitir liquidez perimetral sin cerrar anticipadamente la posición en pérdidas falsas.
-* [x] **Step Dinámico Volátil (ATR Clamp):** Sustitución del espaciado fijo (0.5%) por un porcentaje dinámico basado en un tercio del ATR absoluto de la moneda, acotado entre un mínimo de `0.35%` (para vencer las comisiones Maker de Binance) y un máximo de `1.20%`.
+## 9. Transición y Filtros Cuantitativos (Simulación Malla/Sniper) - [Completado]
 * [x] **Auditoría de Saldo Real:** Integración nativa con los *SST Secrets* de AWS para leer vía CCXT el balance libre real de la cuenta de Futuros y reflejarlo en los reportes diarios de Telegram.
 * [x] **Cortafuegos de Cómputo (Filtro de Munición):** Sistema abortivo que cancela el análisis intensivo de 100 monedas y evita saturar Telegram si el usuario dispone de menos de `$15 USDT` libres.
-* [x] **Protección Matemática Institucional (Funding Rate universal):** Ampliación del escáner de Tasa de Financiación para todas las señales (LONG y SHORT). Inyección de alertas de peligro en Telegram cuando la liquidez indica un riesgo inminente de trampa de mercado (Squeeze).
 * [x] **Menú de Opciones (Max 3):** Modificación del límite de señales por sesión (de 1 a 3 máximas) para permitirle al operador humano elegir la moneda con el mejor perfil institucional (Funding Rate a favor) y descartar las perdedoras.
 * [x] **Memoria de Enfriamiento por Tiempo Absoluto:** Corrección del filtro de Cooldown para bloquear las monedas procesadas por un lapso exacto de 35 minutos, permitiendo cazar rebotes inmediatos si la liquidez se torna a nuestro favor.
-* [x] **Auditoría de Sesgo Humano (Shadow Monitor):** Mejoramiento del reporte diario de las 23:00 para separar las estadísticas de Winrate entre las operaciones "Tomadas" y las "Descartadas", indicando de forma entendible si el instinto del trader está venciendo al algoritmo o costándole rentabilidad.
-* [x] **Optimización Cuantitativa de Malla (Ratio 1:2):** Ajuste de las fronteras de los Kill Switches basados en una simulación paramétrica (Grid Search) sobre el histórico real del bot. El "Sweet Spot" asimétrico demostró ser un Stop Loss de 1.0 ATR (rápido y barato) contra un Take Profit de 2.0 ATR.
-* [x] **Estrategia 3 (Inversión por Macro Breakout):** Inyección de un lector cruzado del gráfico Diario (1D) de Bitcoin. Si BTC está en un "Super Ciclo" empujando la tendencia fuerte, cualquier señal en contra es vetada, y el bot **invierte la señal automáticamente** cazando la ruptura matemática de esa resistencia técnica.
-* [ ] **Despliegue y Adquisición de Datos Reales (Micro-Capital):** Ejecutar operaciones de prueba con apalancamiento bajo (30-40 USDT nominales) en cuentas reales para validar el PnL calculado vs. las comisiones cobradas, y asentar métricas certeras en el reporte contable nocturno.
+* [x] **Optimización Cuantitativa de Riesgo (Ratio 1:2):** Ajuste de las fronteras de los Kill Switches (Stop Loss de 1.0 ATR contra un Take Profit de 2.0 ATR).
+* [x] **Estrategia 3 (Inversión por Macro Breakout):** Inyección de un lector cruzado del gráfico Diario (1D) de Bitcoin. Si BTC está empujando la tendencia fuerte, cualquier señal en contra es vetada e invertida.
+* [x] **Estrategia 4 (Liquidity Hunter):** Análisis del Funding Rate. Si la masa está posicionada masivamente en un lado, el bot automáticamente asume la posición contraria (acompañando al Market Maker). Validado con un Win Rate de +80% en Backtest histórico.
+* [x] **Refutación Cuantitativa de Estrategia 5 (EMA 9):** Se backtesteó la compra de pullbacks a la EMA 9 en mercados "desbocados". Los datos revelaron un Win Rate del 34%, demostrando que es una zona de alto *whipsaw* y distribución, confirmando que la paciencia es la opción matemática correcta.
+
+## 10. Ejecución Real Semiautomatizada (Sniper Bot) - [Completado]
+* [x] **Abandono de Mallas Manuales:** Sustitución de la interfaz visual orientada a "Grid Trading" por parámetros limpios de Francotirador OCO debido a la imposibilidad de automatizar grillas nativas de Binance vía CCXT en un entorno Serverless.
+* [x] **Enrutador de Órdenes OCO (One-Cancels-the-Other):** Implementación de la clase `Trader` que se conecta por CCXT e inyecta directamente 1 Orden de Mercado + 2 Órdenes de Cierre (Stop Loss y Take Profit) con el flag `closePosition: true`.
+* [x] **Cálculo Dinámico de Posición y Apalancamiento:** Algoritmo de gestión de riesgo que toma estrictamente el 20% del margen disponible y eleva el leverage (hasta x10) para garantizar el cumplimiento del `minNotional` del exchange (ej. $10 USDT).
+* [x] **Proyecciones en Vivo en Telegram:** Inyección del cálculo matemático de capital y apalancamiento directamente en la alerta inicial de Telegram, permitiendo al usuario tomar la decisión financiera exacta antes de apretar el botón de disparo.
+* [x] **Recolector de Basura (Orphan Order Cleanup):** Inyección de un script en el loop de `analyze.ts` que barre las órdenes abiertas del exchange y cancela los Stop Loss o Take Profits de posiciones que el usuario cerró manualmente por Pánico/Ganancia prematura.
+* [x] **Botón de Fuego Real:** Transición final del botón "Tomar Trade" de un simple registro en la base de datos a un trigger de ejecución real en la API de Binance.
+
+## 11. Monitorización Activa y Escalado - [En Progreso]
+* [ ] Esperar que el mercado presente las condiciones matemáticas limpias (pullbacks confirmados o trampas de liquidez) para recibir y validar la primera señal de francotirador en vivo.
+* [ ] Monitorear ejecución y latencia de CCXT en AWS.

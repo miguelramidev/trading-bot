@@ -1,0 +1,335 @@
+{
+  "id": "8f4e3e2c-8aca-4b9b-a99c-89f1c5f2f1bf",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.daily_reports": {
+      "name": "daily_reports",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "report_date": {
+          "name": "report_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "balance": {
+          "name": "balance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "net_pnl": {
+          "name": "net_pnl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trades_taken": {
+          "name": "trades_taken",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "wins": {
+          "name": "wins",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "losses": {
+          "name": "losses",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.signal_history": {
+      "name": "signal_history",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timeframe": {
+          "name": "timeframe",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evaluated_at": {
+          "name": "evaluated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entry": {
+          "name": "entry",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stopLoss": {
+          "name": "stopLoss",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "takeProfit": {
+          "name": "takeProfit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "breakevenTarget": {
+          "name": "breakevenTarget",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "minNotional": {
+          "name": "minNotional",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active_trade": {
+          "name": "is_active_trade",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "breakeven_moved": {
+          "name": "breakeven_moved",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "regime": {
+          "name": "regime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bias4h": {
+          "name": "bias4h",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strategy": {
+          "name": "strategy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "atr": {
+          "name": "atr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "volume_filter": {
+          "name": "volume_filter",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "funding_rate": {
+          "name": "funding_rate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "open_interest": {
+          "name": "open_interest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "btc_correlation": {
+          "name": "btc_correlation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "volume_rank": {
+          "name": "volume_rank",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "btc_regime": {
+          "name": "btc_regime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision": {
+          "name": "decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_balance": {
+          "name": "account_balance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "num_grids": {
+          "name": "num_grids",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grid_step": {
+          "name": "grid_step",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grid_sl": {
+          "name": "grid_sl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grid_tp": {
+          "name": "grid_tp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_config": {
+      "name": "user_config",
+      "schema": "",
+      "columns": {
+        "chat_id": {
+          "name": "chat_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "is_paused": {
+          "name": "is_paused",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "leverage": {
+          "name": "leverage",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "pending_signal_id": {
+          "name": "pending_signal_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "starting_balance": {
+          "name": "starting_balance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'41.78'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_config_pending_signal_id_signal_history_id_fk": {
+          "name": "user_config_pending_signal_id_signal_history_id_fk",
+          "tableFrom": "user_config",
+          "tableTo": "signal_history",
+          "columnsFrom": [
+            "pending_signal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

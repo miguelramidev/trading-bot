@@ -33,6 +33,7 @@ export const signalHistory = pgTable("signal_history", {
   fundingRate: text("funding_rate"),
   openInterest: text("open_interest"),
   btcCorrelation: text("btc_correlation"),
+  volumeRank: integer("volume_rank"),
   btcRegime: text("btc_regime"),
   decision: text("decision"), // "Tomada", "Descartada", null (pendiente)
   reason: text("reason"), // Por qué se tomó/descartó

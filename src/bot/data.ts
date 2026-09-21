@@ -30,7 +30,7 @@ export class DataFetcher {
     }
   }
 
-  async getTop100Pairs(): Promise<string[]> {
+  async getTop100Pairs(): Promise<{symbol: string, rank: number}[]> {
     try {
       await this.exchange.loadMarkets();
       const tickers = await this.exchange.fetchTickers();
@@ -66,16 +66,20 @@ export class DataFetcher {
             continue;
           }
 
-          const quoteVolume = ticker.quoteVolume || 0;
-          // Filtro estricto de liquidez: Mínimo 15 millones de USDT de volumen en 24h
-          if (quoteVolume > 15000000) {
-            usdtPairs.push({ symbol, quoteVolume });
-          }
+          usdtPairs.push({
+            symbol,
+            quoteVolume: ticker.quoteVolume || 0,
+          });
         }
       }
 
       usdtPairs.sort((a, b) => b.quoteVolume - a.quoteVolume);
-      return usdtPairs.slice(0, 100).map((p) => p.symbol);
+      
+      // Tomamos el top 100 y le asignamos el rango (1 a 100)
+      return usdtPairs.slice(0, 100).map((p, index) => ({
+        symbol: p.symbol,
+        rank: index + 1
+      }));
     } catch (error) {
       console.error("Error fetching top 100 pairs:", error);
       return [];

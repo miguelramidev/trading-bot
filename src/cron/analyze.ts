@@ -138,7 +138,7 @@ async function runAnalysis(timeframe: string) {
     return; // No se esfuerza en analizar
   }
 
-  const pairs = await dataFetcher.getTop100Pairs();
+  const pairsData = await dataFetcher.getTop100Pairs();
 
   const thirtyFiveMinsAgo = new Date(Date.now() - 35 * 60 * 1000);
   const lastSignals = await db.query.signalHistory.findMany({
@@ -150,7 +150,10 @@ async function runAnalysis(timeframe: string) {
     .map(s => s.symbol);
 
   let signalsFound = 0;
-  for (const symbol of pairs) {
+  for (const data of pairsData) {
+    const symbol = data.symbol;
+    const rank = data.rank;
+    
     if (recentSymbols.includes(symbol)) continue;
     if (activeSymbolsToBlock.includes(symbol)) continue; // Candado: ignorar moneda si el paper trade sigue abierto
 
@@ -335,8 +338,8 @@ async function runAnalysis(timeframe: string) {
           entry: fmt(signal.entry), stopLoss: fmt(signal.stopLoss), takeProfit: fmt(signal.takeProfit),
           regime: signal.regime, bias4h: bias4h, strategy: signal.strategy, atr: fmt(currentAtr),
           volumeFilter: signal.volumeFilter, fundingRate: fundingRateText, openInterest: oiText, btcCorrelation: btcCorrStr, btcRegime: btcRegimeStr,
-          decision: null, // Pendiente (pero rastreado de fondo)
-          isActiveTrade: true,
+          volumeRank: rank,
+          decision: null, // Pendiente
           accountBalance: currentBinanceBalance.toFixed(2),
           numGrids: numGrids,
           gridStep: displayStepPct,
@@ -380,7 +383,7 @@ async function runAnalysis(timeframe: string) {
         }
 
         const msg = `🚨 <b>NUEVA SEÑAL GRID ENCONTRADA</b> 🚨\n\n` +
-          `🪙 <b>Par:</b> ${signal.symbol}\n` +
+          `🪙 <b>Par:</b> ${signal.symbol} (Top #${rank})\n` +
           `📈 <b>Dirección:</b> ${signal.direction}\n` +
           `⏳ <b>Temporalidad:</b> ${signal.timeframe}\n` +
           `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +

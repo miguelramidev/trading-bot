@@ -34,20 +34,21 @@ export class Trader {
       // 2. Arriesgar el 20% del balance (Monto Invertido = Margen)
       const marginToInvest = usdtBalance * 0.20;
 
-      // 3. Obtener el mínimo Notional de Binance (Suele ser 5.0)
-      const minNotional = market.limits.cost?.min || 5.0;
+      // 3. Obtener el mínimo Notional real de la moneda y forzar un piso de 10 USDT
+      const exchangeMinNotional = market.limits.cost?.min || 5.0;
+      const targetNotional = Math.max(10.0, exchangeMinNotional);
 
-      // 4. Calcular Apalancamiento para llegar al minNotional
+      // 4. Calcular Apalancamiento para llegar al targetNotional
       let leverage = 1;
       let notional = marginToInvest;
 
-      while (notional < minNotional && leverage < 10) {
+      while (notional < targetNotional && leverage < 10) {
         leverage++;
         notional = marginToInvest * leverage;
       }
 
-      if (notional < minNotional) {
-         return `❌ Descartada automáticamente: Capital muy bajo ($${marginToInvest.toFixed(2)} USDT). Incluso con apalancamiento máximo permitido (x10), el tamaño de la posición ($${notional.toFixed(2)}) no supera el mínimo requerido por Binance ($${minNotional}).`;
+      if (notional < targetNotional) {
+         return `❌ Descartada automáticamente: Capital muy bajo ($${marginToInvest.toFixed(2)} USDT). Incluso con apalancamiento máximo permitido (x10), el tamaño de la posición ($${notional.toFixed(2)}) no supera el mínimo requerido por nuestra regla/Binance ($${targetNotional.toFixed(2)}).`;
       }
 
       // 5. Configurar el Apalancamiento en Binance

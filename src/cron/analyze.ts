@@ -358,9 +358,9 @@ async function runAnalysis(timeframe: string) {
         let numGrids = Math.floor((upperPrice - lowerPrice) / stepSize);
         if (numGrids < 2) numGrids = 2; 
         
-        // Kill Switches separados dinámicamente según el step
-        const gridSL = signal.direction === "LONG" ? (lowerPrice - stepSize) : (upperPrice + stepSize);
-        const gridTP = signal.direction === "LONG" ? (upperPrice + stepSize) : (lowerPrice - stepSize);
+        // Kill Switches directos (Reusamos la variable por retrocompatibilidad BD)
+        const gridSL = signal.stopLoss;
+        const gridTP = signal.takeProfit;
         
         const displayStepPct = (stepPct * 100).toFixed(2) + "%";
 
@@ -414,24 +414,21 @@ async function runAnalysis(timeframe: string) {
         const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
 
         const msg = `🚨 <b>NUEVA SEÑAL ENCONTRADA (Sniper)</b> 🚨\n\n` +
-          `🪙 <b>Par:</b> <a href="${tvLink}">${signal.symbol}</a> (Top #${rank})\n` +
+          `🪙 <b>Par:</b> ${signal.symbol} (Top #${rank})\n` +
           `📈 <b>Dirección:</b> ${signal.direction}\n` +
           `⏳ <b>Temporalidad:</b> ${signal.timeframe}\n` +
           `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
           `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
           `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
-          `🎯 <b>ZONA DE VOLATILIDAD (ATR):</b>\n` +
-          `👇 <b>Banda Inferior:</b> $${fmt(lowerPrice)}\n` +
-          `👆 <b>Banda Superior:</b> $${fmt(upperPrice)}\n` +
-          `🧮 <b>Tamaño del paso (ATR):</b> ${displayStepPct}\n\n` +
-          `🛑 <b>ÓRDENES OCO AUTOMÁTICAS (Sniper):</b>\n` +
-          `🩸 <b>Stop Loss:</b> $${fmt(gridSL)}\n` +
-          `🏆 <b>Take Profit:</b> $${fmt(gridTP)}\n\n` +
+          `🎯 <b>PARÁMETROS DEL TRADE (ATR: ${displayStepPct}):</b>\n` +
+          `🛑 <b>Stop Loss (1 ATR):</b> $${fmt(gridSL)}\n` +
+          `🏆 <b>Take Profit (2 ATR):</b> $${fmt(gridTP)}\n\n` +
           `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
           (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
           macroWarningStr +
           strat4Warning +
           `💡 <i>Motivo: ${signal.reason}</i>\n` +
+          `📊 <b>Ver Gráfico:</b> <a href="${tvLink}">Abrir ${cleanSymbolTV} en TradingView</a>\n\n` +
           `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
 
         for (const user of activeUsers) {

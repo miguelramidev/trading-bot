@@ -58,8 +58,21 @@ async function runAnalysis(timeframe: string) {
           
         if (trade.decision === "Tomada") {
           const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
+          let pnlMsg = "";
+          try {
+             const sinceMs = trade.evaluatedAt.getTime();
+             const pnlData = await trader.getTradeRealizedPnl(trade.symbol, sinceMs);
+             const net = pnlData.pnl - pnlData.fee;
+             if (net !== 0) {
+                 const sign = net > 0 ? "+" : "";
+                 pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${net.toFixed(4)} USDT`;
+             }
+          } catch(e) {
+             console.error("Error fetching PnL:", e);
+          }
+
           for (const user of users) {
-            await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Grid Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}`, { parse_mode: "HTML" });
+            await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" });
           }
         } else if (trade.decision === "Descartada") {
           const hitTP = closeReason.includes("TP");

@@ -141,4 +141,24 @@ export class Trader {
       console.error("Error limpiando huérfanos:", e);
     }
   }
+
+  async getTradeRealizedPnl(symbol: string, sinceMs: number): Promise<{ pnl: number, fee: number }> {
+    try {
+      const trades = await this.exchange.fetchMyTrades(symbol.replace(":USDT", ""), sinceMs, 100);
+      let totalPnl = 0;
+      let totalFee = 0;
+      for (const t of trades) {
+        if (t.info && t.info.realizedPnl) {
+            totalPnl += parseFloat(t.info.realizedPnl);
+        }
+        if (t.fee && t.fee.cost) {
+            totalFee += t.fee.cost;
+        }
+      }
+      return { pnl: totalPnl, fee: totalFee };
+    } catch(e) {
+      console.error(`Error obteniendo PnL real para ${symbol}:`, e);
+      return { pnl: 0, fee: 0 };
+    }
+  }
 }

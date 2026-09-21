@@ -144,3 +144,10 @@
 ## 11. Monitorización Activa y Escalado - [En Progreso]
 * [ ] Esperar que el mercado presente las condiciones matemáticas limpias (pullbacks confirmados o trampas de liquidez) para recibir y validar la primera señal de francotirador en vivo.
 * [ ] Monitorear ejecución y latencia de CCXT en AWS.
+
+## 12. Visión a Futuro: Plataforma SaaS Multi-Usuario (Flutter App) - [Backlog Visionario]
+* [ ] **Arquitectura Multi-Tenant:** Refactorizar la base de datos Neon DB (Drizzle) para aislar datos por usuario (`user_id`). Permitir múltiples cuentas de Binance con API Keys encriptadas independientemente en AWS KMS.
+* [ ] **Frontend Web & Mobile (Flutter):** Crear un Dashboard interactivo multiplataforma (iOS, Android, Web) para reemplazar el control desde el IDE y Telegram.
+* [ ] **Gestión de Configuración UI:** Panel de control visual para ajustar límites de riesgo, apalancamiento, y umbrales de capital (margin %, leverage máximo) por usuario sin tocar código.
+* [ ] **Notificaciones Push Nativas:** Reemplazar Telegram por notificaciones push (Firebase Cloud Messaging / APNs) integradas directamente en el teléfono.
+* [ ] **Suite de Análisis Visual (TradingView Integrado):** Cuando llegue una alerta, abrir una pantalla dedicada en la App mostrando **4 gráficos simultáneos**: El par en 15m, el par en 4h, el par en 1D y el gráfico de Bitcoin, todo integrado para un análisis visual instantáneo antes de pulsar "Ejecutar Sniper".

@@ -142,6 +142,7 @@
 * [x] **Botón de Fuego Real:** Transición final del botón "Tomar Trade" de un simple registro en la base de datos a un trigger de ejecución real en la API de Binance.
 
 ## 11. Monitorización Activa y Escalado - [En Progreso]
+* [x] **Silenciador Anti-Spam:** Desactivación de las notificaciones de "Ciclo Vacío" cada 15 minutos para evitar fatiga de alertas. El bot ahora opera como un fantasma hasta encontrar una oportunidad real.
 * [ ] Esperar que el mercado presente las condiciones matemáticas limpias (pullbacks confirmados o trampas de liquidez) para recibir y validar la primera señal de francotirador en vivo.
 * [ ] Monitorear ejecución y latencia de CCXT en AWS.
 

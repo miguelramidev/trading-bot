@@ -320,21 +320,37 @@ async function runAnalysis(timeframe: string) {
            }
         }
 
-        if (signal.direction === "LONG" && activeLongsCount >= 2) continue;
-        if (signal.direction === "SHORT" && activeShortsCount >= 2) continue;
+        // 1. Límite global absoluto de capital (Max 5 operaciones)
+        if (currentlyActiveTrades.length >= 5) {
+           console.log(`Límite máximo de 5 operaciones simultáneas alcanzado. Saltando ${symbol}.`);
+           continue;
+        }
+
+        // 2. Escudo de Riesgo Direccional Cruzado (Correlación BTC > 50%)
+        // Si esta moneda está altamente correlacionada con BTC (>50%) y va en la misma dirección que 
+        // otro trade activo que TAMBIÉN está correlacionado con BTC, es riesgo duplicado. Se bloquea.
+        if (btcCorrVal > 0.50) {
+           const correlatedOverlap = currentlyActiveTrades.find(t => {
+               if (t.direction !== signal.direction) return false; // Direcciones opuestas no suman riesgo
+               
+               if (t.symbol.includes("BTC")) return true; // Si el otro trade es BTC en sí mismo
+               
+               if (t.btcCorrelation) {
+                   const parsedCorr = parseFloat(t.btcCorrelation.replace('%', '')) / 100;
+                   if (parsedCorr > 0.50) return true; // Ambos son clones de BTC
+               }
+               return false;
+           });
+
+           if (correlatedOverlap) {
+               console.log(`Bloqueo de Exposición: Saltando ${symbol}. Ya tienes ${correlatedOverlap.symbol} abierto en ${signal.direction} y ambos son clones de BTC (>50% correlación).`);
+               continue;
+           }
+        }
         
         const oiChange = await dataFetcher.fetchOpenInterestChange4h(symbol);
         const oi = await dataFetcher.fetchOpenInterest(symbol);
         if (oi !== null) oiText = `${oi.toString()} (${oiChange})`;
-
-        const btcActiveTrades = currentlyActiveTrades.filter(t => t.symbol.includes("BTC"));
-        if (!symbol.includes("BTC") && btcActiveTrades.length > 0) {
-           const btcTrade = btcActiveTrades[0];
-           if (signal.direction === btcTrade.direction && btcCorrVal > 0.65) {
-              console.log(`Saltando ${symbol} por alta correlación (${btcCorrStr}) con BTC (mira misma dirección).`);
-              continue;
-           }
-        }
 
         let gridDirection = signal.direction === "LONG" ? "🟢 LONG GRID" : "🔴 SHORT GRID";
         const lowerPrice = Math.min(signal.stopLoss, signal.takeProfit);

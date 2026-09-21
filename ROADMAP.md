@@ -143,6 +143,7 @@
 
 ## 11. Monitorización Activa y Escalado - [En Progreso]
 * [x] **Silenciador Anti-Spam:** Desactivación de las notificaciones de "Ciclo Vacío" cada 15 minutos para evitar fatiga de alertas. El bot ahora opera como un fantasma hasta encontrar una oportunidad real.
+* [x] **Escudo de Correlación Cruzada (>20%):** Implementación de una barrera arquitectónica en el gestor de riesgos que permite 5 operaciones simultáneas, pero bloquea entradas en la misma dirección si las monedas comparten una correlación sistémica mayor al 20% con BTC (evitando riesgo macro duplicado).
 * [ ] Esperar que el mercado presente las condiciones matemáticas limpias (pullbacks confirmados o trampas de liquidez) para recibir y validar la primera señal de francotirador en vivo.
 * [ ] Monitorear ejecución y latencia de CCXT en AWS.
 

@@ -139,6 +139,7 @@ async function runAnalysis(timeframe: string) {
   const activeShortsCount = currentlyActiveTrades.filter(t => t.direction === "SHORT").length;
 
   const btcCandles = await dataFetcher.fetchOhlcv("BTC/USDT:USDT", "15m", 250);
+  if (btcCandles) btcCandles.pop(); // Descartar vela incompleta
   const btcCloses = btcCandles ? btcCandles.map(c => c.close) : [];
   
   let btcRegimeStr = "N/A";
@@ -155,6 +156,7 @@ async function runAnalysis(timeframe: string) {
   try {
     const btcCandles1D = await dataFetcher.fetchOhlcv("BTC/USDT:USDT", "1d", 250);
     if (btcCandles1D && btcCandles1D.length > 200) {
+      btcCandles1D.pop(); // Descartar vela del día en curso
       const closes1D = btcCandles1D.map(c => c.close);
       const currentPrice1D = closes1D[closes1D.length - 1];
       const ema20Arr = dataFetcher.calculateEMA(closes1D, 20);
@@ -211,6 +213,12 @@ async function runAnalysis(timeframe: string) {
       const candles15m = await dataFetcher.fetchOhlcv(symbol, "15m", 250);
       const candles4h = await dataFetcher.fetchOhlcv(symbol, "4h", 100);
       if (!candles15m || candles15m.length < 200 || !candles4h || candles4h.length < 50) continue;
+
+      // CRÍTICO: Binance devuelve la vela actual que está en curso (incompleta).
+      // La descartamos inmediatamente para que el EMA, RSI, ADX, Bollinger y la lógica
+      // de "Rebote sin volumen" se calculen ÚNICAMENTE sobre velas 100% cerradas.
+      candles15m.pop();
+      candles4h.pop();
 
       const closes15m = candles15m.map(c => c.close);
       const volumes15m = candles15m.map(c => c.volume);

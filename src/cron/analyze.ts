@@ -178,12 +178,12 @@ async function runAnalysis(timeframe: string) {
   const balanceObj = await dataFetcher.getUSDTBalance();
   const currentBinanceBalance = balanceObj.total;
   
-  if (currentBinanceBalance < 15) {
+  if (currentBinanceBalance < 25) {
     console.log(`Balance insuficiente (${currentBinanceBalance}). Abortando análisis.`);
     for (const user of activeUsers) {
       await bot.telegram.sendMessage(
         user.chatId,
-        `⚠️ <b>Balance Insuficiente</b>\nTu saldo libre es de <b>$${currentBinanceBalance.toFixed(2)} USDT</b> (Mínimo requerido: $15).\n\n<i>El bot no escaneará el mercado. Usa /pause si deseas silenciar estos avisos.</i>`,
+        `⚠️ <b>Balance Insuficiente</b>\nTu saldo libre es de <b>$${currentBinanceBalance.toFixed(2)} USDT</b> (Mínimo requerido: $25).\n\n<i>El bot no escaneará el mercado. Usa /pause si deseas silenciar estos avisos.</i>`,
         { parse_mode: "HTML" }
       );
     }
@@ -225,6 +225,7 @@ async function runAnalysis(timeframe: string) {
       
       const { adx } = dataFetcher.calculateADX(candles15m, 14);
       const currentAdx = adx[adx.length - 1];
+      const previousAdx = adx[adx.length - 2];
 
       const bb = dataFetcher.calculateBollingerBands(closes15m, 20, 2);
       const ema200 = dataFetcher.calculateEMA(closes15m, 200);
@@ -239,74 +240,69 @@ async function runAnalysis(timeframe: string) {
       const currentEma4h = ema50_4h[ema50_4h.length - 1];
       const bias4h = currentPrice4h > currentEma4h ? "UP" : "DOWN";
 
+      const macd = dataFetcher.calculateMACD(closes15m, 12, 26, 9);
+      const macdHist = macd.histogram;
+      const currentMacdHist = macdHist[macdHist.length - 1];
+      const prevMacdHist = macdHist[macdHist.length - 2];
+      const prevPrevMacdHist = macdHist[macdHist.length - 3];
+
       const currentPrice = closes15m[closes15m.length - 1];
       const currentEma200 = ema200[ema200.length - 1];
       const currentEma21 = ema21[ema21.length - 1];
+      const currentEma50 = ema50_4h[ema50_4h.length - 1]; // Wait, ema50_4h is 4H, we need ema50 on 15m if we use it, but MACD doesn't need ema50 on 15m.
       const currentAtr = atr14[atr14.length - 1];
       const currentVol = volumes15m[volumes15m.length - 1];
       const avgVol = smaVol20[smaVol20.length - 1];
 
       const currentCandle = candles15m[candles15m.length - 1];
-      const prevCandle = candles15m[candles15m.length - 2];
-      const isGreen = currentCandle.close > currentCandle.open;
-      const isRed = currentCandle.close < currentCandle.open;
       
       let signal: any = null;
 
-      if (currentAdx > 25) {
-        // TENDENCIAL (Estrategia 1)
-        if (currentPrice > currentEma200 && bias4h === "UP") {
-          // LONG: Pullback a EMA 21
-          const touchedEma = currentCandle.low <= currentEma21 * 1.005;
-          const heldEma = currentCandle.close >= currentEma21 * 0.998;
-          
-          if (touchedEma && heldEma && isGreen) {
-            if (currentVol > avgVol && prevCandle.volume < avgVol) {
-              signal = {
-                strategy: "1", direction: "LONG", regime: "Tendencial",
-                entry: currentPrice, stopLoss: currentPrice - (1.0 * currentAtr), takeProfit: currentPrice + (2.0 * currentAtr),
-                volumeFilter: "Confirma (Vela Verde + Vol)", reason: "Rebote exitoso en EMA 21 con vela de confirmación"
-              };
-            }
+      // ESTRATEGIA 1: MACD Zero-Cross Pullback Institucional (Tendencial)
+      if (currentAdx >= 25) {
+        if (currentPrice > currentEma200) {
+          // Tendencia Alcista: Esperamos que el pullback (histograma rojo) termine
+          if (currentMacdHist > 0 && prevMacdHist < 0 && prevPrevMacdHist < 0) {
+             signal = {
+               strategy: "1", direction: "LONG", regime: "Tendencial",
+               entry: currentPrice, stopLoss: currentPrice - (1.0 * currentAtr), takeProfit: currentPrice + (2.0 * currentAtr),
+               volumeFilter: "Normal", reason: "MACD Zero-Cross a favor de EMA 200"
+             };
           }
-        } else if (currentPrice < currentEma200 && bias4h === "DOWN") {
-          // SHORT: Pullback a EMA 21
-          const touchedEma = currentCandle.high >= currentEma21 * 0.995;
-          const heldEma = currentCandle.close <= currentEma21 * 1.002;
-          
-          if (touchedEma && heldEma && isRed) {
-             if (prevCandle.volume < avgVol) { // Volumen del rebote aflojado
-               signal = {
-                 strategy: "1", direction: "SHORT", regime: "Tendencial",
-                 entry: currentPrice, stopLoss: currentPrice + (1.0 * currentAtr), takeProfit: currentPrice - (2.0 * currentAtr),
-                 volumeFilter: "Rebote sin volumen", reason: "Rechazo bajista en EMA 21"
-               };
-             }
+        } else if (currentPrice < currentEma200) {
+          // Tendencia Bajista: Esperamos que el rebote (histograma verde) termine
+          if (currentMacdHist < 0 && prevMacdHist > 0 && prevPrevMacdHist > 0) {
+             signal = {
+               strategy: "1", direction: "SHORT", regime: "Tendencial",
+               entry: currentPrice, stopLoss: currentPrice + (1.0 * currentAtr), takeProfit: currentPrice - (2.0 * currentAtr),
+               volumeFilter: "Normal", reason: "MACD Zero-Cross a favor de EMA 200"
+             };
           }
         }
-      } else if (currentAdx < 20) {
-        // RANGO (Estrategia 2)
-        const currentLowerBB = bb.lower[bb.lower.length - 1];
-        const currentUpperBB = bb.upper[bb.upper.length - 1];
-        const currentMiddleBB = bb.middle[bb.middle.length - 1];
-        const currentRsi = rsi14[rsi14.length - 1];
+      } else {
+        // ESTRATEGIA 2: Liquidity Sweep / Falso Breakout (Rango)
+        const prevCandle = candles15m[candles15m.length - 2];
+        const prevLowerBB = bb.lower[bb.lower.length - 2];
+        const prevUpperBB = bb.upper[bb.upper.length - 2];
+        
+        // LONG: Vela anterior rompió banda inferior pero cerró adentro. Vela actual es verde (cierre > apertura)
+        const fakeDown = (prevCandle.low < prevLowerBB) && (prevCandle.close > prevLowerBB) && (currentCandle.close > currentCandle.open);
+        
+        // SHORT: Vela anterior rompió banda superior pero cerró adentro. Vela actual es roja (cierre < apertura)
+        const fakeUp = (prevCandle.high > prevUpperBB) && (prevCandle.close < prevUpperBB) && (currentCandle.close < currentCandle.open);
 
-        if (candles15m[candles15m.length - 1].low <= currentLowerBB && currentRsi < 30) {
-          if (currentVol <= avgVol) {
-            signal = {
-              strategy: "2", direction: "LONG", regime: "Rango",
-              entry: currentPrice, stopLoss: currentPrice - currentAtr, takeProfit: currentMiddleBB,
-              volumeFilter: "Plano", reason: "Rechazo en Banda Inferior con RSI bajo"
-            };
-          }
-        } else if (candles15m[candles15m.length - 1].high >= currentUpperBB && currentRsi > 70) {
-          if (currentVol <= avgVol) {
-            signal = {
-              strategy: "2", direction: "SHORT", regime: "Rango",
-              entry: currentPrice, stopLoss: currentPrice + currentAtr, takeProfit: currentMiddleBB,
-              volumeFilter: "Plano", reason: "Rechazo en Banda Superior con RSI alto"
-            };
-          }
+        if (fakeDown) {
+           signal = {
+             strategy: "2", direction: "LONG", regime: "Rango",
+             entry: currentPrice, stopLoss: currentPrice - (1.0 * currentAtr), takeProfit: currentPrice + (2.0 * currentAtr),
+             volumeFilter: "Normal", reason: "Liquidity Sweep en BB Inferior (Fakeout)"
+           };
+        } else if (fakeUp) {
+           signal = {
+             strategy: "2", direction: "SHORT", regime: "Rango",
+             entry: currentPrice, stopLoss: currentPrice + (1.0 * currentAtr), takeProfit: currentPrice - (2.0 * currentAtr),
+             volumeFilter: "Normal", reason: "Liquidity Sweep en BB Superior (Fakeout)"
+           };
         }
       }
 
@@ -349,29 +345,22 @@ async function runAnalysis(timeframe: string) {
             fundingRateText = frVal.toString();
         }
 
-        // ESTRATEGIA 4: LIQUIDITY HUNTER (Inversión por Funding Rate en contra)
-        let strat4Inverted = false;
+        // FILTRO DE FUNDING RATE (Alineado a Extremos)
+        // Solo bloqueamos el trade si la masa está EXTREMADAMENTE en contra.
+        // Nota: El funding rate base de crypto es +0.0001 (0.01%). No bloqueamos por eso.
         if (frVal !== 0) {
-           if (signal.direction === "LONG" && frVal > 0) {
-              // Masa apalancada en LONG -> Market Maker barrerá hacia abajo. Vamos SHORT.
-              signal.direction = "SHORT";
-              signal.stopLoss = currentPrice + (1.0 * currentAtr);
-              signal.takeProfit = currentPrice - (2.0 * currentAtr);
-              signal.strategy = "4";
-              signal.regime = "Liquidity Hunter";
-              signal.reason = "Inversión contra la masa (Funding Rate Positivo)";
-              strat4Inverted = true;
-           } else if (signal.direction === "SHORT" && frVal < 0) {
-              // Masa apalancada en SHORT -> Market Maker barrerá hacia arriba. Vamos LONG.
-              signal.direction = "LONG";
-              signal.stopLoss = currentPrice - (1.0 * currentAtr);
-              signal.takeProfit = currentPrice + (2.0 * currentAtr);
-              signal.strategy = "4";
-              signal.regime = "Liquidity Hunter";
-              signal.reason = "Inversión contra la masa (Funding Rate Negativo)";
-              strat4Inverted = true;
+           if (signal.direction === "LONG" && frVal < -0.0005) {
+              // Queremos ir LONG pero todo el mercado está en SHORT EXTREMO (Funding muy negativo).
+              console.log(`Descartando LONG en ${symbol} por Funding Rate negativo extremo (${frVal}). Peligro de squeeze bajista.`);
+              signal = null;
+           } else if (signal.direction === "SHORT" && frVal > 0.0005) {
+              // Queremos ir SHORT pero el mercado está en euforia alcista EXTREMA (Funding muy positivo).
+              console.log(`Descartando SHORT en ${symbol} por Funding Rate positivo extremo (${frVal}). Peligro de squeeze alcista.`);
+              signal = null;
            }
         }
+
+        if (!signal) continue;
 
         // 1. Límite global absoluto de capital (Max 5 operaciones)
         if (currentlyActiveTrades.length >= 5) {

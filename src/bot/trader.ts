@@ -31,8 +31,8 @@ export class Trader {
       const usdtBalance = balance.total['USDT'] || 0;
       if (usdtBalance <= 0) return "❌ Balance insuficiente.";
 
-      // 2. Arriesgar el 20% del balance (Monto Invertido = Margen)
-      const marginToInvest = usdtBalance * 0.20;
+      // 2. Usar un monto fijo de 25 USDT por operación (protección contra rachas)
+      const marginToInvest = Math.min(25.0, usdtBalance);
 
       // 3. Obtener el mínimo Notional real de la moneda y forzar un piso de 10 USDT
       const exchangeMinNotional = market.limits.cost?.min || 5.0;

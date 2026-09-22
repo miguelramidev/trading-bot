@@ -6,6 +6,10 @@
 
 declare module "sst" {
   export interface Resource {
+    "AppApi": {
+      "type": "sst.aws.ApiGatewayV2"
+      "url": string
+    }
     "BINANCE_API_KEY": {
       "type": "sst.sst.Secret"
       "value": string

@@ -486,4 +486,24 @@ export class DataFetcher {
     if (denominator === 0) return 0;
     return numerator / denominator;
   }
+  calculateMACD(prices: number[], fastPeriod: number = 12, slowPeriod: number = 26, signalPeriod: number = 9): {macdLine: number[], signalLine: number[], histogram: number[]} {
+    if (prices.length < slowPeriod) return {macdLine: [], signalLine: [], histogram: []};
+    
+    const fastEma = this.calculateEMA(prices, fastPeriod);
+    const slowEma = this.calculateEMA(prices, slowPeriod);
+    
+    const macdLine: number[] = [];
+    for (let i = 0; i < prices.length; i++) {
+       macdLine.push(fastEma[i] - slowEma[i]);
+    }
+    
+    const signalLine = this.calculateEMA(macdLine, signalPeriod);
+    const histogram: number[] = [];
+    
+    for (let i = 0; i < prices.length; i++) {
+       histogram.push(macdLine[i] - signalLine[i]);
+    }
+    
+    return { macdLine, signalLine, histogram };
+  }
 }

@@ -446,7 +446,14 @@ async function runAnalysis(timeframe: string) {
           numGrids: numGrids,
           gridStep: displayStepPct,
           gridSL: fmt(gridSL),
-          gridTP: fmt(gridTP)
+          gridTP: fmt(gridTP),
+          triggerVolume: currentVol.toString(),
+          triggerAvgVolume: avgVol.toFixed(2),
+          triggerRsi: rsi14[rsi14.length - 1].toFixed(2),
+          triggerEma21: fmt(currentEma21),
+          triggerAdx: currentAdx.toFixed(2),
+          triggerLowerBb: fmt(bb.lower[bb.lower.length - 1]),
+          triggerUpperBb: fmt(bb.upper[bb.upper.length - 1])
         }).returning({ id: signalHistory.id });
         
         signal.symbol = symbol;

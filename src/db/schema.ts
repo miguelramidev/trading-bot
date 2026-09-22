@@ -47,6 +47,14 @@ export const signalHistory = pgTable("signal_history", {
   realizedRoi: text("realized_roi"), // ROI Neto en % al cerrar
   executedEntryPrice: text("executed_entry_price"), // Precio real al que entró en Binance
   executedExitPrice: text("executed_exit_price"), // Precio real al que salió en Binance
+  // --- Nuevos campos para Monitoreo de Indicadores ---
+  triggerVolume: text("trigger_volume"), // Volumen de la vela gatillo
+  triggerAvgVolume: text("trigger_avg_volume"), // Volumen promedio (SMA 20)
+  triggerRsi: text("trigger_rsi"), // RSI 14
+  triggerEma21: text("trigger_ema21"), // EMA 21
+  triggerAdx: text("trigger_adx"), // ADX 14
+  triggerLowerBb: text("trigger_lower_bb"), // Banda Bollinger Inferior
+  triggerUpperBb: text("trigger_upper_bb"), // Banda Bollinger Superior
 });
 
 // Tabla para snapshots diarios del rendimiento de la cuenta

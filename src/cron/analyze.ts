@@ -52,24 +52,56 @@ async function runAnalysis(timeframe: string) {
       
       if (closed) {
         const finalDecision = `${trade.decision || ''} -> ${closeReason}`;
-        await db.update(signalHistory)
-          .set({ isActiveTrade: false, decision: finalDecision })
-          .where(eq(signalHistory.id, trade.id));
-          
+        
+        let pnlMsg = "";
+        let finalPnl = null;
+        let finalRoi = null;
+        let entryP = null;
+        let exitP = null;
+
         if (trade.decision === "Tomada") {
-          const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
-          let pnlMsg = "";
           try {
              const sinceMs = trade.evaluatedAt.getTime();
              const pnlData = await trader.getTradeRealizedPnl(trade.symbol, sinceMs);
              const net = pnlData.pnl - pnlData.fee;
              if (net !== 0) {
+                 finalPnl = net.toFixed(4);
                  const sign = net > 0 ? "+" : "";
-                 pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${net.toFixed(4)} USDT`;
+                 
+                 // Aproximar el ROI basado en el 20% del balance que teníamos guardado
+                 if (trade.accountBalance) {
+                     const margin = parseFloat(trade.accountBalance) * 0.20;
+                     if (margin > 0) {
+                        finalRoi = ((net / margin) * 100).toFixed(2);
+                        pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${finalPnl} USDT (${sign}${finalRoi}%)`;
+                     } else {
+                        pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${finalPnl} USDT`;
+                     }
+                 } else {
+                     pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${finalPnl} USDT`;
+                 }
              }
+             if (pnlData.entryPrice) entryP = pnlData.entryPrice.toString();
+             if (pnlData.exitPrice) exitP = pnlData.exitPrice.toString();
           } catch(e) {
              console.error("Error fetching PnL:", e);
           }
+        }
+
+        // Actualizamos la BD con todos los nuevos datos institucionales
+        await db.update(signalHistory)
+          .set({ 
+             isActiveTrade: false, 
+             decision: finalDecision,
+             realizedPnl: finalPnl,
+             realizedRoi: finalRoi,
+             executedEntryPrice: entryP,
+             executedExitPrice: exitP
+          })
+          .where(eq(signalHistory.id, trade.id));
+          
+        if (trade.decision === "Tomada") {
+          const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
 
           for (const user of users) {
             await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" });

@@ -142,7 +142,7 @@ export class Trader {
     }
   }
 
-  async getTradeRealizedPnl(symbol: string, sinceMs: number): Promise<{ pnl: number, fee: number }> {
+  async getTradeRealizedPnl(symbol: string, sinceMs: number): Promise<{ pnl: number, fee: number, entryPrice?: number, exitPrice?: number }> {
     try {
       const trades = await this.exchange.fetchMyTrades(symbol.replace(":USDT", ""), sinceMs, 100);
       let totalPnl = 0;
@@ -155,7 +155,11 @@ export class Trader {
             totalFee += t.fee.cost;
         }
       }
-      return { pnl: totalPnl, fee: totalFee };
+      
+      const entryPrice = trades.length > 0 ? trades[0].price : undefined;
+      const exitPrice = trades.length > 0 ? trades[trades.length - 1].price : undefined;
+      
+      return { pnl: totalPnl, fee: totalFee, entryPrice, exitPrice };
     } catch(e) {
       console.error(`Error obteniendo PnL real para ${symbol}:`, e);
       return { pnl: 0, fee: 0 };

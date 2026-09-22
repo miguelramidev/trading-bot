@@ -43,6 +43,10 @@ export const signalHistory = pgTable("signal_history", {
   gridStep: text("grid_step"), // Separación % (ej: 0.005)
   gridSL: text("grid_sl"), // Kill Switch Inferior
   gridTP: text("grid_tp"), // Kill Switch Superior
+  realizedPnl: text("realized_pnl"), // PnL Neto en USDT al cerrar
+  realizedRoi: text("realized_roi"), // ROI Neto en % al cerrar
+  executedEntryPrice: text("executed_entry_price"), // Precio real al que entró en Binance
+  executedExitPrice: text("executed_exit_price"), // Precio real al que salió en Binance
 });
 
 // Tabla para snapshots diarios del rendimiento de la cuenta

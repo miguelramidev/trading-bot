@@ -22,14 +22,20 @@ export default $config({
     const ALL_SECRETS = [TELEGRAM_TOKEN, DATABASE_URL, BINANCE_API_KEY, BINANCE_API_SECRET];
 
     // 1. API Gateway para el Webhook de Telegram
-    const api = new sst.aws.ApiGatewayV2("TelegramWebhook");
-    
-    api.route("POST /webhook", {
+    const webhookApi = new sst.aws.ApiGatewayV2("TelegramWebhook");
+    webhookApi.route("POST /webhook", {
       handler: "src/telegram/webhook.handler",
       link: ALL_SECRETS
     });
 
-    // 2. Cron Jobs para el análisis del mercado
+    // 2. API Gateway para el Frontend SaaS (Flutter) - Framework Hono
+    const appApi = new sst.aws.ApiGatewayV2("AppApi");
+    appApi.route("$default", {
+      handler: "src/api/server.handler",
+      link: ALL_SECRETS
+    });
+
+    // 3. Cron Jobs para el análisis del mercado
     // 15m (En el minuto 0, 15, 30, 45 de cada hora)
     new sst.aws.Cron("Cron15m", {
       schedule: "cron(0,15,30,45 * * * ? *)",
@@ -50,9 +56,10 @@ export default $config({
       }
     });
 
-    // Retorna la URL del API para configurar el webhook manualmente después
+    // Retorna las URLs para integraciones
     return {
-      WebhookUrl: api.url,
+      WebhookUrl: webhookApi.url,
+      AppApiUrl: appApi.url,
     };
   },
 });

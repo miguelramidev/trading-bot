@@ -359,7 +359,7 @@ async function runAnalysis(timeframe: string) {
               signal.takeProfit = currentPrice - (2.0 * currentAtr);
               signal.strategy = "4";
               signal.regime = "Liquidity Hunter";
-              signal.reason = "Inversión contra la masa (Funding Rate > 0)";
+              signal.reason = "Inversión contra la masa (Funding Rate Positivo)";
               strat4Inverted = true;
            } else if (signal.direction === "SHORT" && frVal < 0) {
               // Masa apalancada en SHORT -> Market Maker barrerá hacia arriba. Vamos LONG.
@@ -368,7 +368,7 @@ async function runAnalysis(timeframe: string) {
               signal.takeProfit = currentPrice + (2.0 * currentAtr);
               signal.strategy = "4";
               signal.regime = "Liquidity Hunter";
-              signal.reason = "Inversión contra la masa (Funding Rate < 0)";
+              signal.reason = "Inversión contra la masa (Funding Rate Negativo)";
               strat4Inverted = true;
            }
         }

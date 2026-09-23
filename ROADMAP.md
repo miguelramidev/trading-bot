@@ -83,5 +83,9 @@
     - [x] 4. Detalle Técnico de Trade Activo (Puros números Monoespaciados)
     - [x] 5. Historial Contable Estático
     - [x] 6. Panel de Ajustes Algorítmicos (Switches y API Config)
-* [ ] **Desarrollo Base Flutter:** Implementar el `core/theme` con la paleta de colores oscuros institucionales y armar el esqueleto visual.
+* [x] **Sistema de Autenticación & Seguridad (Flutter):**
+    - [x] Integración de Firebase Auth & Google Sign-In con configuración híbrida (Web/Android).
+    - [x] Desarrollo de `LoginScreen` ultra-responsivo (Mobile Glassmorphism & Web Split-Card) coincidiendo con los mockups del usuario.
+    - [x] Implementación de Autenticación Biométrica Nativa (`local_auth`) para Face ID / Huella Digital con enrutador dinámico (`AuthWrapper`) que retiene la sesión Firebase para mayor seguridad institucional.
+* [ ] **Desarrollo Base Flutter (Continuación):** Completar el diseño e integración del Dashboard interactivo.
 * [ ] **Endpoints de Conexión:** Crear las rutas en Hono (`/api/dashboard`, `/api/trades`) para servir los datos en vivo a la app móvil.

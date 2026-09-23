@@ -9,3 +9,4 @@ binance_public_key.pem
 venv/
 data/
 __pycache__/
+scratch/

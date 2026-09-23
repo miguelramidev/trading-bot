@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
-import 'core/theme/app_colors.dart';
+import 'screens/login_screen.dart';
+import 'screens/dashboard_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MacroQuantApp());
 }
 
@@ -15,58 +23,59 @@ class MacroQuantApp extends StatelessWidget {
       title: 'MacroQuant',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const DashboardPlaceholder(),
+      home: const AuthWrapper(),
     );
   }
 }
 
-class DashboardPlaceholder extends StatelessWidget {
-  const DashboardPlaceholder({super.key});
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isLocallyAuthenticated = false;
+
+  void _onBiometricSuccess() {
+    setState(() {
+      _isLocallyAuthenticated = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('MacroQuant', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Balance Total',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '\$15,240.50',
-              style: Theme.of(context).textTheme.displayLarge,
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.winGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.winGreen.withOpacity(0.3)),
-              ),
-              child: Text(
-                '+ \$45.20',
-                style: AppTheme.monoStyle.copyWith(
-                  color: AppColors.winGreen,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton(
-              onPressed: () {},
-              child: const Text('Continuar con Google'),
-            ),
-          ],
-        ),
-      ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final user = snapshot.data;
+
+        // Si no hay usuario en Firebase, mandarlo al login normal.
+        // Al desloguearse de Firebase, el stream emitirá null, y _isLocallyAuthenticated no importa.
+        if (user == null) {
+          // Reseteamos el estado local por seguridad cuando no hay usuario
+          _isLocallyAuthenticated = false;
+          return const LoginScreen();
+        }
+
+        // Si el usuario está en Firebase, pero aún no pasó la biometría local
+        if (!_isLocallyAuthenticated) {
+          return LoginScreen(
+            existingUser: user,
+            onBiometricSuccess: _onBiometricSuccess,
+          );
+        }
+
+        // Si ya está logueado en Firebase Y pasó la biometría
+        return const DashboardScreen();
+      },
     );
   }
 }

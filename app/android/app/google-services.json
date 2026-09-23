@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "552492159103",
+    "project_id": "macroquant-4f43d",
+    "storage_bucket": "macroquant-4f43d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:552492159103:android:503002ee1a11003575af4a",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "552492159103-jkl75m9c2f3aaehn6q12teksorn5eb89.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOmX9HTNimtue6ovrCmEgDjfSuRIkHdX0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "552492159103-jkl75m9c2f3aaehn6q12teksorn5eb89.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "552492159103-f63np95vmn99p3ejo0n64guavvc1k94q.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:552492159103:android:64ff7d4c2bbff96275af4a",
+        "android_client_info": {
+          "package_name": "com.macroquant.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "552492159103-88b61kd0vdfu58cvhe4tq5gf068h0n8b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.macroquant.app",
+            "certificate_hash": "f9c54b9179ed3a5796136b2e4fa4e4e1c327b516"
+          }
+        },
+        {
+          "client_id": "552492159103-jkl75m9c2f3aaehn6q12teksorn5eb89.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOmX9HTNimtue6ovrCmEgDjfSuRIkHdX0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "552492159103-jkl75m9c2f3aaehn6q12teksorn5eb89.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "552492159103-f63np95vmn99p3ejo0n64guavvc1k94q.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

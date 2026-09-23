@@ -53,7 +53,7 @@ class AppTheme {
       ),
 
       // Tarjetas (Frosted Glass simulation base)
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -65,7 +65,7 @@ class AppTheme {
   }
 
   // Tipografía Monoespaciada (Para PnL, Precios, Números estáticos)
-  static TextStyle get monoStyle => GoogleFonts.jetbrainsMono(
+  static TextStyle get monoStyle => GoogleFonts.jetBrainsMono(
     color: AppColors.textPrimary,
     fontWeight: FontWeight.w500,
   );

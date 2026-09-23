@@ -1,9 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // Inicialización condicional: En Web, GoogleSignIn requiere explícitamente el clientId
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: kIsWeb 
+      ? '552492159103-jkl75m9c2f3aaehn6q12teksorn5eb89.apps.googleusercontent.com' 
+      : null,
+  );
 
   // Flujo principal de inicio de sesión con Google
   Future<UserCredential?> signInWithGoogle() async {
@@ -25,7 +34,35 @@ class AuthService {
       );
 
       // 4. Iniciar sesión en Firebase con la credencial
-      return await _auth.signInWithCredential(credential);
+      final userCredential = await _auth.signInWithCredential(credential);
+      final fbUser = userCredential.user;
+
+      if (fbUser != null) {
+        try {
+          print('Sincronizando usuario con backend PostgreSQL...');
+          // 5. Sincronizar el usuario con la Base de Datos en AWS Neon
+          final response = await http.post(
+            Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/users/sync'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'firebaseUid': fbUser.uid,
+              'email': fbUser.email ?? 'no-email@unknown.com',
+              'name': fbUser.displayName ?? 'Trader',
+            }),
+          );
+
+          if (response.statusCode == 200) {
+            print('✅ Usuario sincronizado con éxito en la DB.');
+          } else {
+            print('⚠️ Error al sincronizar usuario: ${response.body}');
+          }
+        } catch (syncError) {
+          print('⚠️ Excepción al sincronizar usuario: $syncError');
+          // No lanzamos la excepción para no bloquear el inicio de sesión en la app
+        }
+      }
+
+      return userCredential;
     } catch (e) {
       print('Error durante el inicio de sesión con Google: $e');
       rethrow;

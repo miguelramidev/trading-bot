@@ -2,14 +2,14 @@ import ccxt from "ccxt";
 import { Resource } from "sst";
 
 export class Trader {
-  private exchange: ccxt.binance;
+  private exchange: any;
 
   constructor() {
     const binanceKey = process.env.BINANCE_API_KEY || (Resource as any).BINANCE_API_KEY?.value;
     const binanceSecret = process.env.BINANCE_API_SECRET || (Resource as any).BINANCE_API_SECRET?.value;
     const secretKey = binanceSecret ? binanceSecret.replace(/\\n/g, '\n') : "";
 
-    this.exchange = new ccxt.binance({
+    this.exchange = new (ccxt as any).binance({
       apiKey: binanceKey,
       secret: secretKey,
       enableRateLimit: true,
@@ -28,7 +28,7 @@ export class Trader {
 
       // 1. Get Balance
       const balance = await this.exchange.fetchBalance();
-      const usdtBalance = balance.total['USDT'] || 0;
+      const usdtBalance = balance.free['USDT'] || 0;
       if (usdtBalance <= 0) return "❌ Balance insuficiente.";
 
       // 2. Usar un monto fijo de 25 USDT por operación (protección contra rachas)
@@ -104,7 +104,7 @@ export class Trader {
         console.error("Error colocando TP:", e.message);
       }
 
-      return `✅ <b>TRADE EJECUTADO EN BINANCE</b>\n💰 Inversión (Margen): $${marginToInvest.toFixed(2)} USDT\n⚙️ Apalancamiento: x${leverage}\n📈 Posición Total: $${notional.toFixed(2)} USDT\n🪙 Cantidad: ${amount} tokens\n🛑 SL: $${stopLossPrice}\n🏆 TP: $${takeProfitPrice}`;
+      return `✅ <b>TRADE EJECUTADO EN BINANCE</b>\n💰 Inversión (Margen): $${marginToInvest.toFixed(2)} USDT\n⚙️ Apalancamiento: x${leverage}\n📈 Posición Total: $${notional.toFixed(2)} USDT\n🪙 Cantidad: ${amount} tokens\n🎯 Precio Entrada: $${currentPrice}\n🛑 SL: $${stopLossPrice}\n🏆 TP: $${takeProfitPrice}`;
 
     } catch (error: any) {
       console.error("Execute Trade Error:", error);

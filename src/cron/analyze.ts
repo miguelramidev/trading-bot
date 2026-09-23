@@ -6,7 +6,7 @@ import { DataFetcher } from "../bot/data.js";
 import { Trader } from "../bot/trader.js";
 import { Resource } from "sst";
 
-const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.value;
+const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
 
 async function runAnalysis(timeframe: string) {
@@ -104,7 +104,7 @@ async function runAnalysis(timeframe: string) {
           const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
 
           for (const user of users) {
-            await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" });
+            if (user.chatId) await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" });
           }
         } else if (trade.decision === "Descartada") {
           const hitTP = closeReason.includes("TP");
@@ -116,7 +116,7 @@ async function runAnalysis(timeframe: string) {
           }
           
           for (const user of users) {
-             await bot.telegram.sendMessage(user.chatId, msg, { parse_mode: "HTML" });
+             if (user.chatId) await bot.telegram.sendMessage(user.chatId, msg, { parse_mode: "HTML" });
           }
         }
       }
@@ -151,6 +151,13 @@ async function runAnalysis(timeframe: string) {
     else btcRegimeStr = "Transición";
     btcRegimeStr += ` (${btcAdx.toFixed(2)})`;
   }
+  
+  // Veto anti-machetazo: Tendencia de corto plazo de BTC (15m EMA 50)
+  let btcShortTermBias = "N/A";
+  if (btcCloses.length > 50) {
+    const btcEma50 = dataFetcher.calculateEMA(btcCloses, 50);
+    btcShortTermBias = btcCloses[btcCloses.length - 1] > btcEma50[btcEma50.length - 1] ? "UP" : "DOWN";
+  }
 
   let macroTrendWarning = "";
   try {
@@ -176,16 +183,13 @@ async function runAnalysis(timeframe: string) {
   } catch(e) { console.error("Error fetching BTC 1D", e); }
 
   const balanceObj = await dataFetcher.getUSDTBalance();
-  const currentBinanceBalance = balanceObj.total;
+  const currentBinanceBalance = balanceObj.free;
   
   if (currentBinanceBalance < 25) {
     console.log(`Balance insuficiente (${currentBinanceBalance}). Abortando análisis.`);
     for (const user of activeUsers) {
-      await bot.telegram.sendMessage(
-        user.chatId,
-        `⚠️ <b>Balance Insuficiente</b>\nTu saldo libre es de <b>$${currentBinanceBalance.toFixed(2)} USDT</b> (Mínimo requerido: $25).\n\n<i>El bot no escaneará el mercado. Usa /pause si deseas silenciar estos avisos.</i>`,
-        { parse_mode: "HTML" }
-      );
+      // Evitamos spamear al usuario cada 15m si su dinero está ocupado en trades.
+      // await bot.telegram.sendMessage(user.chatId, `⚠️ <b>Balance Insuficiente</b>...`);
     }
     return; // No se esfuerza en analizar
   }
@@ -281,6 +285,8 @@ async function runAnalysis(timeframe: string) {
         }
       } else {
         // ESTRATEGIA 2: Liquidity Sweep / Falso Breakout (Rango)
+        // DESACTIVADA TEMPORALMENTE: No renta a corto plazo (15m). Se activará a futuro en 1H.
+        /*
         const prevCandle = candles15m[candles15m.length - 2];
         const prevLowerBB = bb.lower[bb.lower.length - 2];
         const prevUpperBB = bb.upper[bb.upper.length - 2];
@@ -304,6 +310,7 @@ async function runAnalysis(timeframe: string) {
              volumeFilter: "Normal", reason: "Liquidity Sweep en BB Superior (Fakeout)"
            };
         }
+        */
       }
 
       if (signal) {
@@ -316,16 +323,16 @@ async function runAnalysis(timeframe: string) {
 
         let wasInverted = false;
         
-        // MACRO BREAKOUT INVERSION (Requiere alineación 1D+4H y Correlación Positiva)
-        if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT" && bias4h === "UP" && btcCorrVal >= 0) {
+        // MACRO BREAKOUT INVERSION (Requiere alineación 1D+4H, Correlación Positiva, y BTC NO debe estar cayendo a corto plazo)
+        if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT" && bias4h === "UP" && btcCorrVal >= 0 && btcShortTermBias === "UP") {
            signal.direction = "LONG";
            signal.stopLoss = currentPrice - (1.0 * currentAtr);
            signal.takeProfit = currentPrice + (2.0 * currentAtr);
            signal.strategy = "3";
            signal.regime = "Macro Breakout";
-           signal.reason = "Inversión por convergencia Alcista 1D+4H";
+           signal.reason = "Inversión por convergencia Alcista 1D+4H (BTC Fuerte a Corto Plazo)";
            wasInverted = true;
-        } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG" && bias4h === "DOWN" && btcCorrVal >= 0) {
+        } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG" && bias4h === "DOWN" && btcCorrVal >= 0 && btcShortTermBias === "DOWN") {
            signal.direction = "SHORT";
            signal.stopLoss = currentPrice + (1.0 * currentAtr);
            signal.takeProfit = currentPrice - (2.0 * currentAtr);
@@ -450,35 +457,43 @@ async function runAnalysis(timeframe: string) {
         const signalId = inserted[0].id;
 
         let strat4Warning = "";
-        if (strat4Inverted) {
-          strat4Warning = `🩸 <b>ESTRATEGIA 4 (LIQUIDITY HUNTER):</b> La masa está sobre-apalancada equivocadamente (FR: ${fundingRateText}). ¡Hemos INVERTIDO la dirección para cazar sus Stop Loss junto al Market Maker!\n\n`;
-        }
 
         let macroWarningStr = "";
-        if (wasInverted && !strat4Inverted) {
+        if (wasInverted) {
           macroWarningStr = `🔥 <b>ESTRATEGIA 3 (MACRO BREAKOUT):</b> El bot detectó un setup técnico en contra, pero como Bitcoin está fuertemente <b>${macroTrendWarning}</b> en 1D y 4H, ¡hemos <b>INVERTIDO</b> la señal para cazar la ruptura!\n\n`;
         } else if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT") {
            if (btcCorrVal < 0) {
               macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está ALCISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el SHORT original.\n\n`;
+           } else if (bias4h === "UP" && btcShortTermBias === "DOWN") {
+              macroWarningStr = `🛑 <b>VETO ANTI-MACHETAZO:</b> BTC es Alcista (1D) y la moneda (4H) también, pero BTC está CAYENDO a corto plazo (15m). Se cancela la Inversión a LONG para no atrapar el cuchillo cayendo.\n\n`;
            } else {
               macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está ALCISTA en 1D, pero no hay fuerza en 4H. No se invirtió la señal. Hacer SHORT es riesgoso.\n\n`;
            }
         } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG") {
            if (btcCorrVal < 0) {
               macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está BAJISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el LONG original.\n\n`;
+           } else if (bias4h === "DOWN" && btcShortTermBias === "UP") {
+              macroWarningStr = `🛑 <b>VETO ANTI-MACHETAZO:</b> BTC es Bajista (1D) y la moneda (4H) también, pero BTC está SUBIENDO a corto plazo (15m). Se cancela la Inversión a SHORT para evitar un rebote fuerte.\n\n`;
            } else {
-              macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está BAJISTA en 1D, pero no hay fuerza en 4H. No se invirtió la señal. Hacer LONG es riesgoso.\n\n`;
+              macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está BAJISTA en 1D, pero no hay debilidad en 4H. No se invirtió la señal. Hacer LONG es riesgoso.\n\n`;
            }
         } else if (macroTrendWarning === "ALCISTA" && signal.direction === "LONG") {
           macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente ALCISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
         } else if (macroTrendWarning === "BAJISTA" && signal.direction === "SHORT") {
           macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente BAJISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
         }
+        
+        let machetazoWarning = "";
+        if (signal.direction === "LONG" && btcShortTermBias === "DOWN" && !wasInverted) {
+            machetazoWarning = `🚨 <b>PELIGRO DE MACHETAZO:</b> Bitcoin está cayendo con fuerza en 15m. Entrar en LONG ahora tiene altísimo riesgo de atrapar un cuchillo cayendo.\n\n`;
+        } else if (signal.direction === "SHORT" && btcShortTermBias === "UP" && !wasInverted) {
+            machetazoWarning = `🚨 <b>PELIGRO DE PUMP:</b> Bitcoin está subiendo con fuerza en 15m. Entrar en SHORT ahora es riesgoso contra el impulso del mercado.\n\n`;
+        }
 
         const cleanSymbolTV = symbol.split(":")[0].replace("/", "");
         const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
 
-        const marginToInvest = currentBinanceBalance * 0.20;
+        const marginToInvest = Math.min(25.0, currentBinanceBalance);
         const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
         const targetNotional = Math.max(10.0, exchangeMinNotional);
 
@@ -502,7 +517,7 @@ async function runAnalysis(timeframe: string) {
           `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
           `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
           `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
-          `💰 <b>INVERSIÓN PROYECTADA (20%):</b>\n` +
+          `💰 <b>INVERSIÓN PROYECTADA (Monto Fijo):</b>\n` +
           `🛡️ <b>Margen (Capital):</b> $${marginToInvest.toFixed(2)} USDT\n` +
           `⚙️ <b>Apalancamiento:</b> x${leverage}\n` +
           `🚀 <b>Posición Total:</b> $${notional.toFixed(2)} USDT\n` +
@@ -513,23 +528,26 @@ async function runAnalysis(timeframe: string) {
           `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
           (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
           macroWarningStr +
+          machetazoWarning +
           strat4Warning +
           `💡 <i>Motivo: ${signal.reason}</i>\n` +
           `📊 <b>Ver Gráfico:</b> <a href="${tvLink}">Abrir ${cleanSymbolTV} en TradingView</a>\n\n` +
           `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
 
         for (const user of activeUsers) {
-          await bot.telegram.sendMessage(user.chatId, msg, {
-            parse_mode: "HTML",
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: "✅ Ejecutar Sniper (Mercado)", callback_data: `paper_accept_${signalId}` },
-                  { text: "❌ Descartar", callback_data: `paper_reject_${signalId}` }
+          if (user.chatId) {
+            await bot.telegram.sendMessage(user.chatId, msg, {
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "✅ Ejecutar Sniper (Mercado)", callback_data: `paper_accept_${signalId}` },
+                    { text: "❌ Descartar", callback_data: `paper_reject_${signalId}` }
+                  ]
                 ]
-              ]
-            }
-          });
+              }
+            });
+          }
         }
         
         // Terminar el cron si alcanzamos el máximo de 3 señales por sesión

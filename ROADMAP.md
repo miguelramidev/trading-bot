@@ -84,8 +84,16 @@
     - [x] 5. Historial Contable Estático
     - [x] 6. Panel de Ajustes Algorítmicos (Switches y API Config)
 * [x] **Sistema de Autenticación & Seguridad (Flutter):**
-    - [x] Integración de Firebase Auth & Google Sign-In con configuración híbrida (Web/Android).
-    - [x] Desarrollo de `LoginScreen` ultra-responsivo (Mobile Glassmorphism & Web Split-Card) coincidiendo con los mockups del usuario.
-    - [x] Implementación de Autenticación Biométrica Nativa (`local_auth`) para Face ID / Huella Digital con enrutador dinámico (`AuthWrapper`) que retiene la sesión Firebase para mayor seguridad institucional.
-* [ ] **Desarrollo Base Flutter (Continuación):** Completar el diseño e integración del Dashboard interactivo.
-* [ ] **Endpoints de Conexión:** Crear las rutas en Hono (`/api/dashboard`, `/api/trades`) para servir los datos en vivo a la app móvil.
+    - [x] Integración de Firebase Auth & Google Sign-In.
+    - [x] Desarrollo de `LoginScreen` ultra-responsivo (Mobile Glassmorphism & Web Split-Card).
+    - [x] Implementación de Autenticación Biométrica Nativa (`local_auth`).
+* [x] **Arquitectura Multi-Tenant (B2B SaaS):**
+    - [x] Migración del esquema Neon DB para soportar `user_config` vinculado a `firebase_uid`.
+    - [x] Encriptación asimétrica militar (RSA/Ed25519): Generación de llaves públicas/privadas desde el frontend en Dart y descifrado seguro en AWS para la inyección de API Keys de Binance en CCXT sin filtración.
+    - [x] Conversión del Bot y Cron Jobs de un modelo "Global Singleton" a un bucle "Per-User" que evalúa saldo y opera de forma independiente por cuenta.
+* [x] **Dashboard Interactivo en Vivo:**
+    - [x] Sustitución de *Mock Data* por endpoints reales (`/api/dashboard`).
+    - [x] Creación de `daily_reports` para mapear los historiales de capital por usuario y trazarlos usando `fl_chart` (Gráfico de rendimiento de capital a 30 días).
+    - [x] Formateo condicional avanzado (Textos Rojos/Verdes dependiendo de PnL y escape estricto de variables en Dart).
+    - [x] Adaptación Dual (Desktop & Mobile) sincronizada mediante botones manuales de Refresh para ahorrar ancho de banda de Websockets.
+* [ ] **Módulo de Señales y Trade Execution:** Completar la pantalla visual de aprobación (`/api/trades` y push notifications visuales en Flutter).

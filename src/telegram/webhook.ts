@@ -7,7 +7,7 @@ import ccxt from "ccxt";
 import { Resource } from "sst";
 import { Trader } from "../bot/trader.js";
 
-const telegramToken = process.env.TELEGRAM_TOKEN || Resource.TELEGRAM_TOKEN.value;
+const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
 
 bot.command("start", async (ctx) => {
@@ -98,8 +98,8 @@ bot.command("leverage", async (ctx) => {
 bot.command("positions", async (ctx) => {
   await ctx.reply("⏳ Consultando operaciones abiertas en Binance...");
   
-  const binanceKey = process.env.BINANCE_API_KEY || Resource.BINANCE_API_KEY.value;
-  const binanceSecret = process.env.BINANCE_API_SECRET || Resource.BINANCE_API_SECRET.value;
+  const binanceKey = process.env.BINANCE_API_KEY || (Resource as any).BINANCE_API_KEY.value;
+  const binanceSecret = process.env.BINANCE_API_SECRET || (Resource as any).BINANCE_API_SECRET.value;
 
   if (!binanceKey || !binanceSecret) {
     await ctx.reply("❌ Error: Faltan credenciales de Binance.");
@@ -126,7 +126,7 @@ bot.command("positions", async (ctx) => {
     let message = `📊 <b>POSICIONES ABIERTAS (${openPositions.length})</b>\n\n`;
 
     for (const p of openPositions) {
-      const isLong = p.side === 'long' || p.positionSide === 'LONG';
+      const isLong = p.side === 'long' || (p as any).positionSide === 'LONG';
       const sideEmoji = isLong ? "🟢 LONG" : "🔴 SHORT";
       const pnl = p.unrealizedPnl || 0;
       const roe = p.percentage || 0;
@@ -177,12 +177,10 @@ bot.command("report_global", async (ctx) => {
 bot.command("report_advisor", async (ctx) => {
   await ctx.reply("⏳ Recopilando datos cuantitativos y de simulación para el asesor...");
   try {
-    const { generateGlobalReportText, generateSimulationText } = await import("../cron/report.js");
+    const { generateGlobalReportText } = await import("../cron/report.js");
     const globalText = await generateGlobalReportText();
-    const simText = await generateSimulationText();
     let msg = `🔥 <b>DOSSIER PARA ASESOR</b> 🔥\n\n`;
     msg += globalText;
-    msg += simText;
     await ctx.reply(msg, { parse_mode: "HTML" });
   } catch (e: any) {
     console.error("Error generating advisor report manually:", e);

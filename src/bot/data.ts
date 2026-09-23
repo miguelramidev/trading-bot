@@ -2,13 +2,13 @@ import ccxt from "ccxt";
 import { Resource } from "sst";
 
 export class DataFetcher {
-  public exchange: ccxt.binance;
+  public exchange: any;
 
   constructor() {
-    const apiKey = process.env.BINANCE_API_KEY || (Resource.BINANCE_API_KEY ? Resource.BINANCE_API_KEY.value : undefined);
-    const secret = process.env.BINANCE_API_SECRET || (Resource.BINANCE_API_SECRET ? Resource.BINANCE_API_SECRET.value : undefined);
+    const apiKey = process.env.BINANCE_API_KEY || ((Resource as any).BINANCE_API_KEY ? (Resource as any).BINANCE_API_KEY.value : undefined);
+    const secret = process.env.BINANCE_API_SECRET || ((Resource as any).BINANCE_API_SECRET ? (Resource as any).BINANCE_API_SECRET.value : undefined);
 
-    this.exchange = new ccxt.binance({
+    this.exchange = new (ccxt as any).binance({
       apiKey: apiKey,
       secret: secret,
       enableRateLimit: true,
@@ -61,14 +61,14 @@ export class DataFetcher {
           }
 
           // Heurística de precio: Si vale casi exactamente $1.00 (entre 0.97 y 1.03), es casi seguro una stablecoin o fiat
-          const lastPrice = ticker.last || 0;
+          const lastPrice = (ticker as any).last || 0;
           if (lastPrice >= 0.97 && lastPrice <= 1.03) {
             continue;
           }
 
           usdtPairs.push({
             symbol,
-            quoteVolume: ticker.quoteVolume || 0,
+            quoteVolume: (ticker as any).quoteVolume || 0,
           });
         }
       }

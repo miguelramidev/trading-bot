@@ -2,11 +2,22 @@ import { pgTable, text, boolean, timestamp, serial, integer } from "drizzle-orm/
 
 // Guardamos la configuración de cada chat
 export const userConfig = pgTable("user_config", {
-  chatId: text("chat_id").primaryKey(),
+  id: serial("id").primaryKey(),
+  chatId: text("chat_id").unique(), // Telegram ID
+  firebaseUid: text("firebase_uid").unique(), // Web/App Auth ID
+  email: text("email").unique(),
+  name: text("name"),
+  binanceApiKey: text("binance_api_key"),
+  binanceApiSecret: text("binance_api_secret"),
+  montoOperacion: integer("monto_operacion").default(25),
+  apalancamiento: integer("apalancamiento").default(10),
+  maxTrades: integer("max_trades").default(5),
+  rsaPublicKey: text("rsa_public_key"),
+  rsaPrivateKey: text("rsa_private_key"),
   isPaused: boolean("is_paused").default(false).notNull(),
   leverage: integer("leverage").default(1).notNull(),
-  pendingSignalId: integer("pending_signal_id").references(() => signalHistory.id), // guardamos qué señal quiere operar
-  startingBalance: text("starting_balance").default("41.78"), // Starting balance for auditing
+  pendingSignalId: integer("pending_signal_id").references(() => signalHistory.id),
+  startingBalance: text("starting_balance").default("41.78"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -60,6 +71,7 @@ export const signalHistory = pgTable("signal_history", {
 // Tabla para snapshots diarios del rendimiento de la cuenta
 export const dailyReports = pgTable("daily_reports", {
   id: serial("id").primaryKey(),
+  firebaseUid: text("firebase_uid").notNull(),
   reportDate: timestamp("report_date").defaultNow().notNull(),
   balance: text("balance").notNull(), // Saldo real en Binance a las 23:00
   netPnl: text("net_pnl"), // Diferencia vs el balance del día anterior

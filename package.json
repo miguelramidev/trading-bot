@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "sst dev",
     "build": "sst build",
-    "deploy": "sst deploy --stage prod",
+    "deploy": "tsc --noEmit && sst deploy --stage prod",
     "remove": "sst remove",
     "backtest": "tsx src/scripts/backtest.ts",
     "db:push": "drizzle-kit push",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -29,9 +29,11 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
+    "@vitest/coverage-v8": "^5.0.1",
     "drizzle-kit": "^0.31.10",
     "sst": "^4.17.1",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }

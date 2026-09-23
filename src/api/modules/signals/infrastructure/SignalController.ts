@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../../../db/index.js";
 import { signalHistory } from "../../../../db/schema.js";
-import { desc, eq, limit } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 export const signalsRouter = new Hono();
 

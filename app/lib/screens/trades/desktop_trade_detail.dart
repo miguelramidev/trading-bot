@@ -186,7 +186,7 @@ class DesktopTradeDetail extends StatelessWidget {
                         _buildRightDivider(),
                         _buildRightRow('VALOR NOCIONAL & MARGEN', 'Colateral aislado / cross', '\$${notional.toStringAsFixed(2)} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen Asignado: \$${margin.toStringAsFixed(2)} USDT'),
                         _buildRightDivider(),
-                        _buildRightRow('MODO DE APALANCAMIENTO', 'Factor de multiplicación dinámico', '${trade['leverage']}x Cross Margin', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Modo Cobertura Activo (Hedge L1)', subValColor: AppColors.textSecondary),
+                        _buildRightRow('MODO DE APALANCAMIENTO', 'Factor de multiplicación dinámico', '${trade['leverage'] ?? 1}x Cross Margin', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Modo Cobertura Activo (Hedge L1)', subValColor: AppColors.textSecondary),
                         _buildRightDivider(),
                         _buildRightRow('ENTRADA VS MARK PRICE', 'Índice agregado ponderado', '\$${trade['entryPrice']} → \$${trade['markPrice'] ?? trade['exitPrice'] ?? "-"}', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Diferencial spread calculado', subValColor: AppColors.winGreen),
                         _buildRightDivider(),

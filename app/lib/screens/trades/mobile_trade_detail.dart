@@ -84,7 +84,7 @@ class MobileTradeDetail extends StatelessWidget {
                     children: [
                       Container(width: 6, height: 6, decoration: BoxDecoration(color: (isLong ? AppColors.winGreen : AppColors.lossRed), shape: BoxShape.circle)),
                       const SizedBox(width: 6),
-                      Text('${isLong ? "LONG" : "SHORT"}\n${trade['leverage']}x', textAlign: TextAlign.center, style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                      Text('${isLong ? "LONG" : "SHORT"}\n${trade['leverage'] ?? 1}x', textAlign: TextAlign.center, style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 )
@@ -139,23 +139,23 @@ class MobileTradeDetail extends StatelessWidget {
               children: [
                 Expanded(child: _buildInfoCard('MONTO INVERTIDO', '\$${notional.toStringAsFixed(2)} USDT', 'Margen: \$${margin.toStringAsFixed(2)}')),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('APALANCAMIENTO', '${trade['leverage']}x ${trade['marginMode']?.toString().toUpperCase() ?? 'CROSS'}', 'Modo Cobertura Activo', isGreenSub: true)),
+                Expanded(child: _buildInfoCard('APALANCAMIENTO', '${trade['leverage'] ?? 1}x ${trade['marginMode']?.toString().toUpperCase() ?? 'CROSS'}', 'Modo Cobertura Activo', isGreenSub: true)),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _buildInfoCard('PRECIO ENTRADA', '\$${trade['entryPrice']}', 'Base Ejecución L2')),
+                Expanded(child: _buildInfoCard('PRECIO ENTRADA', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Base Ejecución L2')),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('MARK PRICE', '\$${trade['markPrice'] ?? '-'}', 'Delta: \$0.00', showDot: true)), // Delta calculation omitted for MVP
+                Expanded(child: _buildInfoCard('MARK PRICE', '\$${double.tryParse(trade['markPrice']?.toString() ?? trade['exitPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Delta: \$0.00', showDot: true)), // Delta calculation omitted for MVP
               ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _buildInfoCard('STOP LOSS', '\$${trade['stopLoss'] ?? '-'}', 'Garantía Dinámica', topBadge: '-2.9%', isRed: true)),
+                Expanded(child: _buildInfoCard('STOP LOSS', '\$${double.tryParse(trade['stopLoss']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Garantía Dinámica', topBadge: '-2.9%', isRed: true)),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('TAKE PROFIT', '\$${trade['takeProfit'] ?? '-'}', 'Objetivo Algorítmico', topBadge: '+5.8%', isGreenSub: true)),
+                Expanded(child: _buildInfoCard('TAKE PROFIT', '\$${double.tryParse(trade['takeProfit']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Objetivo Algorítmico', topBadge: '+5.8%', isGreenSub: true)),
               ],
             ),
             const SizedBox(height: 24),

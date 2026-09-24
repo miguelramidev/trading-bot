@@ -402,7 +402,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
                   "\$${(p['entryPrice'] ?? 0).toStringAsFixed(2)}",
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
                   "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",
-                  onTap: () => context.push('/dashboard/trade/${p["symbol"]}', extra: p),
+                  onTap: () => context.push('/dashboard/trade/${(p["symbol"]?.toString() ?? "UNKNOWN").replaceAll("/", "-")}', extra: p),
                 ),
                 const Divider(color: AppColors.border, height: 32),
               ],

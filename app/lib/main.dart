@@ -9,6 +9,8 @@ import 'core/theme/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/dashboard/settings_screen.dart';
+import 'package:go_router/go_router.dart';
+import 'screens/dashboard_screen.dart';
 
 import 'package:provider/provider.dart';
 import 'providers/dashboard_provider.dart';
@@ -29,41 +31,69 @@ void main() async {
   );
 }
 
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
+
+final GoRouter _router = GoRouter(
+  navigatorKey: _rootNavigatorKey,
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const AuthWrapper(),
+    ),
+    ShellRoute(
+      navigatorKey: _shellNavigatorKey,
+      builder: (context, state, child) {
+        return MainScreen(child: child, currentPath: state.matchedLocation);
+      },
+      routes: [
+        GoRoute(
+          path: '/dashboard',
+          builder: (context, state) => const DashboardScreen(),
+        ),
+        GoRoute(
+          path: '/history',
+          builder: (context, state) => const Center(child: Text('Historial de Operaciones', style: TextStyle(color: Colors.white))),
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => const SettingsScreen(),
+        ),
+      ],
+    ),
+  ],
+);
+
 class MacroQuantApp extends StatelessWidget {
   const MacroQuantApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ToastificationWrapper(
-      child: MaterialApp(
-      title: 'MacroQuant',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme.copyWith(
-        pageTransitionsTheme: PageTransitionsTheme(
-          builders: kIsWeb ? {
-            TargetPlatform.windows: const NoAnimationPageTransitionsBuilder(),
-            TargetPlatform.macOS: const NoAnimationPageTransitionsBuilder(),
-            TargetPlatform.linux: const NoAnimationPageTransitionsBuilder(),
-            TargetPlatform.android: const NoAnimationPageTransitionsBuilder(),
-            TargetPlatform.iOS: const NoAnimationPageTransitionsBuilder(),
-            TargetPlatform.fuchsia: const NoAnimationPageTransitionsBuilder(),
-          } : const {
-            TargetPlatform.android: ZoomPageTransitionsBuilder(),
-            TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
-            TargetPlatform.windows: ZoomPageTransitionsBuilder(),
-            TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
-            TargetPlatform.linux: ZoomPageTransitionsBuilder(),
-            TargetPlatform.fuchsia: ZoomPageTransitionsBuilder(),
-          },
+      child: MaterialApp.router(
+        title: 'MacroQuant',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme.copyWith(
+          pageTransitionsTheme: PageTransitionsTheme(
+            builders: kIsWeb ? {
+              TargetPlatform.windows: const NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.macOS: const NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.linux: const NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.android: const NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.iOS: const NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.fuchsia: const NoAnimationPageTransitionsBuilder(),
+            } : const {
+              TargetPlatform.android: ZoomPageTransitionsBuilder(),
+              TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
+              TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+              TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
+              TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+              TargetPlatform.fuchsia: ZoomPageTransitionsBuilder(),
+            },
+          ),
         ),
-      ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const AuthWrapper(),
-        '/dashboard': (context) => const MainScreen(),
-        '/settings': (context) => const SettingsScreen(),
-      },
-      // home: const AuthWrapper(),
+        routerConfig: _router,
       ),
     );
   }
@@ -105,7 +135,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // En Web, no usamos biometría (FaceID/Huella), así que lo pasamos directamente al Dashboard
         if (kIsWeb) {
-          return MainScreen();
+          WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); }); return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
         if (!_isLocallyAuthenticated) {
@@ -116,7 +146,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         // Si ya está logueado en Firebase Y pasó la biometría
-        return MainScreen();
+        WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); }); return const Scaffold(body: Center(child: CircularProgressIndicator()));
       },
     );
   }

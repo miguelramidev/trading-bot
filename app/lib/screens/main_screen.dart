@@ -1,45 +1,38 @@
 import 'package:flutter/material.dart';
-import 'dashboard_screen.dart';
-import 'dashboard/settings_screen.dart';
+import 'package:go_router/go_router.dart';
 import 'dashboard/responsive_layout.dart';
 import '../core/theme/app_colors.dart';
-import 'package:toastification/toastification.dart';
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+class MainScreen extends StatelessWidget {
+  final Widget child;
+  final String currentPath;
 
-  @override
-  State<MainScreen> createState() => _MainScreenState();
-}
+  const MainScreen({super.key, required this.child, required this.currentPath});
 
-class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  int get _currentIndex {
+    if (currentPath.startsWith('/settings')) return 2;
+    if (currentPath.startsWith('/history')) return 1;
+    return 0; // /dashboard
+  }
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const Center(child: Text('Historial de Operaciones', style: TextStyle(color: Colors.white))), // Placeholder for History
-    const SettingsScreen(),
-  ];
+  void _onItemTapped(int index, BuildContext context) {
+    if (index == 0) context.go('/dashboard');
+    if (index == 1) context.go('/history');
+    if (index == 2) context.go('/settings');
+  }
 
   @override
   Widget build(BuildContext context) {
     return ResponsiveLayout(
       mobile: Scaffold(
         backgroundColor: AppColors.background,
-        body: IndexedStack(
-          index: _currentIndex,
-          children: _screens,
-        ),
+        body: child, // Lazy loading: Solo renderiza la ruta actual
         bottomNavigationBar: BottomNavigationBar(
           backgroundColor: AppColors.background,
           selectedItemColor: AppColors.winGreen,
           unselectedItemColor: AppColors.textSecondary,
           currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
+          onTap: (index) => _onItemTapped(index, context),
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Inicio'),
             BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Historial'),
@@ -54,11 +47,7 @@ class _MainScreenState extends State<MainScreen> {
             NavigationRail(
               backgroundColor: AppColors.surface,
               selectedIndex: _currentIndex,
-              onDestinationSelected: (int index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
+              onDestinationSelected: (int index) => _onItemTapped(index, context),
               selectedIconTheme: const IconThemeData(color: AppColors.winGreen),
               unselectedIconTheme: const IconThemeData(color: AppColors.textSecondary),
               destinations: const [
@@ -68,12 +57,7 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
             const VerticalDivider(thickness: 1, width: 1, color: AppColors.border),
-            Expanded(
-              child: IndexedStack(
-                index: _currentIndex,
-                children: _screens,
-              ),
-            ),
+            Expanded(child: child), // Lazy loading
           ],
         ),
       ),

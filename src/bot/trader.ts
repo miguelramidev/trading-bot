@@ -70,8 +70,7 @@ export class Trader {
       const currentPrice = currentTicker.last!;
       
       let amount = notional / currentPrice;
-      const amountPrecision = market.precision.amount;
-      amount = parseFloat(this.exchange.decimalToPrecision(amount, this.exchange.TRUNCATE, amountPrecision, this.exchange.DECIMAL_PLACES));
+      amount = parseFloat(this.exchange.amountToPrecision(symbol, amount));
 
       if (amount <= 0) return "❌ Cantidad calculada de tokens es 0 (precisión del exchange).";
 

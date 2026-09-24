@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'settings_screen.dart';
 import '../dashboard_screen.dart';
 import 'package:flutter/material.dart';
@@ -462,7 +463,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
               final dir = s['direction'] ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SignalDetailScreen(signal: s)))),
+                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, onTap: () => context.push('/signal/${s['id']}', extra: s)),
               );
             }),
         ],

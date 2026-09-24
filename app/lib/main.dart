@@ -9,6 +9,7 @@ import 'core/theme/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/dashboard/settings_screen.dart';
+import 'screens/signals/signal_detail_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/dashboard_screen.dart';
 
@@ -47,6 +48,17 @@ final GoRouter _router = GoRouter(
       builder: (context, state, child) {
         return MainScreen(child: child, currentPath: state.matchedLocation);
       },
+    GoRoute(
+      path: '/signal/:id',
+      builder: (context, state) {
+        final signal = state.extra as Map<String, dynamic>?;
+        if (signal == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); });
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        return SignalDetailScreen(signal: signal);
+      },
+    ),
       routes: [
         GoRoute(
           path: '/dashboard',

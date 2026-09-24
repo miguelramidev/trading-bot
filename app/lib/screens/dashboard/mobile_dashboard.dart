@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'settings_screen.dart';
 import '../signals/signal_detail_screen.dart';
 import '../dashboard_screen.dart';
@@ -131,7 +132,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                 final shortSymbol = symbol.length >= 3 ? symbol.substring(0, 3) : symbol;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildSignalCard(shortSymbol, symbol, timeAgo, 'Algoritmo Quant', s['direction'] ?? '', true, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SignalDetailScreen(signal: s)))),
+                  child: _buildSignalCard(shortSymbol, symbol, timeAgo, 'Algoritmo Quant', s['direction'] ?? '', true, onTap: () => context.push('/signal/${s['id']}', extra: s)),
                 );
               }),
             const SizedBox(height: 24),

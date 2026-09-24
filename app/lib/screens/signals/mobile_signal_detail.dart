@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:k_chart/k_chart_widget.dart';
 import 'package:k_chart/flutter_k_chart.dart';
@@ -71,7 +72,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
         elevation: 0,
         title: Text('Aprobación L2', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 14)),
         centerTitle: true,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary), onPressed: () { if (context.canPop()) context.pop(); else context.go('/dashboard'); }),
       ),
       body: Stack(
         children: [
@@ -200,7 +201,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                             } else {
                                AppToast.showError(context, 'Rechazado: ${data['message']}');
                             }
-                            Navigator.pop(context);
+                            if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
                           } else {
                             AppToast.showError(context, 'Error al ejecutar');
                           }
@@ -375,7 +376,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
       final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard', body: {'reason': reason});
       if (res.statusCode == 200) {
         AppToast.showInfo(context, 'Trade descartado');
-        Navigator.pop(context);
+        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
       } else {
         AppToast.showError(context, 'Error al descartar');
       }

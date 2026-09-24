@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:k_chart/k_chart_widget.dart';
 import 'package:k_chart/flutter_k_chart.dart';
@@ -73,7 +74,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
         title: Text('${widget.signal['symbol']} - Terminal Cuantitativa L2', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 16)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () { if (context.canPop()) context.pop(); else context.go('/dashboard'); },
         ),
       ),
       body: Padding(
@@ -325,7 +326,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                   } else {
                      AppToast.showError(context, 'Rechazado: ${data['message']}');
                   }
-                  Navigator.pop(context);
+                  if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
                 } else {
                   AppToast.showError(context, 'Error al ejecutar');
                 }
@@ -357,7 +358,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
       final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard', body: {'reason': reason});
       if (res.statusCode == 200) {
         AppToast.showInfo(context, 'Trade descartado');
-        Navigator.pop(context);
+        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
       } else {
         AppToast.showError(context, 'Error al descartar');
       }

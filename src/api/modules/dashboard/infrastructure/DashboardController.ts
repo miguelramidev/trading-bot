@@ -114,12 +114,7 @@ dashboardRouter.get("/", async (c) => {
       freeBalance,
       usedBalance,
       signals: signals.map(s => ({
-        id: s.id,
-        symbol: s.symbol,
-        direction: s.direction,
-        evaluatedAt: s.evaluatedAt,
-        decision: s.decision,
-        isActiveTrade: s.isActiveTrade
+        ...s
       })),
       chartData,
     });

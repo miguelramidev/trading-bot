@@ -74,7 +74,10 @@ final GoRouter _router = GoRouter(
           routes: [
             GoRoute(
               path: '/history',
-              builder: (context, state) => const HistoryScreen(),
+              builder: (context, state) {
+                final pageStr = state.uri.queryParameters['page'] ?? '1';
+                return HistoryScreen(initialPage: int.tryParse(pageStr) ?? 1);
+              }
             ),
           ],
         ),

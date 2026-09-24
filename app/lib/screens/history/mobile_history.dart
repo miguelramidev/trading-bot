@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -5,8 +6,9 @@ import 'package:intl/intl.dart';
 class MobileHistory extends StatefulWidget {
   final Map<String, dynamic>? stats;
   final List<dynamic> trades;
+  final Map<String, dynamic>? pagination;
 
-  const MobileHistory({super.key, required this.stats, required this.trades});
+  const MobileHistory({super.key, required this.stats, required this.trades, this.pagination});
 
   @override
   State<MobileHistory> createState() => _MobileHistoryState();
@@ -95,6 +97,7 @@ class _MobileHistoryState extends State<MobileHistory> {
               childCount: filteredTrades.length,
             ),
           ),
+          SliverToBoxAdapter(child: _buildPagination()),
           const SliverToBoxAdapter(child: SizedBox(height: 32)),
         ],
       ),
@@ -254,4 +257,29 @@ class _MobileHistoryState extends State<MobileHistory> {
       ),
     );
   }
+
+  Widget _buildPagination() {
+    if (widget.pagination == null) return const SizedBox();
+    final int currentPage = widget.pagination!['page'] ?? 1;
+    final int totalPages = widget.pagination!['totalPages'] ?? 1;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+            onPressed: currentPage > 1 ? () => context.go('/history?page=${currentPage - 1}') : null,
+          ),
+          Text('Página $currentPage de $totalPages', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          IconButton(
+            icon: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
+            onPressed: currentPage < totalPages ? () => context.go('/history?page=${currentPage + 1}') : null,
+          ),
+        ],
+      ),
+    );
+  }
+
 }

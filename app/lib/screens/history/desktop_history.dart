@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -5,8 +6,9 @@ import 'package:intl/intl.dart';
 class DesktopHistory extends StatefulWidget {
   final Map<String, dynamic>? stats;
   final List<dynamic> trades;
+  final Map<String, dynamic>? pagination;
 
-  const DesktopHistory({super.key, required this.stats, required this.trades});
+  const DesktopHistory({super.key, required this.stats, required this.trades, this.pagination});
 
   @override
   State<DesktopHistory> createState() => _DesktopHistoryState();
@@ -28,6 +30,8 @@ class _DesktopHistoryState extends State<DesktopHistory> {
                   _buildStatsRow(),
                   const SizedBox(height: 24),
                   _buildDataTable(),
+                  const SizedBox(height: 16),
+                  _buildPagination(),
                 ],
               ),
             ),
@@ -214,4 +218,40 @@ class _DesktopHistoryState extends State<DesktopHistory> {
       ),
     );
   }
+
+  Widget _buildPagination() {
+    if (widget.pagination == null) return const SizedBox();
+    final int currentPage = widget.pagination!['page'] ?? 1;
+    final int totalPages = widget.pagination!['totalPages'] ?? 1;
+    final int totalItems = widget.pagination!['total'] ?? 0;
+    final int limit = widget.pagination!['limit'] ?? 20;
+    
+    final int start = ((currentPage - 1) * limit) + 1;
+    final int end = (currentPage * limit) > totalItems ? totalItems : (currentPage * limit);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('Mostrando $start-$end de $totalItems ejecuciones', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+              onPressed: currentPage > 1 ? () => context.go('/history?page=${currentPage - 1}') : null,
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+              child: Text('$currentPage / $totalPages', style: const TextStyle(color: AppColors.textPrimary)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              onPressed: currentPage < totalPages ? () => context.go('/history?page=${currentPage + 1}') : null,
+            ),
+          ],
+        )
+      ],
+    );
+  }
+
 }

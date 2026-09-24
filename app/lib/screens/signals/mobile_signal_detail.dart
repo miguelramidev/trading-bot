@@ -359,7 +359,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
         children: [
           const Text('Resumen Cuantitativo', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          _infoRow('Estrategia', 'MACD + VWAP'),
+          _infoRow('Estrategia', widget.signal['strategy'] ?? 'MACD + VWAP'),
           const Divider(color: AppColors.border, height: 24),
           Row(
             children: [
@@ -371,7 +371,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           const Divider(color: AppColors.border, height: 24),
           const Text('RAZÓN DEL TRADE (SÍNTESIS)', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 8),
-          const Text('Divergencia alcista confirmada en 15m con absorción institucional de liquidez en soporte semanal y correlación positiva con rebote en BTC/USDT.', style: TextStyle(color: AppColors.textSecondary, height: 1.5, fontSize: 12)),
+          Text(widget.signal['reason'] ?? 'Sin razón analítica específica.', style: const TextStyle(color: AppColors.textSecondary, height: 1.5, fontSize: 12)),
         ],
       ),
     );

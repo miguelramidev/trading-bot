@@ -323,6 +323,33 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
     );
   }
 
+  String _getSignalStatus() {
+    final decision = widget.signal['decision'];
+    final isActive = widget.signal['isActiveTrade'] ?? false;
+    
+    if (decision == 'Tomada') {
+      return isActive ? 'YA SE OPERÓ (ACTIVA)' : 'YA TERMINÓ';
+    } else if (decision == 'Descartada') {
+      return 'DESCARTADA';
+    } else {
+      if (widget.signal['evaluatedAt'] != null) {
+        final evalTime = DateTime.parse(widget.signal['evaluatedAt']);
+        if (DateTime.now().toUtc().difference(evalTime).inMinutes > 60) {
+          return 'EXPIRADA';
+        }
+      }
+      return 'PENDIENTE DE DECISIÓN';
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    if (status.contains('ACTIVA')) return AppColors.winGreen;
+    if (status.contains('TERMINÓ')) return Colors.blue;
+    if (status == 'DESCARTADA') return AppColors.lossRed;
+    if (status == 'EXPIRADA') return Colors.grey;
+    return Colors.orange; // PENDIENTE
+  }
+
   Widget _buildInfoPanel() {
     return Container(
       padding: const EdgeInsets.all(16),

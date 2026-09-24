@@ -186,7 +186,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
               const SizedBox(width: 24),
               Row(
                 children: [
-                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
+                  Container(width: 6, height: 6, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
                   Text('Mercados en vivo • Conexión FIX 4.4', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11)),
                 ],
@@ -463,7 +463,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
               final dir = s['direction'] ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, onTap: () => context.push('/signal/${s['id']}', extra: s)),
+                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, _getSignalStatusColor(s), onTap: () => context.push('/signal/${s['id']}', extra: s)),
               );
             }),
         ],
@@ -471,7 +471,26 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
     );
   }
 
-  Widget _signalRow(String title, String subtitle, String time, {VoidCallback? onTap}) {
+  Color _getSignalStatusColor(Map<String, dynamic> signal) {
+    final decision = signal['decision'];
+    final isActive = signal['isActiveTrade'] ?? false;
+    
+    if (decision == 'Tomada') {
+      return isActive ? AppColors.winGreen : Colors.blue;
+    } else if (decision == 'Descartada') {
+      return AppColors.lossRed;
+    } else {
+      if (signal['evaluatedAt'] != null) {
+        final evalTime = DateTime.parse(signal['evaluatedAt']);
+        if (DateTime.now().toUtc().difference(evalTime).inMinutes > 60) {
+          return Colors.grey;
+        }
+      }
+      return Colors.orange; // Pendiente
+    }
+  }
+
+  Widget _signalRow(String title, String subtitle, String time, Color statusColor, {VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(

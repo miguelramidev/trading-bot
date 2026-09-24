@@ -230,6 +230,33 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
     );
   }
 
+  String _getSignalStatus() {
+    final decision = widget.signal['decision'];
+    final isActive = widget.signal['isActiveTrade'] ?? false;
+    
+    if (decision == 'Tomada') {
+      return isActive ? 'YA SE OPERÓ (ACTIVA)' : 'YA TERMINÓ';
+    } else if (decision == 'Descartada') {
+      return 'DESCARTADA';
+    } else {
+      if (widget.signal['evaluatedAt'] != null) {
+        final evalTime = DateTime.parse(widget.signal['evaluatedAt']);
+        if (DateTime.now().toUtc().difference(evalTime).inMinutes > 60) {
+          return 'EXPIRADA';
+        }
+      }
+      return 'PENDIENTE DE DECISIÓN';
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    if (status.contains('ACTIVA')) return AppColors.winGreen;
+    if (status.contains('TERMINÓ')) return Colors.blue;
+    if (status == 'DESCARTADA') return AppColors.lossRed;
+    if (status == 'EXPIRADA') return Colors.grey;
+    return Colors.orange; // PENDIENTE
+  }
+
   Widget _buildInfoPanel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,11 +284,35 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
           ),
         ),
         const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: OutlinedButton(
-            onPressed: () {
+        Builder(builder: (context) {
+          final status = _getSignalStatus();
+          final statusColor = _getStatusColor(status);
+          final isPending = status == 'PENDIENTE DE DECISIÓN';
+          
+          return Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusColor),
+                ),
+                child: Center(
+                  child: Text(
+                    'ESTADO: $status',
+                    style: AppTheme.monoStyle.copyWith(color: statusColor, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              if (isPending) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton(
+                    onPressed: () {
               final reasonController = TextEditingController();
               showDialog(
                 context: context,
@@ -339,6 +390,10 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
             label: const Text('Operar Ahora', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),
+              ]
+            ],
+          );
+        }),
       ],
     );
   }

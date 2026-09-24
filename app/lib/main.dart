@@ -1,4 +1,4 @@
-import 'package:trading_bot/screens/history/history_screen.dart';
+import 'screens/history/history_screen.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:toastification/toastification.dart';
 import 'package:flutter/material.dart';

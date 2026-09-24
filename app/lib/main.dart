@@ -4,6 +4,7 @@ import 'package:toastification/toastification.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
@@ -21,9 +22,26 @@ import 'providers/dashboard_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy(); // <-- Remueve el '#' de la URL
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Escuchar mensajes en primer plano (Foreground)
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    if (message.notification != null) {
+      toastification.show(
+        title: Text(message.notification!.title ?? 'MacroQuant Alerta', style: const TextStyle(fontWeight: FontWeight.bold)),
+        description: Text(message.notification!.body ?? ''),
+        type: ToastificationType.info,
+        style: ToastificationStyle.flat,
+        autoCloseDuration: const Duration(seconds: 5),
+        alignment: Alignment.topRight,
+        showProgressBar: false,
+      );
+    }
+  });
+
   runApp(
     MultiProvider(
       providers: [

@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -49,9 +50,41 @@ class AuthService {
               'name': fbUser.displayName ?? 'Trader',
           });
 
+
           if (response.statusCode == 200) {
             print('✅ Usuario sincronizado con éxito en la DB.');
+            
+            // 6. Configurar Firebase Cloud Messaging
+            try {
+              // Solicitar permisos nativos de notificación
+              NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
+                alert: true,
+                badge: true,
+                sound: true,
+              );
+              
+              if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+                // Obtener el token del dispositivo
+                // Para Web, necesitas especificar el vapidKey en getToken(vapidKey: "...")
+                // TODO: Reemplaza "TU_VAPID_KEY_AQUI" por el Keypair de Firebase -> Cloud Messaging -> Web configuration
+                String? fcmToken = await FirebaseMessaging.instance.getToken(
+                  vapidKey: kIsWeb ? "TU_VAPID_KEY_AQUI" : null
+                );
+                if (fcmToken != null) {
+                  // Guardarlo en el backend
+                  final fcmResponse = await ApiClient.post('/api/users/fcm-token', body: {
+                    'token': fcmToken
+                  }, requiresAuth: true);
+                  if (fcmResponse.statusCode == 200) {
+                     print('✅ FCM Token guardado exitosamente.');
+                  }
+                }
+              }
+            } catch (e) {
+              print('⚠️ No se pudo inicializar FCM: $e');
+            }
           } else {
+
             print('⚠️ Error al sincronizar usuario: ${response.body}');
           }
         } catch (syncError) {

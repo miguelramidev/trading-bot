@@ -19,7 +19,8 @@ export default $config({
     const DATABASE_URL = new sst.Secret("DATABASE_URL");
     const BINANCE_API_KEY = new sst.Secret("BINANCE_API_KEY");
     const BINANCE_API_SECRET = new sst.Secret("BINANCE_API_SECRET");
-    const ALL_SECRETS = [TELEGRAM_TOKEN, DATABASE_URL, BINANCE_API_KEY, BINANCE_API_SECRET];
+    const FIREBASE_SERVICE_ACCOUNT_B64 = new sst.Secret("FIREBASE_SERVICE_ACCOUNT_B64");
+    const ALL_SECRETS = [TELEGRAM_TOKEN, DATABASE_URL, BINANCE_API_KEY, BINANCE_API_SECRET, FIREBASE_SERVICE_ACCOUNT_B64];
 
     // 1. API Gateway para el Webhook de Telegram
     const webhookApi = new sst.aws.ApiGatewayV2("TelegramWebhook");

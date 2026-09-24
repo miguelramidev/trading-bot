@@ -137,3 +137,30 @@ usersRouter.put(
     }
   }
 );
+
+
+// POST /api/users/fcm-token
+usersRouter.post(
+  "/fcm-token",
+  zValidator("json", z.object({
+    token: z.string(),
+  })),
+  async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    const firebaseUid = authHeader.split(" ")[1];
+    const { token } = c.req.valid("json");
+
+    try {
+      await db.update(userConfig)
+        .set({ fcmToken: token, updatedAt: new Date() })
+        .where(eq(userConfig.firebaseUid, firebaseUid));
+
+      return c.json({ success: true, message: "FCM token updated successfully" });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  }
+);

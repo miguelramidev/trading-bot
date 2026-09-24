@@ -17,6 +17,7 @@ export const userConfig = pgTable("user_config", {
   isPaused: boolean("is_paused").default(false).notNull(),
   leverage: integer("leverage").default(1).notNull(),
   pendingSignalId: integer("pending_signal_id").references(() => signalHistory.id),
+  fcmToken: text("fcm_token"), // Token para Notificaciones Push (Web/Android)
   startingBalance: text("starting_balance").default("41.78"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -22,6 +22,7 @@
     "ccxt": "^4.5.76",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "firebase-admin": "^14.5.0",
     "hono": "^4.13.8",
     "jimp": "^1.6.1",
     "protobufjs": "^7.6.6",

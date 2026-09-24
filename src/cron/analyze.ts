@@ -1,4 +1,5 @@
 import { Telegraf } from "telegraf";
+import { sendPushNotification } from "../firebase.js";
 import { eq, and, desc, gte } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { signalHistory, userConfig } from "../db/schema.js";
@@ -104,6 +105,14 @@ async function runAnalysis(timeframe: string) {
           const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
 
           for (const user of users) {
+            if (user.fcmToken) {
+              await sendPushNotification(
+                user.fcmToken,
+                `Trade Cerrado: ${trade.symbol}`,
+                `Resultado: ${closeReason} | Salida: ${currentPrice}`,
+                { tradeId: String(trade.id), symbol: trade.symbol }
+              );
+            }
             if (user.chatId) await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" });
           }
         } else if (trade.decision === "Descartada") {
@@ -535,6 +544,14 @@ async function runAnalysis(timeframe: string) {
           `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
 
         for (const user of activeUsers) {
+          if (user.fcmToken) {
+            await sendPushNotification(
+              user.fcmToken,
+              `Nueva Señal: ${signal.direction} en ${signal.symbol}`,
+              `Estrategia: ${signal.strategy} | SL: ${signal.stopLoss} | TP: ${signal.takeProfit}`,
+              { signalId: String(signalId), symbol: signal.symbol }
+            );
+          }
           if (user.chatId) {
             await bot.telegram.sendMessage(user.chatId, msg, {
               parse_mode: "HTML",

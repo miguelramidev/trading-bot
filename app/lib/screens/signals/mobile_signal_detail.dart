@@ -21,9 +21,8 @@ class MobileSignalDetail extends StatefulWidget {
 
 class _MobileSignalDetailState extends State<MobileSignalDetail> {
   List<KLineEntity> candles = [];
-  List<KLineEntity> btcCandles = [];
-  List<KLineEntity> ethCandles = [];
-  List<KLineEntity> macroCandles = [];
+  List<KLineEntity> macro4hCandles = [];
+  List<KLineEntity> btc1dCandles = [];
   bool isLoading = true;
 
   @override
@@ -38,22 +37,19 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
       
       final responses = await Future.wait([
         ApiClient.get('/api/market/klines?symbol=$symbol&interval=15m&limit=100'),
-        ApiClient.get('/api/market/klines?symbol=BTCUSDT&interval=15m&limit=100'),
-        ApiClient.get('/api/market/klines?symbol=ETHUSDT&interval=15m&limit=100'),
         ApiClient.get('/api/market/klines?symbol=$symbol&interval=4h&limit=100'),
+        ApiClient.get('/api/market/klines?symbol=BTCUSDT&interval=1d&limit=100'),
       ]);
 
       if (responses[0].statusCode == 200) {
         setState(() {
           candles = (jsonDecode(responses[0].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          btcCandles = (jsonDecode(responses[1].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          ethCandles = (jsonDecode(responses[2].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          macroCandles = (jsonDecode(responses[3].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          macro4hCandles = (jsonDecode(responses[1].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          btc1dCandles = (jsonDecode(responses[2].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
           
           DataUtil.calculate(candles);
-          DataUtil.calculate(btcCandles);
-          DataUtil.calculate(ethCandles);
-          DataUtil.calculate(macroCandles);
+          DataUtil.calculate(macro4hCandles);
+          DataUtil.calculate(btc1dCandles);
           isLoading = false;
         });
       }

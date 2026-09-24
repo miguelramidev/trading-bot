@@ -22,6 +22,7 @@ class MobileSignalDetail extends StatefulWidget {
 class _MobileSignalDetailState extends State<MobileSignalDetail> {
   List<KLineEntity> candles = [];
   List<KLineEntity> macro4hCandles = [];
+  List<KLineEntity> macro1dCandles = [];
   List<KLineEntity> btc1dCandles = [];
   bool isLoading = true;
 
@@ -38,6 +39,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
       final responses = await Future.wait([
         ApiClient.get('/api/market/klines?symbol=$symbol&interval=15m&limit=100'),
         ApiClient.get('/api/market/klines?symbol=$symbol&interval=4h&limit=100'),
+        ApiClient.get('/api/market/klines?symbol=$symbol&interval=1d&limit=100'),
         ApiClient.get('/api/market/klines?symbol=BTCUSDT&interval=1d&limit=100'),
       ]);
 
@@ -45,10 +47,12 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
         setState(() {
           candles = (jsonDecode(responses[0].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
           macro4hCandles = (jsonDecode(responses[1].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          btc1dCandles = (jsonDecode(responses[2].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          macro1dCandles = (jsonDecode(responses[2].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          btc1dCandles = (jsonDecode(responses[3].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
           
           DataUtil.calculate(candles);
           DataUtil.calculate(macro4hCandles);
+          DataUtil.calculate(macro1dCandles);
           DataUtil.calculate(btc1dCandles);
           isLoading = false;
         });
@@ -243,7 +247,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
 
   Widget _buildCandleMiniChart(String title, List<KLineEntity> data) {
     return Container(
-      height: 200, // Mayor visibilidad
+      height: 350, // Maxima visibilidad
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
       child: Column(

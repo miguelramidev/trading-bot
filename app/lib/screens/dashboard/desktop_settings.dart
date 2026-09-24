@@ -24,7 +24,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   final _apiKeyController = TextEditingController();
   final _apiSecretController = TextEditingController();
   final _amountController = TextEditingController(text: '25.00');
-  final _tradesController = TextEditingController(text: '5');
+  final _OperacionesController = TextEditingController(text: '5');
   final _leverageController = TextEditingController(text: '10');
   bool _isSaving = false;
   bool _isGeneratingKeys = false;
@@ -112,7 +112,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           'binanceApiKey': _apiKeyController.text,
           'binanceApiSecret': _apiSecretController.text,
           'montoOperacion': int.tryParse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 25,
-          'maxTrades': int.tryParse(_tradesController.text) ?? 5,
+          'maxOperaciones': int.tryParse(_OperacionesController.text) ?? 5,
           'apalancamiento': int.tryParse(_leverageController.text) ?? 10,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
@@ -162,7 +162,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       backgroundColor: AppColors.background,
       body: Row(
         children: [
-          _buildSidebar(context),
           Expanded(
             child: Column(
               children: [
@@ -234,7 +233,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           const SizedBox(height: 8),
           Text('L2•ZRH', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 9, fontWeight: FontWeight.bold)),
           const SizedBox(height: 48),
-          GestureDetector(onTap: () => Navigator.pushReplacementNamed(context, '/dashboard'), child: _sidebarIcon(Icons.grid_view, 'INICIO', false)),
+          GestureDetector(onTap: () => Navigator.pushReplacementNamed(context, '/Inicio'), child: _sidebarIcon(Icons.grid_view, 'INICIO', false)),
           const SizedBox(height: 32),
           _sidebarIcon(Icons.show_chart, 'HISTORIAL', false),
           const SizedBox(height: 32),
@@ -352,7 +351,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           const SizedBox(height: 24),
           _editableField('Monto por Operación (\$)', 'USDT', _amountController),
           const SizedBox(height: 16),
-          _editableField('Límite de Trades Simultáneos', 'Trades', _tradesController),
+          _editableField('Límite de Operaciones Simultáneos', 'Operaciones', _OperacionesController),
           const SizedBox(height: 16),
           _editableField('Max Leverage (Apalancamiento)', 'x', _leverageController),
           const SizedBox(height: 16),
@@ -451,7 +450,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Binance API Key', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          const Text('CLAVE API DE BINANCE', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           const SizedBox(height: 8),
           TextField(
             controller: _apiKeyController,

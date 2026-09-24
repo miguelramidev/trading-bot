@@ -103,3 +103,4 @@
 * [ ] **Rotar Contraseña de Neon DB:** El password antiguo (`npg_ZBwFUEKR82AN...`) fue revocado/expuesto por GitHub. Acceder a [console.neon.tech](https://console.neon.tech), generar una nueva contraseña para el rol `neondb_owner`.
 * [ ] **Actualizar Entorno Local:** Cambiar la variable `DATABASE_URL` en el archivo `.env` del repositorio local.
 * [ ] **Actualizar Entorno AWS/SST:** Actualizar los secretos/variables de entorno de SST y volver a hacer deploy si es necesario para que el bot y el dashboard vuelvan a conectarse a la base de datos de Neon.
+

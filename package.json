@@ -23,6 +23,7 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.8",
+    "jimp": "^1.6.1",
     "protobufjs": "^7.6.6",
     "telegraf": "^4.16.3",
     "zod": "^4.6.5"

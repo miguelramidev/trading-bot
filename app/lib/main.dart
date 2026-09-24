@@ -7,8 +7,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'screens/login_screen.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/main_screen.dart';
 import 'screens/dashboard/settings_screen.dart';
+
+import 'package:provider/provider.dart';
+import 'providers/dashboard_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +19,14 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MacroQuantApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => DashboardProvider()),
+      ],
+      child: const MacroQuantApp(),
+    ),
+  );
 }
 
 class MacroQuantApp extends StatelessWidget {
@@ -50,7 +60,7 @@ class MacroQuantApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
-        '/dashboard': (context) => const DashboardScreen(),
+        '/dashboard': (context) => const MainScreen(),
         '/settings': (context) => const SettingsScreen(),
       },
       // home: const AuthWrapper(),
@@ -95,7 +105,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // En Web, no usamos biometría (FaceID/Huella), así que lo pasamos directamente al Dashboard
         if (kIsWeb) {
-          return DashboardScreen();
+          return MainScreen();
         }
 
         if (!_isLocallyAuthenticated) {
@@ -106,7 +116,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         // Si ya está logueado en Firebase Y pasó la biometría
-        return DashboardScreen();
+        return MainScreen();
       },
     );
   }

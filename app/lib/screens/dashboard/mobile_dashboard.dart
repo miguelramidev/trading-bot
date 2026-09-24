@@ -1,4 +1,5 @@
 import 'settings_screen.dart';
+import '../signals/signal_detail_screen.dart';
 import '../dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -131,7 +132,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                 final shortSymbol = symbol.length >= 3 ? symbol.substring(0, 3) : symbol;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildSignalCard(shortSymbol, symbol, timeAgo, 'Algoritmo Quant', s['direction'] ?? '', true),
+                  child: _buildSignalCard(shortSymbol, symbol, timeAgo, 'Algoritmo Quant', s['direction'] ?? '', true, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SignalDetailScreen(signal: s)))),
                 );
               }),
             const SizedBox(height: 24),
@@ -139,7 +140,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
+      
     );
   }
 
@@ -409,9 +410,11 @@ class _MobileDashboardState extends State<MobileDashboard> {
     );
   }
 
-  Widget _buildSignalCard(String avatarTxt, String title, String time, String desc, String status, bool isSuccess) {
+  Widget _buildSignalCard(String avatarTxt, String title, String time, String desc, String status, bool isSuccess, {VoidCallback? onTap}) {
     final color = isSuccess ? AppColors.winGreen : AppColors.textSecondary;
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -455,6 +458,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
             ),
           )
         ],
+      ),
       ),
     );
   }
@@ -512,3 +516,8 @@ class _MobileDashboardState extends State<MobileDashboard> {
     }
   }
 }
+
+
+
+
+

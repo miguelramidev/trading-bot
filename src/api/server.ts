@@ -3,6 +3,7 @@ import { handle } from "hono/aws-lambda";
 import { signalsRouter } from "./modules/signals/infrastructure/SignalController.js";
 import { usersRouter } from "./modules/users/infrastructure/UserController.js";
 import { dashboardRouter } from "./modules/dashboard/infrastructure/DashboardController.js";
+import { marketRouter } from "./modules/market/infrastructure/MarketController.js";
 
 const app = new Hono();
 
@@ -24,6 +25,8 @@ app.get("/", (c) => c.json({ status: "ok", service: "Trading Bot API" }));
 app.route("/api/signals", signalsRouter);
 app.route("/api/users", usersRouter);
 app.route("/api/dashboard", dashboardRouter);
+app.route("/api/market", marketRouter);
 
 // Handler for AWS Lambda (ApiGatewayV2)
 export const handler = handle(app);
+

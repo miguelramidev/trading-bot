@@ -1,0 +1,247 @@
+import 'package:flutter/material.dart';
+import 'package:k_chart/k_chart_widget.dart';
+import 'package:k_chart/flutter_k_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
+import 'package:fl_chart/fl_chart.dart';
+
+class DesktopSignalDetail extends StatefulWidget {
+  final Map<String, dynamic> signal;
+
+  const DesktopSignalDetail({super.key, required this.signal});
+
+  @override
+  State<DesktopSignalDetail> createState() => _DesktopSignalDetailState();
+}
+
+class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
+  List<KLineEntity> candles = [];
+  bool themeIsDark = true;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCandles();
+  }
+
+  Future<void> _fetchCandles() async {
+    try {
+      final symbol = (widget.signal['symbol'] ?? 'SOLUSDT').replaceAll('/', '');
+      final res = await http.get(Uri.parse('https://api.binance.com/api/v3/klines?symbol=$symbol&interval=15m&limit=100'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as List;
+        setState(() {
+          candles = data.map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          DataUtil.calculate(candles);
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        title: Text('${widget.signal['symbol']} - Terminal Cuantitativa L2', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 16)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // LEFT COLUMN: Chart + Matriz
+            Expanded(
+              flex: 7,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                      clipBehavior: Clip.hardEdge,
+                      child: isLoading 
+                        ? const Center(child: CircularProgressIndicator(color: AppColors.winGreen))
+                        : KChartWidget(
+                              candles,
+                              ChartStyle(),
+                              ChartColors()..bgColor = [AppColors.surface, AppColors.surface]
+                                           ..upColor = AppColors.winGreen
+                                           ..dnColor = AppColors.lossRed,
+                              isLine: false,
+                              isTrendLine: false,
+                              mainState: MainState.MA,
+                              secondaryState: SecondaryState.MACD,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildMiniChart('15m MACD', '+0.42', Colors.teal)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildMiniChart('4H RSI', '68.2', Colors.blue)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildMiniChart('1D Corr. BTC', '+0.89', Colors.purple)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            // RIGHT COLUMN: Info
+            Expanded(
+              flex: 3,
+              child: SingleChildScrollView(
+                child: _buildInfoPanel(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final dir = widget.signal['direction'] ?? 'LONG';
+    final isLong = dir.toUpperCase() == 'LONG';
+    return Row(
+      children: [
+        Text(widget.signal['symbol'] ?? 'SOL/USDT', style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold)),
+        const SizedBox(width: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(color: (isLong ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: (isLong ? AppColors.winGreen : AppColors.lossRed))),
+          child: Text('SEÑAL $dir', style: AppTheme.monoStyle.copyWith(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontWeight: FontWeight.bold)),
+        ),
+        const Spacer(),
+        Text('\$${widget.signal['price'] ?? '0.00'}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _buildMiniChart(String title, String value, Color color) {
+    return Container(
+      height: 120,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
+              Text(value, style: AppTheme.monoStyle.copyWith(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const Spacer(),
+          SizedBox(
+            height: 40,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(show: false),
+                titlesData: FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: const [FlSpot(0, 1), FlSpot(1, 1.5), FlSpot(2, 1.4), FlSpot(3, 2), FlSpot(4, 2.2)],
+                    isCurved: true,
+                    color: color,
+                    barWidth: 2,
+                    dotData: FlDotData(show: false),
+                    belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Resumen Cuantitativo', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              _infoRow('Estrategia', 'MACD Zero-Cross + Rotura VWAP'),
+              const SizedBox(height: 16),
+              _infoRow('Modelo', 'Alpha-Momentum v4.2', valueColor: AppColors.winGreen),
+              const Divider(color: AppColors.border, height: 32),
+              _infoRow('Stop Loss', '\$${widget.signal['stopLoss'] ?? '0.00'}', valueColor: AppColors.lossRed),
+              const SizedBox(height: 16),
+              _infoRow('Take Profit', '\$${widget.signal['takeProfit'] ?? '0.00'}', valueColor: AppColors.winGreen),
+              const Divider(color: AppColors.border, height: 32),
+              const Text('RAZÓN ANALÍTICA SINTETIZADA', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
+              const SizedBox(height: 8),
+              const Text('Divergencia alcista confirmada en marco 15m con absorción de liquidez institucional en soporte semanal y correlación positiva con rebote en BTC/USDT.', style: TextStyle(color: AppColors.textSecondary, height: 1.5)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text('Descartar Señal', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              // Lógica para operar
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.winGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            icon: const Icon(Icons.flash_on, color: Colors.black),
+            label: const Text('Operar Ahora', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoRow(String label, String value, {Color valueColor = AppColors.textPrimary}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+        Text(value, style: AppTheme.monoStyle.copyWith(color: valueColor, fontWeight: FontWeight.bold, fontSize: 14)),
+      ],
+    );
+  }
+}
+
+
+
+
+
+

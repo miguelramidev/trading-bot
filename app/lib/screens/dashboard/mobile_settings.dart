@@ -21,7 +21,7 @@ class MobileSettings extends StatefulWidget {
 class _MobileSettingsState extends State<MobileSettings> {
   final _apiKeyController = TextEditingController();
   final _amountController = TextEditingController(text: '25.00');
-  final _tradesController = TextEditingController(text: '5');
+  final _OperacionesController = TextEditingController(text: '5');
   final _leverageController = TextEditingController(text: '10');
   bool _isSaving = false;
   bool _isGeneratingKeys = false;
@@ -108,7 +108,7 @@ class _MobileSettingsState extends State<MobileSettings> {
         body: jsonEncode({
           'binanceApiKey': _apiKeyController.text,
           'montoOperacion': int.tryParse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 25,
-          'maxTrades': int.tryParse(_tradesController.text) ?? 5,
+          'maxOperaciones': int.tryParse(_OperacionesController.text) ?? 5,
           'apalancamiento': int.tryParse(_leverageController.text) ?? 10,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
@@ -180,7 +180,7 @@ class _MobileSettingsState extends State<MobileSettings> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Master Switch (Bot ON/OFF)', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text('Interruptor Principal (Bot ON/OFF)', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                             SizedBox(height: 4),
                             Text('SISTEMA ACTIVO / EN LÍNEA', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                           ],
@@ -210,15 +210,11 @@ class _MobileSettingsState extends State<MobileSettings> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _editableRow('Monto Fijo por Operación', '\$', 'USDT', _amountController),
-                  const Divider(color: AppColors.border, height: 32),
-                  Row(
-                    children: [
-                      Expanded(child: _editableRowVertical('OPERACIONES SIMULTÁNEAS', 'Trades', _tradesController)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _editableRowVertical('APALANCAMIENTO MÁX', 'x', _leverageController)),
-                    ],
-                  ),
+                  _fullWidthInput('Monto Fijo por Operación', '\$', 'USDT', _amountController),
+                  const SizedBox(height: 16),
+                  _fullWidthInput('Operaciones Simultáneas', '', 'Operaciones', _OperacionesController),
+                  const SizedBox(height: 16),
+                  _fullWidthInput('Apalancamiento Max', '', 'x', _leverageController),
                 ],
               ),
             ),
@@ -232,11 +228,11 @@ class _MobileSettingsState extends State<MobileSettings> {
                 children: [
                   _switchRow('Estrategia MACD', 'Divergencias y cruces de momentum en 15m/1h', _isMacdActive, (v) => setState(() => _isMacdActive = v)),
                   const Divider(color: AppColors.border, height: 24),
-                  _switchRow('Estrategia Fakeouts', 'Absorción de liquidez institucional en roturas', _isFakeoutActive, (v) => setState(() => _isFakeoutActive = v)),
+                  _switchRow('Estrategia de Rupturas Falsas', 'Absorción de liquidez institucional en roturas', _isFakeoutActive, (v) => setState(() => _isFakeoutActive = v)),
                   const Divider(color: AppColors.border, height: 24),
                   _switchRow('Filtro Inversión Macro', 'Sincronización con tendencia macro 1D BTC', _isMacroActive, (v) => setState(() => _isMacroActive = v)),
                   const Divider(color: AppColors.border, height: 24),
-                  _switchRow('Escudo Funding Rate', 'Descarte de trades con arbitraje negativo >0.01%', _isFundingActive, (v) => setState(() => _isFundingActive = v)),
+                  _switchRow('Escudo Tasa de Financiación', 'Descarte de Operaciones con arbitraje negativo >0.01%', _isFundingActive, (v) => setState(() => _isFundingActive = v)),
                 ],
               ),
             ),
@@ -301,7 +297,7 @@ class _MobileSettingsState extends State<MobileSettings> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text('BINANCE API KEY', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
+                  const Text('CLAVE API DE BINANCE', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _apiKeyController,
@@ -338,7 +334,6 @@ class _MobileSettingsState extends State<MobileSettings> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
@@ -368,60 +363,31 @@ class _MobileSettingsState extends State<MobileSettings> {
     );
   }
 
-  Widget _editableRow(String label, String prefix, String suffix, TextEditingController controller) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _fullWidthInput(String label, String prefix, String suffix, TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+        Text(label.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
+        const SizedBox(height: 8),
         SizedBox(
-          width: 120,
-          height: 44,
+          height: 48,
           child: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            textAlign: TextAlign.right,
             style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
             decoration: InputDecoration(
-              prefixText: prefix,
-              suffixText: ' '+suffix,
+              prefixText: prefix.isNotEmpty ? '$prefix ' : '',
+              suffixText: suffix.isNotEmpty ? ' $suffix' : '',
               prefixStyle: const TextStyle(color: AppColors.textSecondary),
               suffixStyle: const TextStyle(color: AppColors.textSecondary),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               filled: true,
               fillColor: AppColors.background,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
               enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
               focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.winGreen), borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _editableRowVertical(String label, String suffix, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 44,
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-            decoration: InputDecoration(
-              suffixText: suffix,
-              suffixStyle: const TextStyle(color: AppColors.textSecondary),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              filled: true,
-              fillColor: AppColors.background,
-              enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
-              focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.winGreen), borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        )
       ],
     );
   }
@@ -452,7 +418,7 @@ class _MobileSettingsState extends State<MobileSettings> {
       currentIndex: 2, // Ajustes
       onTap: (index) {
         if (index == 0) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          Navigator.pushReplacementNamed(context, '/Inicio');
         } else if (index == 2) {
           Navigator.pushReplacementNamed(context, '/settings');
         }
@@ -465,3 +431,5 @@ class _MobileSettingsState extends State<MobileSettings> {
     );
   }
 }
+
+

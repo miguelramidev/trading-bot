@@ -5,6 +5,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
+import '../core/utils/app_toast.dart';
 
 class LoginScreen extends StatefulWidget {
   final User? existingUser;
@@ -42,15 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (userCredential != null) {
         // La navegación se maneja automáticamente en main.dart gracias al StreamBuilder
         // que escucha los cambios de estado de autenticación.
+      } else {
+        if (mounted) {
+          AppToast.showInfo(context, 'Inicio de sesión cancelado o bloqueado por el sistema.');
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al iniciar sesión: $e'),
-            backgroundColor: AppColors.lossRed,
-          ),
-        );
+        AppToast.showError(context, 'Error al iniciar sesión: $e');
       }
     } finally {
       if (mounted) {
@@ -63,27 +63,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final isAvailable = await BiometricService.isBiometricAvailable();
     if (!isAvailable) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Biometría no disponible en este dispositivo.'),
-            backgroundColor: AppColors.lossRed,
-          ),
-        );
+        AppToast.showError(context, 'Biometría no disponible en este dispositivo.');
       }
       return;
     }
 
     final success = await BiometricService.authenticate();
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Autenticación biométrica exitosa. (Próximamente login anónimo o sesión guardada)'),
-          backgroundColor: AppColors.winGreen,
-        ),
-      );
-      // Aquí se podría enlazar con Firebase, 
-      // por ejemplo, usando auth.signInAnonymously() 
-      // o validando un token seguro almacenado localmente.
+      AppToast.showSuccess(context, 'Autenticación exitosa.');
+      if (widget.onBiometricSuccess != null) {
+        widget.onBiometricSuccess!();
+      }
     }
   }
 
@@ -336,44 +326,41 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          _buildGoogleButton(isDark: true),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              const Expanded(child: Divider(color: AppColors.border)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+          if (widget.existingUser == null)
+            _buildGoogleButton(isDark: true)
+          else ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _handleBiometricAuth,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.winGreen,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text('O VÍA CREDENCIAL', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary))
-                ),
-              ),
-              const Expanded(child: Divider(color: AppColors.border)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _handleBiometricAuth,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.fingerprint, color: AppColors.accentBlue, size: 20),
-                    const SizedBox(width: 12),
-                    Text('Face ID o Llave', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                  ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.fingerprint, color: Colors.black, size: 20),
+                      const SizedBox(width: 12),
+                      const Text('Verificar Identidad (Face ID)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () async {
+                await _authService.signOut();
+                // No necesitamos setState porque el StreamBuilder en main.dart reconstruirá la vista
+              },
+              child: Text('Cambiar de cuenta', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          ],
           const SizedBox(height: 32),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -439,38 +426,37 @@ class _LoginScreenState extends State<LoginScreen> {
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 40),
-          _buildGoogleButton(isDark: false),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              const Expanded(child: Divider(color: AppColors.border)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text('O PROCEDER VÍA', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-              ),
-              const Expanded(child: Divider(color: AppColors.border)),
-            ],
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _handleBiometricAuth,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.key_outlined, color: AppColors.winGreen, size: 20),
-                  const SizedBox(width: 12),
-                  Text('Hardware Key / SSO Institucional', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                ],
+          if (widget.existingUser == null)
+            _buildGoogleButton(isDark: false)
+          else ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _handleBiometricAuth,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.winGreen,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.key_outlined, color: Colors.black, size: 20),
+                    const SizedBox(width: 12),
+                    const Text('Hardware Key / SSO Institucional', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                  ],
+                ),
               ),
             ),
-          ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () async {
+                await _authService.signOut();
+              },
+              child: Text('Cambiar de cuenta', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          ],
           const SizedBox(height: 40),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -501,24 +487,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // --- Helpers ---
   Widget _buildLogoIcon() {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceHighlight.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.accentBlue.withOpacity(0.1),
-            blurRadius: 20,
-            spreadRadius: 2,
-          )
-        ]
-      ),
-      clipBehavior: Clip.antiAlias,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
       child: Image.asset(
-        'assets/images/logo.jpg',
+        'assets/images/logo.png',
+        width: 64,
+        height: 64,
         fit: BoxFit.cover,
       ),
     );

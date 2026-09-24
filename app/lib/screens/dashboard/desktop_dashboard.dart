@@ -2,6 +2,7 @@ import 'settings_screen.dart';
 import '../dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../signals/signal_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -463,7 +464,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
               final dir = s['direction'] ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo),
+                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SignalDetailScreen(signal: s)))),
               );
             }),
         ],
@@ -471,8 +472,10 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
     );
   }
 
-  Widget _signalRow(String title, String subtitle, String time) {
-    return Container(
+  Widget _signalRow(String title, String subtitle, String time, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
       child: Row(
@@ -491,7 +494,8 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
             ),
           ),
           Text(time, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11)),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -503,3 +507,6 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
     }
   }
 }
+
+
+

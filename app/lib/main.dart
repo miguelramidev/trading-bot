@@ -67,6 +67,19 @@ final GoRouter _router = GoRouter(
                     return SignalDetailScreen(signal: signal);
                   },
                 ),
+                GoRoute(
+                  path: 'trade/:id',
+                  pageBuilder: (context, state) {
+                    final trade = state.extra as Map<String, dynamic>? ?? {};
+                    return CustomTransitionPage(
+                      key: state.pageKey,
+                      child: TradeDetailScreen(trade: trade),
+                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
+                    );
+                  }
+                ),
               ],
             ),
           ],

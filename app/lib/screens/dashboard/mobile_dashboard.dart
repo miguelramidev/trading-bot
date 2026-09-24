@@ -114,6 +114,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                   p['size'].toString(),
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
                   "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",
+                  onTap: () => context.push('/dashboard/trade/${p["symbol"]}', extra: p),
                 ),
               )),
             const SizedBox(height: 32),

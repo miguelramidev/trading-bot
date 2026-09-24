@@ -132,7 +132,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                 final shortSymbol = symbol.length >= 3 ? symbol.substring(0, 3) : symbol;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildSignalCard(shortSymbol, symbol, timeAgo, 'Algoritmo Quant', s['direction'] ?? '', true, onTap: () => context.push('/signal/${s['id']}', extra: s)),
+                  child: _buildSignalCard(shortSymbol, symbol, timeAgo, 'Algoritmo Quant', s['direction'] ?? '', true, onTap: () async { await context.push('/signal/${s['id']}', extra: s); _fetchDashboardData(); }),
                 );
               }),
             const SizedBox(height: 24),

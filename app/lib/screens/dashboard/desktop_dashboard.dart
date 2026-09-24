@@ -463,7 +463,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
               final dir = s['direction'] ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, _getSignalStatusColor(s), onTap: () => context.push('/signal/${s['id']}', extra: s)),
+                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, _getSignalStatusColor(s), onTap: () async { await context.push('/signal/${s['id']}', extra: s); _fetchDashboardData(); }),
               );
             }),
         ],

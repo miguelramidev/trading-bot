@@ -1,7 +1,9 @@
-import 'package:go_router/go_router.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide DataColumn, DataRow, DataCell;
+import 'package:material_ui/material_ui.dart' as mui;
 import '../../core/theme/app_colors.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+import 'package:data_table_2/data_table_2.dart';
 
 class DesktopHistory extends StatefulWidget {
   final Map<String, dynamic>? stats;
@@ -23,13 +25,13 @@ class _DesktopHistoryState extends State<DesktopHistory> {
         children: [
           _buildHeader(),
           Expanded(
-            child: SingleChildScrollView(
+            child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
                   _buildStatsRow(),
                   const SizedBox(height: 24),
-                  _buildDataTable(),
+                  Expanded(child: _buildDataTable()),
                   const SizedBox(height: 16),
                   _buildPagination(),
                 ],
@@ -148,22 +150,24 @@ class _DesktopHistoryState extends State<DesktopHistory> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: DataTable(
+      child: DataTable2(
+        minWidth: 1000,
         headingTextStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold),
         dataTextStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
         dividerThickness: 1,
-        columnSpacing: 20,
+        columnSpacing: 12,
+        horizontalMargin: 12,
         columns: const [
-          DataColumn(label: Text('FECHA Y HORA (UTC)')),
-          DataColumn(label: Text('PAR / ACTIVO')),
-          DataColumn(label: Text('DIRECCIÓN')),
-          DataColumn(label: Text('APALANCAMIENTO')),
-          DataColumn(label: Text('ESTRATEGIA')),
-          DataColumn(label: Text('PRECIO ENTRADA')),
-          DataColumn(label: Text('PRECIO CIERRE')),
-          DataColumn(label: Text('ROI %')),
-          DataColumn(label: Text('PNL REALIZADO')),
-          DataColumn(label: Text('ESTADO')),
+          DataColumn2(label: Text('FECHA (UTC)'), size: ColumnSize.L),
+          DataColumn2(label: Text('PAR / ACTIVO'), size: ColumnSize.M),
+          DataColumn2(label: Text('DIRECCIÓN'), size: ColumnSize.S),
+          DataColumn2(label: Text('APALAN.'), size: ColumnSize.S),
+          DataColumn2(label: Text('ESTRATEGIA'), size: ColumnSize.L),
+          DataColumn2(label: Text('ENTRADA'), size: ColumnSize.M),
+          DataColumn2(label: Text('CIERRE'), size: ColumnSize.M),
+          DataColumn2(label: Text('ROI %'), size: ColumnSize.S),
+          DataColumn2(label: Text('PNL REALIZADO'), size: ColumnSize.M),
+          DataColumn2(label: Text('ESTADO'), size: ColumnSize.M),
         ],
         rows: widget.trades.map((trade) {
           final isLong = trade['direction'] == 'LONG';
@@ -185,10 +189,10 @@ class _DesktopHistoryState extends State<DesktopHistory> {
             dateStr = DateFormat('yyyy-MM-dd\nHH:mm:ss').format(date);
           }
 
-          return DataRow(
+          return mui.DataRow(
             cells: [
-              DataCell(Text(dateStr, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11))),
-              DataCell(Row(
+              mui.DataCell(Text(dateStr, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11))),
+              mui.DataCell(Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
@@ -196,18 +200,18 @@ class _DesktopHistoryState extends State<DesktopHistory> {
                   Text(trade['symbol'], style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
               )),
-              DataCell(Container(
+              mui.DataCell(Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: (isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed)).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                 child: Text(trade['direction'], style: TextStyle(color: isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed), fontSize: 11, fontWeight: FontWeight.bold)),
               )),
-              DataCell(Text('${trade['leverage']}x', style: const TextStyle(fontWeight: FontWeight.bold))),
-              DataCell(Text(trade['strategy'], style: const TextStyle(color: AppColors.textSecondary))),
-              DataCell(Text('\$${trade['entryPrice']}')),
-              DataCell(Text('\$${trade['exitPrice']}')),
-              DataCell(Text('${roiVal > 0 ? '+' : ''}${roiVal.toStringAsFixed(1)}%', style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold))),
-              DataCell(Text(pnlStr, style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold))),
-              DataCell(Container(
+              mui.DataCell(Text('${trade['leverage']}x', style: const TextStyle(fontWeight: FontWeight.bold))),
+              mui.DataCell(Text(trade['strategy'], style: const TextStyle(color: AppColors.textSecondary))),
+              mui.DataCell(Text('\$${trade['entryPrice']}')),
+              mui.DataCell(Text('\$${trade['exitPrice']}')),
+              mui.DataCell(Text('${roiVal > 0 ? '+' : ''}${roiVal.toStringAsFixed(1)}%', style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold))),
+              mui.DataCell(Text(pnlStr, style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold))),
+              mui.DataCell(Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                 child: Text(trade['status'], style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
@@ -253,5 +257,4 @@ class _DesktopHistoryState extends State<DesktopHistory> {
       ],
     );
   }
-
 }

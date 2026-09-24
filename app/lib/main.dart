@@ -1,3 +1,4 @@
+import 'package:trading_bot/screens/history/history_screen.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:toastification/toastification.dart';
 import 'package:flutter/material.dart';
@@ -73,7 +74,7 @@ final GoRouter _router = GoRouter(
           routes: [
             GoRoute(
               path: '/history',
-              builder: (context, state) => const Center(child: Text('Historial de Operaciones', style: TextStyle(color: Colors.white))),
+              builder: (context, state) => const HistoryScreen(),
             ),
           ],
         ),

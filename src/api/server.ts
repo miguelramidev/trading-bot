@@ -4,6 +4,7 @@ import { signalsRouter } from "./modules/signals/infrastructure/SignalController
 import { usersRouter } from "./modules/users/infrastructure/UserController.js";
 import { dashboardRouter } from "./modules/dashboard/infrastructure/DashboardController.js";
 import { marketRouter } from "./modules/market/infrastructure/MarketController.js";
+import { historyRouter } from "./modules/history/infrastructure/HistoryController.js";
 
 const app = new Hono();
 
@@ -26,6 +27,7 @@ app.route("/api/signals", signalsRouter);
 app.route("/api/users", usersRouter);
 app.route("/api/dashboard", dashboardRouter);
 app.route("/api/market", marketRouter);
+app.route("/api/history", historyRouter);
 
 // Handler for AWS Lambda (ApiGatewayV2)
 export const handler = handle(app);

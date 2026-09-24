@@ -124,8 +124,18 @@ signalsRouter.post(
       if (!signal) return c.json({ error: "Signal not found" }, 404);
       if (signal.decision) return c.json({ error: "Signal already processed" }, 400);
 
+      let reasonText = "Descartado vía Web Dashboard";
+      try {
+        const body = await c.req.json();
+        if (body && body.reason && body.reason.trim().length > 0) {
+            reasonText = body.reason.trim();
+        }
+      } catch (e) {
+        // Ignorar si no hay body JSON válido
+      }
+
       await db.update(signalHistory)
-        .set({ decision: "Descartada", reason: "Descartado vía Web Dashboard", isActiveTrade: true })
+        .set({ decision: "Descartada", reason: reasonText, isActiveTrade: true })
         .where(eq(signalHistory.id, id));
 
       return c.json({ status: "success", message: "Trade descartado" });

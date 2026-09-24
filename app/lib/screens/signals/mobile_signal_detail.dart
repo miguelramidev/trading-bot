@@ -120,18 +120,51 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () async {
-                        try {
-                          final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard');
-                          if (res.statusCode == 200) {
-                            AppToast.showInfo(context, 'Trade descartado');
-                            Navigator.pop(context);
-                          } else {
-                            AppToast.showError(context, 'Error al descartar');
-                          }
-                        } catch (e) {
-                          AppToast.showError(context, 'Error de conexión');
-                        }
+                      onPressed: () {
+                        final reasonController = TextEditingController();
+                        showDialog(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            backgroundColor: AppColors.surface,
+                            title: const Text('Descartar Trade', style: TextStyle(color: AppColors.textPrimary)),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('¿Por qué estás descartando esta señal? (Opcional)', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: reasonController,
+                                  style: const TextStyle(color: AppColors.textPrimary),
+                                  maxLines: 3,
+                                  decoration: InputDecoration(
+                                    hintText: 'Ej: No me gusta la vela, mucha volatilidad, etc.',
+                                    hintStyle: const TextStyle(color: AppColors.textSecondary),
+                                    filled: true,
+                                    fillColor: AppColors.background,
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () async {
+                                  Navigator.pop(dialogContext);
+                                  _executeDiscard(context, '');
+                                },
+                                child: const Text('Omitir', style: TextStyle(color: AppColors.textSecondary)),
+                              ),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  Navigator.pop(dialogContext);
+                                  _executeDiscard(context, reasonController.text);
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.lossRed),
+                                child: const Text('Descartar', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        );
                       },
                       style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 18),
@@ -284,6 +317,20 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
         Text(value, style: AppTheme.monoStyle.copyWith(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
       ],
     );
+  }
+
+  Future<void> _executeDiscard(BuildContext context, String reason) async {
+    try {
+      final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard', body: {'reason': reason});
+      if (res.statusCode == 200) {
+        AppToast.showInfo(context, 'Trade descartado');
+        Navigator.pop(context);
+      } else {
+        AppToast.showError(context, 'Error al descartar');
+      }
+    } catch (e) {
+      AppToast.showError(context, 'Error de conexión');
+    }
   }
 }
 

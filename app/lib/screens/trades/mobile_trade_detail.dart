@@ -11,10 +11,10 @@ class MobileTradeDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
-    final pnl = (trade['unrealizedPnl'] as num?)?.toDouble() ?? (trade['pnl'] as num?)?.toDouble() ?? 0.0;
-    final roi = (trade['percentage'] as num?)?.toDouble() ?? (trade['roi'] as num?)?.toDouble() ?? 0.0;
-    final margin = (trade['initialMargin'] as num?)?.toDouble() ?? ((trade['entryPrice'] as num? ?? 1.0) * (trade['size'] as num? ?? 1.0) / (trade['leverage'] as num? ?? 1.0));
-    final notional = margin * (trade['leverage'] as num? ?? 1.0);
+    final pnl = double.tryParse(trade['unrealizedPnl']?.toString() ?? '') ?? double.tryParse(trade['pnl']?.toString() ?? '') ?? 0.0;
+    final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '') ?? 0.0;
+    final margin = double.tryParse(trade['initialMargin']?.toString() ?? '') ?? ((double.tryParse(trade['entryPrice']?.toString() ?? '') ?? 1.0) * (double.tryParse(trade['size']?.toString() ?? '') ?? 1.0) / (double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0));
+    final notional = margin * (double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0);
     final isPositive = pnl >= 0;
 
     return Scaffold(

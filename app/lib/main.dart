@@ -53,17 +53,19 @@ final GoRouter _router = GoRouter(
             GoRoute(
               path: '/dashboard',
               builder: (context, state) => const DashboardScreen(),
-            ),
-            GoRoute(
-              path: '/signal/:id',
-              builder: (context, state) {
-                final signal = state.extra as Map<String, dynamic>?;
-                if (signal == null) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); });
-                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
-                }
-                return SignalDetailScreen(signal: signal);
-              },
+              routes: [
+                GoRoute(
+                  path: 'signal/:id',
+                  builder: (context, state) {
+                    final signal = state.extra as Map<String, dynamic>?;
+                    if (signal == null) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); });
+                      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                    }
+                    return SignalDetailScreen(signal: signal);
+                  },
+                ),
+              ],
             ),
           ],
         ),

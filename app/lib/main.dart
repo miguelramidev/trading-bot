@@ -43,34 +43,45 @@ final GoRouter _router = GoRouter(
       path: '/',
       builder: (context, state) => const AuthWrapper(),
     ),
-    ShellRoute(
-      navigatorKey: _shellNavigatorKey,
-      builder: (context, state, child) {
-        return MainScreen(child: child, currentPath: state.matchedLocation);
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) {
+        return MainScreen(navigationShell: navigationShell);
       },
-      routes: [
-        GoRoute(
-          path: '/signal/:id',
-          builder: (context, state) {
-            final signal = state.extra as Map<String, dynamic>?;
-            if (signal == null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); });
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
-            }
-            return SignalDetailScreen(signal: signal);
-          },
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/dashboard',
+              builder: (context, state) => const DashboardScreen(),
+            ),
+            GoRoute(
+              path: '/signal/:id',
+              builder: (context, state) {
+                final signal = state.extra as Map<String, dynamic>?;
+                if (signal == null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); });
+                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                }
+                return SignalDetailScreen(signal: signal);
+              },
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/dashboard',
-          builder: (context, state) => const DashboardScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/history',
+              builder: (context, state) => const Center(child: Text('Historial de Operaciones', style: TextStyle(color: Colors.white))),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/history',
-          builder: (context, state) => const Center(child: Text('Historial de Operaciones', style: TextStyle(color: Colors.white))),
-        ),
-        GoRoute(
-          path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/settings',
+              builder: (context, state) => const SettingsScreen(),
+            ),
+          ],
         ),
       ],
     ),

@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../core/network/api_client.dart';
+
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -41,15 +43,11 @@ class AuthService {
         try {
           print('Sincronizando usuario con backend PostgreSQL...');
           // 5. Sincronizar el usuario con la Base de Datos en AWS Neon
-          final response = await http.post(
-            Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/users/sync'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
+          final response = await ApiClient.post('/api/users/sync', body: {
               'firebaseUid': fbUser.uid,
               'email': fbUser.email ?? 'no-email@unknown.com',
               'name': fbUser.displayName ?? 'Trader',
-            }),
-          );
+          });
 
           if (response.statusCode == 200) {
             print('✅ Usuario sincronizado con éxito en la DB.');

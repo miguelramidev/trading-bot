@@ -7,6 +7,8 @@ import '../../core/theme/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../../core/network/api_client.dart';
+
 import 'package:toastification/toastification.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
@@ -45,13 +47,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
       
-      final response = await http.post(
-        Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/users/keys/generate'),
-        headers: {
-          'Authorization': 'Bearer ${user.uid}',
-          'Content-Type': 'application/json',
-        },
-      );
+      final response = await ApiClient.post('/api/users/keys/generate');
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

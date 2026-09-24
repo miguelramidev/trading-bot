@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../../core/network/api_client.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -46,10 +48,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/dashboard'),
-        headers: {'Authorization': 'Bearer ${user.uid}'},
-      );
+      final response = await ApiClient.get('/api/dashboard');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

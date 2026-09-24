@@ -3,6 +3,8 @@ import 'package:k_chart/k_chart_widget.dart';
 import 'package:k_chart/flutter_k_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../../core/network/api_client.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -30,7 +32,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
   Future<void> _fetchCandles() async {
     try {
       final symbol = (widget.signal['symbol'] ?? 'SOLUSDT').replaceAll('/', '');
-      final res = await http.get(Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/market/klines?symbol=$symbol&interval=15m&limit=100'));
+      final res = await ApiClient.get('/api/market/klines?symbol=$symbol&interval=15m&limit=100');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List;
         setState(() {

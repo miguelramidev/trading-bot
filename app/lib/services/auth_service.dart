@@ -68,7 +68,7 @@ class AuthService {
                 // Para Web, necesitas especificar el vapidKey en getToken(vapidKey: "...")
                 // TODO: Reemplaza "TU_VAPID_KEY_AQUI" por el Keypair de Firebase -> Cloud Messaging -> Web configuration
                 String? fcmToken = await FirebaseMessaging.instance.getToken(
-                  vapidKey: kIsWeb ? "TU_VAPID_KEY_AQUI" : null
+                  vapidKey: kIsWeb ? "BOdyQFifaU2KNLkvPdByFZ37Yi-7kCC34X2IkBWNdzwNF7LTUKPccBoMoFxdLgf6GzSpkLpMKIySuIpUuFn07eY" : null
                 );
                 if (fcmToken != null) {
                   // Guardarlo en el backend

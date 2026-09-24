@@ -88,7 +88,6 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
       backgroundColor: AppColors.background,
       body: Row(
         children: [
-          _buildSidebar(context),
           Expanded(
             child: Column(
               children: [

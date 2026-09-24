@@ -154,7 +154,7 @@ class _MobileHistoryState extends State<MobileHistory> {
 
   Widget _buildTradeCard(dynamic trade) {
     return GestureDetector(
-      onTap: () => context.push('/history/trade/${trade['id']}', extra: trade as Map<String, dynamic>),
+      onTap: () => context.go('/history/trade/${trade['id']}', extra: trade as Map<String, dynamic>),
       child:
     Builder(builder: (context) {
       final isLong = trade['direction'] == 'LONG';

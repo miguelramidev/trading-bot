@@ -25,7 +25,7 @@ class DesktopTradeDetail extends StatelessWidget {
         title: Text('${trade['symbol'] ?? 'UNK'} - Inspector de Posición', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
-          onPressed: () { if (context.canPop()) context.pop(); else context.go('/dashboard'); },
+          onPressed: () { if (context.canPop()) { context.pop(); } else { final currentUrl = GoRouterState.of(context).uri.toString(); if (currentUrl.contains('history')) { context.go('/history'); } else { context.go('/dashboard'); } } },
         ),
       ),
       body: SingleChildScrollView(

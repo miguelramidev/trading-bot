@@ -135,7 +135,7 @@ signalsRouter.post(
       }
 
       await db.update(signalHistory)
-        .set({ decision: "Descartada", reason: reasonText, isActiveTrade: true })
+        .set({ decision: "Descartada", reason: reasonText, isActiveTrade: false })
         .where(eq(signalHistory.id, id));
 
       return c.json({ status: "success", message: "Trade descartado" });

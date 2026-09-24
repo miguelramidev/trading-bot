@@ -9,8 +9,9 @@ class DesktopHistory extends StatefulWidget {
   final Map<String, dynamic>? stats;
   final List<dynamic> trades;
   final Map<String, dynamic>? pagination;
+  final String currentFilter;
 
-  const DesktopHistory({super.key, required this.stats, required this.trades, this.pagination});
+  const DesktopHistory({super.key, required this.stats, required this.trades, this.pagination, this.currentFilter = 'Todos'});
 
   @override
   State<DesktopHistory> createState() => _DesktopHistoryState();
@@ -31,6 +32,8 @@ class _DesktopHistoryState extends State<DesktopHistory> {
                 children: [
                   _buildStatsRow(),
                   const SizedBox(height: 24),
+                  _buildTabs(),
+                  const SizedBox(height: 16),
                   Expanded(child: _buildDataTable()),
                   const SizedBox(height: 16),
                   _buildPagination(),
@@ -241,7 +244,7 @@ class _DesktopHistoryState extends State<DesktopHistory> {
           children: [
             IconButton(
               icon: const Icon(Icons.chevron_left, color: AppColors.textSecondary),
-              onPressed: currentPage > 1 ? () => context.go('/history?page=${currentPage - 1}') : null,
+              onPressed: currentPage > 1 ? () => context.go('/history?page=${currentPage - 1}&filter=${widget.currentFilter}') : null,
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -250,11 +253,46 @@ class _DesktopHistoryState extends State<DesktopHistory> {
             ),
             IconButton(
               icon: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
-              onPressed: currentPage < totalPages ? () => context.go('/history?page=${currentPage + 1}') : null,
+              onPressed: currentPage < totalPages ? () => context.go('/history?page=${currentPage + 1}&filter=${widget.currentFilter}') : null,
             ),
           ],
         )
       ],
     );
   }
+
+  Widget _buildTabs() {
+    return Row(
+      children: [
+        _buildTab('Todos'),
+        const SizedBox(width: 8),
+        _buildTab('Tomadas'),
+        const SizedBox(width: 8),
+        _buildTab('Descartadas'),
+      ],
+    );
+  }
+
+  Widget _buildTab(String title) {
+    final isSelected = widget.currentFilter == title;
+    return GestureDetector(
+      onTap: () => context.go('/history?page=1&filter=$title'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.winGreen.withValues(alpha: 0.1) : Colors.transparent,
+          border: Border.all(color: isSelected ? AppColors.winGreen : AppColors.border),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          title,
+          style: TextStyle(
+            color: isSelected ? AppColors.winGreen : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
 }

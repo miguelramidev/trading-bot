@@ -7,30 +7,20 @@ class MobileHistory extends StatefulWidget {
   final Map<String, dynamic>? stats;
   final List<dynamic> trades;
   final Map<String, dynamic>? pagination;
+  final String currentFilter;
 
-  const MobileHistory({super.key, required this.stats, required this.trades, this.pagination});
+  const MobileHistory({super.key, required this.stats, required this.trades, this.pagination, this.currentFilter = 'Todos'});
 
   @override
   State<MobileHistory> createState() => _MobileHistoryState();
 }
 
 class _MobileHistoryState extends State<MobileHistory> {
-  String _selectedFilter = 'Todos';
+  
 
   @override
   Widget build(BuildContext context) {
-    final tpCount = widget.trades.where((t) => t['status'] == 'TP HIT').length;
-    final slCount = widget.trades.where((t) => t['status'] == 'SL HIT').length;
-    final shadowCount = widget.trades.where((t) => t['status'] == 'DESCARTADO').length;
-
-    List<dynamic> filteredTrades = widget.trades;
-    if (_selectedFilter == 'Take Profit') {
-      filteredTrades = widget.trades.where((t) => t['status'] == 'TP HIT').toList();
-    } else if (_selectedFilter == 'Stop Loss') {
-      filteredTrades = widget.trades.where((t) => t['status'] == 'SL HIT').toList();
-    } else if (_selectedFilter == 'Shadow') {
-      filteredTrades = widget.trades.where((t) => t['status'] == 'DESCARTADO').toList();
-    }
+    final tradesList = widget.trades;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -77,13 +67,11 @@ class _MobileHistoryState extends State<MobileHistory> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  _buildFilterChip('Todos', widget.trades.length),
+                  _buildFilterChip('Todos'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Take Profit', tpCount),
+                  _buildFilterChip('Tomadas'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Stop Loss', slCount),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Shadow', shadowCount),
+                  _buildFilterChip('Descartadas'),
                 ],
               ),
             ),
@@ -92,9 +80,9 @@ class _MobileHistoryState extends State<MobileHistory> {
           SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                return _buildTradeCard(filteredTrades[index]);
+                return _buildTradeCard(tradesList[index]);
               },
-              childCount: filteredTrades.length,
+              childCount: tradesList.length,
             ),
           ),
           SliverToBoxAdapter(child: _buildPagination()),
@@ -148,10 +136,10 @@ class _MobileHistoryState extends State<MobileHistory> {
     );
   }
 
-  Widget _buildFilterChip(String label, int count) {
-    final isSelected = _selectedFilter == label;
+  Widget _buildFilterChip(String label) {
+    final isSelected = widget.currentFilter == label;
     return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
+      onTap: () => context.go('/history?page=1&filter=$label'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
@@ -159,7 +147,7 @@ class _MobileHistoryState extends State<MobileHistory> {
           border: Border.all(color: isSelected ? AppColors.winGreen : AppColors.border),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text('$label ($count)', style: TextStyle(color: isSelected ? AppColors.winGreen : AppColors.textSecondary, fontSize: 13)),
+        child: Text(label, style: TextStyle(color: isSelected ? AppColors.winGreen : AppColors.textSecondary, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
       ),
     );
   }
@@ -270,12 +258,12 @@ class _MobileHistoryState extends State<MobileHistory> {
         children: [
           IconButton(
             icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-            onPressed: currentPage > 1 ? () => context.go('/history?page=${currentPage - 1}') : null,
+            onPressed: currentPage > 1 ? () => context.go('/history?page=${currentPage - 1}&filter=${widget.currentFilter}') : null,
           ),
           Text('Página $currentPage de $totalPages', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           IconButton(
             icon: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-            onPressed: currentPage < totalPages ? () => context.go('/history?page=${currentPage + 1}') : null,
+            onPressed: currentPage < totalPages ? () => context.go('/history?page=${currentPage + 1}&filter=${widget.currentFilter}') : null,
           ),
         ],
       ),

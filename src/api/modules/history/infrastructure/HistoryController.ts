@@ -12,13 +12,14 @@ historyRouter.get(
   zValidator("query", z.object({
     page: z.string().optional().default("1"),
     limit: z.string().optional().default("20"),
+    filter: z.string().optional().default("Todos"), // "Todos", "Tomadas", "Descartadas"
   })),
   async (c) => {
     const authHeader = c.req.header("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
     const firebaseUid = authHeader.split(" ")[1];
     
-    const { page, limit } = c.req.valid("query");
+    const { page, limit, filter } = c.req.valid("query");
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
 
@@ -26,8 +27,6 @@ historyRouter.get(
       const user = await db.query.userConfig.findFirst({ where: eq(userConfig.firebaseUid, firebaseUid) });
       if (!user) return c.json({ error: "User not found" }, 404);
 
-      // We still fetch all to compute global stats accurately for now
-      // In a very large DB, we'd use aggregate functions, but for this scale this is fine.
       const allSignals = await db.query.signalHistory.findMany({
         where: and(
           isNotNull(signalHistory.decision),
@@ -36,7 +35,6 @@ historyRouter.get(
         orderBy: [desc(signalHistory.evaluatedAt)],
       });
 
-      // Calculate Global Stats
       let totalTrades = 0;
       let winningTrades = 0;
       let losingTrades = 0;
@@ -52,7 +50,11 @@ historyRouter.get(
         const pnlVal = parseFloat(t.realizedPnl || "0");
         const roiVal = parseFloat(t.realizedRoi || "0");
 
-        if (t.decision === "Descartada" || t.decision === "Ignorada") {
+        // The bug made some discarded trades look like "Cerrada (SL Tocado)". We can heuristically fix them for display:
+        // If entryPrice is null or 0 and it was closed, it was likely discarded by mistake.
+        const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
+
+        if (wasActuallyDiscarded) {
           statusStr = "DESCARTADO";
         } else if (t.decision?.includes("Cerrada")) {
           if (pnlVal > 0 || t.decision.includes("TP")) {
@@ -89,9 +91,17 @@ historyRouter.get(
       const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
       const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss) : (grossProfit > 0 ? 999 : 0);
 
+      // Apply Filter
+      let filteredTrades = mappedTrades;
+      if (filter === "Tomadas") {
+        filteredTrades = mappedTrades.filter(t => t.status !== "DESCARTADO");
+      } else if (filter === "Descartadas") {
+        filteredTrades = mappedTrades.filter(t => t.status === "DESCARTADO");
+      }
+
       // Pagination
       const startIndex = (pageNum - 1) * limitNum;
-      const paginatedTrades = mappedTrades.slice(startIndex, startIndex + limitNum);
+      const paginatedTrades = filteredTrades.slice(startIndex, startIndex + limitNum);
 
       return c.json({
         stats: {
@@ -105,10 +115,10 @@ historyRouter.get(
           grossLoss: grossLoss.toFixed(2)
         },
         pagination: {
-          total: mappedTrades.length,
+          total: filteredTrades.length,
           page: pageNum,
           limit: limitNum,
-          totalPages: Math.ceil(mappedTrades.length / limitNum)
+          totalPages: Math.ceil(filteredTrades.length / limitNum)
         },
         trades: paginatedTrades
       });

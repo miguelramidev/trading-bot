@@ -76,7 +76,8 @@ final GoRouter _router = GoRouter(
               path: '/history',
               builder: (context, state) {
                 final pageStr = state.uri.queryParameters['page'] ?? '1';
-                return HistoryScreen(initialPage: int.tryParse(pageStr) ?? 1);
+                final filterStr = state.uri.queryParameters['filter'] ?? 'Todos';
+                return HistoryScreen(initialPage: int.tryParse(pageStr) ?? 1, filter: filterStr);
               }
             ),
           ],

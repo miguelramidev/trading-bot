@@ -274,7 +274,7 @@ bot.action(/^paper_reject_(\d+)$/, async (ctx) => {
   }
 
   await db.update(signalHistory)
-    .set({ decision: "Descartada", isActiveTrade: true })
+    .set({ decision: "Descartada", isActiveTrade: false })
     .where(eq(signalHistory.id, signalId));
 
   await ctx.answerCbQuery("❌ Trade descartado. Te preguntaré el motivo.");

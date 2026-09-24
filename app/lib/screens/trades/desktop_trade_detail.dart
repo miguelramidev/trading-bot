@@ -17,21 +17,23 @@ class DesktopTradeDetail extends StatelessWidget {
     final isPositive = pnl >= 0;
 
     return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: 0.8), // Dark overlay style
-      body: Center(
-        child: Container(
-          width: 900,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 30, spreadRadius: 10),
-            ]
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        title: Text('${trade['symbol'] ?? 'UNK'} - Inspector de Posición', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
+          onPressed: () { if (context.canPop()) context.pop(); else context.go('/dashboard'); },
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
               Row(
@@ -50,14 +52,7 @@ class DesktopTradeDetail extends StatelessWidget {
                       ),
                     ],
                   ),
-                  InkWell(
-                    onTap: () => context.pop(),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(4), border: Border.all(color: AppColors.border)),
-                      child: const Text('CERRAR ESC', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
-                    ),
-                  )
+                  const SizedBox() // Removed CERRAR button
                 ],
               ),
               const SizedBox(height: 8),
@@ -285,6 +280,7 @@ class DesktopTradeDetail extends StatelessWidget {
               )
             ],
           ),
+        ),
         ),
       ),
     );

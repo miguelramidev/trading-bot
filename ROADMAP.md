@@ -74,7 +74,7 @@
 * [x] **Corrección del Escudo Funding Rate:** En lugar de operar agresivamente como Kamikaze contra los shorts, ahora el Funding Rate solo aborta trades si el mercado está en un extremo de euforia/pánico severo (>-0.05%), evitando la "asfixia" por el 0.01% base del criptomercado.
 * [x] **Recuperación Lineal (Position Sizing):** Transición del arriesgado porcentaje compuesto (20% del balance) a un monto fijo y seguro de **$25 USDT por trade** para evitar que las rachas perdedoras asfixien el capital por reducción exponencial de posiciones.
 
-## 12. Plataforma SaaS Visual (Monorepo Flutter) - [En Progreso]
+## 12. Plataforma SaaS Visual (Monorepo Flutter) - [Completado]
 * [x] **Arquitectura Monorepo Iniciada:** Backend (Hono/TypeScript) y Frontend (Flutter) coexistiendo en la misma infraestructura.
 * [x] **Conceptualización de Diseño (UI/UX):** Definidos los Prompts visuales de estilo "Premium Glassmorphism" y "Dark Mode Institucional" para:
     - [x] 1. Pantalla de Login Minimalista
@@ -96,11 +96,14 @@
     - [x] Creación de `daily_reports` para mapear los historiales de capital por usuario y trazarlos usando `fl_chart` (Gráfico de rendimiento de capital a 30 días).
     - [x] Formateo condicional avanzado (Textos Rojos/Verdes dependiendo de PnL y escape estricto de variables en Dart).
     - [x] Adaptación Dual (Desktop & Mobile) sincronizada mediante botones manuales de Refresh para ahorrar ancho de banda de Websockets.
-* [ ] **Módulo de Señales y Trade Execution:** Completar la pantalla visual de aprobación (`/api/trades` y push notifications visuales en Flutter).
+* [x] **Módulo de Señales y Trade Execution:** 
+    - [x] Reparación de Rutas GoRouter (context.go) para mantener las URLs independientes en la barra de direcciones del navegador.
+    - [x] Simplificación visual en Desktop (remover botones falsos) y fijar decimales a 4 dígitos en precios.
+    - [x] **Firebase Cloud Messaging (FCM) Multi-Dispositivo:** Implementadas notificaciones Push reales para Web y Android simultáneamente (vía fcm_tokens array). Alertas de "Nueva Señal" y "Trade Cerrado" activas desde el backend Serverless.
 ---
 
 ## 🚨 ACCIONES PENDIENTES URGENTES (RECORDATORIO DE SEGURIDAD) 🚨
-* [ ] **Rotar Contraseña de Neon DB:** El password antiguo (`npg_ZBwFUEKR82AN...`) fue revocado/expuesto por GitHub. Acceder a [console.neon.tech](https://console.neon.tech), generar una nueva contraseña para el rol `neondb_owner`.
+* [ ] **Rotar Contraseña de Neon DB:** El password antiguo (`npg_**********...`) fue revocado/expuesto por GitHub. Acceder a [console.neon.tech](https://console.neon.tech), generar una nueva contraseña para el rol `neondb_owner`.
 * [ ] **Actualizar Entorno Local:** Cambiar la variable `DATABASE_URL` en el archivo `.env` del repositorio local.
 * [ ] **Actualizar Entorno AWS/SST:** Actualizar los secretos/variables de entorno de SST y volver a hacer deploy si es necesario para que el bot y el dashboard vuelvan a conectarse a la base de datos de Neon.
 

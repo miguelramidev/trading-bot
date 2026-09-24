@@ -3,7 +3,8 @@ import { Hono } from "hono";
 export const marketRouter = new Hono();
 
 marketRouter.get("/klines", async (c) => {
-  const symbol = c.req.query('symbol') || 'SOLUSDT';
+  const rawSymbol = c.req.query('symbol') || 'SOLUSDT';
+  const symbol = rawSymbol.replace(':USDT', '').replace('/', '').toUpperCase();
   const interval = c.req.query('interval') || '15m';
   const limit = c.req.query('limit') || '100';
 

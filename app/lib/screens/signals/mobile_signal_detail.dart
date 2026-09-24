@@ -21,6 +21,9 @@ class MobileSignalDetail extends StatefulWidget {
 
 class _MobileSignalDetailState extends State<MobileSignalDetail> {
   List<KLineEntity> candles = [];
+  List<KLineEntity> btcCandles = [];
+  List<KLineEntity> ethCandles = [];
+  List<KLineEntity> macroCandles = [];
   bool isLoading = true;
 
   @override
@@ -32,12 +35,25 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
   Future<void> _fetchCandles() async {
     try {
       final symbol = (widget.signal['symbol'] ?? 'SOLUSDT').replaceAll('/', '');
-      final res = await ApiClient.get('/api/market/klines?symbol=$symbol&interval=15m&limit=100');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as List;
+      
+      final responses = await Future.wait([
+        ApiClient.get('/api/market/klines?symbol=$symbol&interval=15m&limit=100'),
+        ApiClient.get('/api/market/klines?symbol=BTCUSDT&interval=15m&limit=100'),
+        ApiClient.get('/api/market/klines?symbol=ETHUSDT&interval=15m&limit=100'),
+        ApiClient.get('/api/market/klines?symbol=$symbol&interval=4h&limit=100'),
+      ]);
+
+      if (responses[0].statusCode == 200) {
         setState(() {
-          candles = data.map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          candles = (jsonDecode(responses[0].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          btcCandles = (jsonDecode(responses[1].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          ethCandles = (jsonDecode(responses[2].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          macroCandles = (jsonDecode(responses[3].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
+          
           DataUtil.calculate(candles);
+          DataUtil.calculate(btcCandles);
+          DataUtil.calculate(ethCandles);
+          DataUtil.calculate(macroCandles);
           isLoading = false;
         });
       }
@@ -226,6 +242,41 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           child: Text('SEÑAL $dir', style: AppTheme.monoStyle.copyWith(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontWeight: FontWeight.bold)),
         ),
       ],
+    );
+  }
+
+  Widget _buildCandleMiniChart(String title, List<KLineEntity> data) {
+    return Container(
+      height: 200, // Mayor visibilidad
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 8, top: 4, bottom: 8),
+            child: Text(title, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+          Expanded(
+            child: data.isEmpty 
+              ? const Center(child: CircularProgressIndicator())
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: KChartWidget(
+                    data,
+                    ChartStyle(),
+                    ChartColors()..bgColor = [AppColors.surface, AppColors.surface]
+                                 ..upColor = AppColors.winGreen
+                                 ..dnColor = AppColors.lossRed,
+                    isLine: false,
+                    isTrendLine: false,
+                    mainState: MainState.NONE,
+                    secondaryState: SecondaryState.NONE,
+                  ),
+                ),
+          ),
+        ],
+      ),
     );
   }
 

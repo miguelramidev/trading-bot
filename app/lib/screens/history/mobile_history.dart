@@ -153,7 +153,11 @@ class _MobileHistoryState extends State<MobileHistory> {
   }
 
   Widget _buildTradeCard(dynamic trade) {
-    final isLong = trade['direction'] == 'LONG';
+    return GestureDetector(
+      onTap: () => context.push('/history/trade/${trade['id']}', extra: trade as Map<String, dynamic>),
+      child:
+    Builder(builder: (context) {
+      final isLong = trade['direction'] == 'LONG';
     final isShadow = trade['status'] == 'DESCARTADO';
     final isTp = trade['status'] == 'TP HIT';
     
@@ -244,6 +248,7 @@ class _MobileHistoryState extends State<MobileHistory> {
         ],
       ),
     );
+    }));
   }
 
   Widget _buildPagination() {

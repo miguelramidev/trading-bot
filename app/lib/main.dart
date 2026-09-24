@@ -79,7 +79,22 @@ final GoRouter _router = GoRouter(
                 final pageStr = state.uri.queryParameters['page'] ?? '1';
                 final filterStr = state.uri.queryParameters['filter'] ?? 'Todos';
                 return HistoryScreen(initialPage: int.tryParse(pageStr) ?? 1, filter: filterStr);
-              }
+              },
+              routes: [
+                GoRoute(
+                  path: 'trade/:id',
+                  pageBuilder: (context, state) {
+                    final trade = state.extra as Map<String, dynamic>? ?? {};
+                    return CustomTransitionPage(
+                      key: state.pageKey,
+                      child: TradeDetailScreen(trade: trade, isClosed: true),
+                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
+                    );
+                  }
+                )
+              ]
             ),
           ],
         ),

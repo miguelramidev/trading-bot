@@ -5,13 +5,14 @@ import 'package:go_router/go_router.dart';
 class MobileTradeDetail extends StatelessWidget {
   final Map<String, dynamic> trade;
 
-  const MobileTradeDetail({super.key, required this.trade});
+  final bool isClosed;
+  const MobileTradeDetail({super.key, required this.trade, this.isClosed = false});
 
   @override
   Widget build(BuildContext context) {
-    final isLong = trade['side']?.toString().toUpperCase() == 'LONG';
-    final pnl = (trade['unrealizedPnl'] as num?)?.toDouble() ?? 0.0;
-    final roi = (trade['percentage'] as num?)?.toDouble() ?? 0.0;
+    final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
+    final pnl = (trade['unrealizedPnl'] as num?)?.toDouble() ?? (trade['pnl'] as num?)?.toDouble() ?? 0.0;
+    final roi = (trade['percentage'] as num?)?.toDouble() ?? (trade['roi'] as num?)?.toDouble() ?? 0.0;
     final margin = (trade['initialMargin'] as num?)?.toDouble() ?? ((trade['entryPrice'] as num? ?? 1.0) * (trade['size'] as num? ?? 1.0) / (trade['leverage'] as num? ?? 1.0));
     final notional = margin * (trade['leverage'] as num? ?? 1.0);
     final isPositive = pnl >= 0;
@@ -100,7 +101,7 @@ class MobileTradeDetail extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  const Text('PNL NO REALIZADO (UPNL)', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  Text('${isClosed ? 'PNL REALIZADO' : 'PNL NO REALIZADO (UPNL)'}', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -186,7 +187,7 @@ class MobileTradeDetail extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 32),
-            SizedBox(
+            if (!isClosed) SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
@@ -202,8 +203,8 @@ class MobileTradeDetail extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
+            if (!isClosed) const SizedBox(height: 12),
+            if (!isClosed) Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.lock_outline, color: AppColors.textSecondary, size: 12),

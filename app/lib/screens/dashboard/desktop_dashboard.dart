@@ -437,6 +437,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
           ],
         )),
       ],
+    ),
     );
   }
 

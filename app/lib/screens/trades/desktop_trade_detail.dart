@@ -5,13 +5,14 @@ import 'package:go_router/go_router.dart';
 class DesktopTradeDetail extends StatelessWidget {
   final Map<String, dynamic> trade;
 
-  const DesktopTradeDetail({super.key, required this.trade});
+  final bool isClosed;
+  const DesktopTradeDetail({super.key, required this.trade, this.isClosed = false});
 
   @override
   Widget build(BuildContext context) {
-    final isLong = trade['side']?.toString().toUpperCase() == 'LONG';
-    final pnl = (trade['unrealizedPnl'] as num?)?.toDouble() ?? 0.0;
-    final roi = (trade['percentage'] as num?)?.toDouble() ?? 0.0;
+    final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
+    final pnl = (trade['unrealizedPnl'] as num?)?.toDouble() ?? (trade['pnl'] as num?)?.toDouble() ?? 0.0;
+    final roi = (trade['percentage'] as num?)?.toDouble() ?? (trade['roi'] as num?)?.toDouble() ?? 0.0;
     final margin = (trade['initialMargin'] as num?)?.toDouble() ?? ((trade['entryPrice'] as num? ?? 1.0) * (trade['size'] as num? ?? 1.0) / (trade['leverage'] as num? ?? 1.0));
     final notional = margin * (trade['leverage'] as num? ?? 1.0);
     final isPositive = pnl >= 0;
@@ -97,10 +98,10 @@ class DesktopTradeDetail extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 32),
-                        const Row(
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('PNL NO REALIZADO (UPNL)', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            Text('${isClosed ? 'PNL REALIZADO' : 'PNL NO REALIZADO (UPNL)'}', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
                             Text('MARK BASIS', style: TextStyle(color: AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold)),
                           ],
                         ),
@@ -187,7 +188,7 @@ class DesktopTradeDetail extends StatelessWidget {
                         _buildRightDivider(),
                         _buildRightRow('MODO DE APALANCAMIENTO', 'Factor de multiplicación dinámico', '${trade['leverage']}x Cross Margin', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Modo Cobertura Activo (Hedge L1)', subValColor: AppColors.textSecondary),
                         _buildRightDivider(),
-                        _buildRightRow('ENTRADA VS MARK PRICE', 'Índice agregado ponderado', '\$${trade['entryPrice']} → \$${trade['markPrice'] ?? "-"}', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Diferencial spread calculado', subValColor: AppColors.winGreen),
+                        _buildRightRow('ENTRADA VS MARK PRICE', 'Índice agregado ponderado', '\$${trade['entryPrice']} → \$${trade['markPrice'] ?? trade['exitPrice'] ?? "-"}', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Diferencial spread calculado', subValColor: AppColors.winGreen),
                         _buildRightDivider(),
                         _buildRightRow('DISTANCIA A STOP LOSS', 'Garantía Dinámica s/ Volatilidad', '\$${trade['stopLoss'] ?? "-"} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: '-2.94% / Delta -3.8%', subValColor: AppColors.lossRed, isSl: true),
                         _buildRightDivider(),
@@ -214,7 +215,7 @@ class DesktopTradeDetail extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               // Bottom Buttons
-              Row(
+              if (!isClosed) Row(
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(

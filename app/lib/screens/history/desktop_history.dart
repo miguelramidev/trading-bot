@@ -193,6 +193,7 @@ class _DesktopHistoryState extends State<DesktopHistory> {
           }
 
           return mui.DataRow(
+            onSelectChanged: (_) => context.push('/history/trade/${trade['id']}', extra: trade),
             cells: [
               mui.DataCell(Text(dateStr, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11))),
               mui.DataCell(Row(

@@ -76,7 +76,7 @@ class DesktopTradeDetail extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text(trade['symbol'] ?? 'UNK', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                            Flexible(child: Text(trade['symbol'] ?? 'UNK', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

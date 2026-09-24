@@ -55,12 +55,12 @@ class MobileTradeDetail extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
+                Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Text(trade['symbol'] ?? 'UNK', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                        Flexible(child: Text(trade['symbol'] ?? 'UNK', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -72,7 +72,7 @@ class MobileTradeDetail extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text('Perpetuo Cuantitativo • Orden #MQ-8841', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   ],
-                ),
+                )),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(

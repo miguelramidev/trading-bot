@@ -29,7 +29,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
   Future<void> _fetchCandles() async {
     try {
       final symbol = (widget.signal['symbol'] ?? 'SOLUSDT').replaceAll('/', '');
-      final res = await http.get(Uri.parse('https://api.binance.com/api/v3/klines?symbol=$symbol&interval=15m&limit=100'));
+      final res = await http.get(Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/market/klines?symbol=$symbol&interval=15m&limit=100'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List;
         setState(() {

@@ -11,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/dashboard/settings_screen.dart';
 import 'screens/signals/signal_detail_screen.dart';
+import 'screens/trades/trade_detail_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/dashboard_screen.dart';
 

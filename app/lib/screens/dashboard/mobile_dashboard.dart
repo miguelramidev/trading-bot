@@ -346,8 +346,10 @@ class _MobileDashboardState extends State<MobileDashboard> {
     );
   }
 
-  Widget _buildTradeCard(String pair, String side, String entry, String size, String pnl, String pnlPct) {
-    return Container(
+  Widget _buildTradeCard(String pair, String side, String entry, String size, String pnl, String pnlPct, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -406,6 +408,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
             ],
           )
         ],
+      ),
       ),
     );
   }

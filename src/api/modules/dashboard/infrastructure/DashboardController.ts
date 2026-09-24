@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../../../../db/index.js";
 import { userConfig } from "../../../../db/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { signalHistory, dailyReports } from "../../../../db/schema.js";
 import { decrypt } from "../../../core/utils/encryption.js";
 import ccxt from "ccxt";
@@ -93,15 +93,28 @@ dashboardRouter.get("/", async (c) => {
 
     // Fetch open positions
     const positions = await binance.fetchPositions();
-    const openPositions = positions.filter(p => p.contracts && p.contracts > 0).map(p => ({
+    const activeDbTrades = await db.query.signalHistory.findMany({ where: and(eq(signalHistory.isActiveTrade, true)) });
+
+    const openPositions = positions.filter(p => p.contracts && p.contracts > 0).map(p => {
+      const dbTrade = activeDbTrades.find(t => t.symbol === p.symbol);
+      return {
       symbol: p.symbol,
       side: p.side, // 'long' or 'short'
       leverage: p.leverage,
       size: p.contracts,
       entryPrice: p.entryPrice,
       unrealizedPnl: p.unrealizedPnl,
-      percentage: p.percentage
-    }));
+      percentage: p.percentage,
+      markPrice: p.markPrice,
+      liquidationPrice: p.liquidationPrice,
+      initialMargin: p.initialMargin,
+      marginMode: p.marginMode, // cross / isolated
+      stopLoss: dbTrade?.stopLoss,
+      takeProfit: dbTrade?.takeProfit,
+      strategy: dbTrade?.strategy || dbTrade?.regime || 'Motor Momentum Cuántico',
+      fundingRate: '0.0042', // Stub for now or fetch from ticker
+    };
+    });
 
     return c.json({
       status: "active",

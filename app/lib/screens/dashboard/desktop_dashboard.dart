@@ -411,8 +411,10 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
     );
   }
 
-  Widget _tradeRow(String pair, String side, String size, String pnl, String pnlPct) {
-    return Row(
+  Widget _tradeRow(String pair, String side, String size, String pnl, String pnlPct, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Row(
       children: [
         Container(
           width: 40, height: 40,

@@ -7,6 +7,7 @@ import '../../core/network/api_client.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/app_toast.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class MobileSignalDetail extends StatefulWidget {
@@ -119,7 +120,19 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () async {
+                        try {
+                          final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard');
+                          if (res.statusCode == 200) {
+                            AppToast.showInfo(context, 'Trade descartado');
+                            Navigator.pop(context);
+                          } else {
+                            AppToast.showError(context, 'Error al descartar');
+                          }
+                        } catch (e) {
+                          AppToast.showError(context, 'Error de conexión');
+                        }
+                      },
                       style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 18),
                       label: const Text('Descartar', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
@@ -128,8 +141,23 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
+                      onPressed: () async {
+                        try {
+                          final res = await ApiClient.post('/api/signals/${widget.signal['id']}/execute');
+                          if (res.statusCode == 200) {
+                            final data = jsonDecode(res.body);
+                            if (data['status'] == 'success') {
+                               AppToast.showSuccess(context, '¡Trade ejecutado en Binance!');
+                            } else {
+                               AppToast.showError(context, 'Rechazado: ${data['message']}');
+                            }
+                            Navigator.pop(context);
+                          } else {
+                            AppToast.showError(context, 'Error al ejecutar');
+                          }
+                        } catch (e) {
+                          AppToast.showError(context, 'Error de conexión');
+                        }
                       },
                       style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: AppColors.winGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       icon: const Icon(Icons.flash_on, color: Colors.black, size: 18),

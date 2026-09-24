@@ -4,9 +4,9 @@ import { Resource } from "sst";
 export class Trader {
   private exchange: any;
 
-  constructor() {
-    const binanceKey = process.env.BINANCE_API_KEY || (Resource as any).BINANCE_API_KEY?.value;
-    const binanceSecret = process.env.BINANCE_API_SECRET || (Resource as any).BINANCE_API_SECRET?.value;
+  constructor(apiKey?: string, apiSecret?: string) {
+    const binanceKey = apiKey || process.env.BINANCE_API_KEY || (Resource as any).BINANCE_API_KEY?.value;
+    const binanceSecret = apiSecret || process.env.BINANCE_API_SECRET || (Resource as any).BINANCE_API_SECRET?.value;
     const secretKey = binanceSecret ? binanceSecret.replace(/\\n/g, '\n') : "";
 
     this.exchange = new (ccxt as any).binance({

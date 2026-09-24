@@ -154,9 +154,18 @@ usersRouter.post(
     const { token } = c.req.valid("json");
 
     try {
-      await db.update(userConfig)
-        .set({ fcmToken: token, updatedAt: new Date() })
-        .where(eq(userConfig.firebaseUid, firebaseUid));
+      const user = await db.query.userConfig.findFirst({
+        where: eq(userConfig.firebaseUid, firebaseUid)
+      });
+      if (user) {
+        let tokens = user.fcmTokens || [];
+        if (!tokens.includes(token)) {
+          tokens.push(token);
+          await db.update(userConfig)
+            .set({ fcmTokens: tokens, updatedAt: new Date() })
+            .where(eq(userConfig.firebaseUid, firebaseUid));
+        }
+      }
 
       return c.json({ success: true, message: "FCM token updated successfully" });
     } catch (error: any) {

@@ -186,7 +186,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
               const SizedBox(width: 24),
               Row(
                 children: [
-                  Container(width: 6, height: 6, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
                   Text('Mercados en vivo • Conexión FIX 4.4', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11)),
                 ],

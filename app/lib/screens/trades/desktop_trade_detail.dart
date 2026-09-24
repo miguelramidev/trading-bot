@@ -188,11 +188,11 @@ class DesktopTradeDetail extends StatelessWidget {
                         _buildRightDivider(),
                         _buildRightRow('MODO DE APALANCAMIENTO', 'Factor de multiplicación dinámico', '${trade['leverage'] ?? 1}x Cross Margin', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Modo Cobertura Activo (Hedge L1)', subValColor: AppColors.textSecondary),
                         _buildRightDivider(),
-                        _buildRightRow('ENTRADA VS MARK PRICE', 'Índice agregado ponderado', '\$${trade['entryPrice']} → \$${trade['markPrice'] ?? trade['exitPrice'] ?? "-"}', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Diferencial spread calculado', subValColor: AppColors.winGreen),
+                        _buildRightRow('ENTRADA VS MARK PRICE', 'Índice agregado ponderado', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} → \$${double.tryParse(trade['markPrice']?.toString() ?? trade['exitPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Diferencial spread calculado', subValColor: AppColors.winGreen),
                         _buildRightDivider(),
-                        _buildRightRow('DISTANCIA A STOP LOSS', 'Garantía Dinámica s/ Volatilidad', '\$${trade['stopLoss'] ?? "-"} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: '-2.94% / Delta -3.8%', subValColor: AppColors.lossRed, isSl: true),
+                        _buildRightRow('DISTANCIA A STOP LOSS', 'Garantía Dinámica s/ Volatilidad', '\$${double.tryParse(trade['stopLoss']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: '-2.94% / Delta -3.8%', subValColor: AppColors.lossRed, isSl: true),
                         _buildRightDivider(),
-                        _buildRightRow('DISTANCIA A TAKE PROFIT', 'Objetivo Algorítmico VWAP +2σ', '\$${trade['takeProfit'] ?? "-"} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: '+5.83% / (R/R: 1:1.98)', subValColor: AppColors.winGreen, isTp: true),
+                        _buildRightRow('DISTANCIA A TAKE PROFIT', 'Objetivo Algorítmico VWAP +2σ', '\$${double.tryParse(trade['takeProfit']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: '+5.83% / (R/R: 1:1.98)', subValColor: AppColors.winGreen, isTp: true),
                         _buildRightDivider(),
                         _buildRightRow('FUNDING RATE & PRÓXIMO CORTE', 'Tasa de permuta perp 8h', '+${trade['fundingRate'] ?? "0.0000"}%', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Ciclo en 02:41:15', subValColor: AppColors.textSecondary),
                         _buildRightDivider(),
@@ -217,68 +217,18 @@ class DesktopTradeDetail extends StatelessWidget {
               // Bottom Buttons
               if (!isClosed) Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.close, size: 14),
-                      label: const Text('Cierre de\nEmergencia', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.lossRed, side: BorderSide(color: AppColors.lossRed.withValues(alpha: 0.3)), padding: const EdgeInsets.symmetric(vertical: 12)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.textPrimary, side: const BorderSide(color: AppColors.border), padding: const EdgeInsets.symmetric(vertical: 12)),
-                      child: const Text('Cerrar Posición\n(Market L2)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.textPrimary, side: const BorderSide(color: AppColors.border), padding: const EdgeInsets.symmetric(vertical: 12)),
-                      child: const Text('Ajustar TP / SL\nDinámico', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.textPrimary, side: const BorderSide(color: AppColors.border), padding: const EdgeInsets.symmetric(vertical: 12)),
-                      child: const Text('Agregar\nMargen', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(border: Border.all(color: AppColors.winGreen.withValues(alpha: 0.3)), borderRadius: BorderRadius.circular(4)),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.lock, color: AppColors.winGreen, size: 12),
-                        SizedBox(width: 6),
-                        Text('FIPS 140-3\nPROTEGIDO', style: TextStyle(color: AppColors.winGreen, fontSize: 8)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.textPrimary, side: const BorderSide(color: AppColors.border), padding: const EdgeInsets.symmetric(vertical: 12)),
-                      child: const Text('Cerrar Parcial\n(50%)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.winGreen, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12)),
-                      child: const Text('Rebalancear\nDelta', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.block, size: 14),
+                    label: const Text('Cerrar Posición Manualmente', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.lossRed, 
+                      side: BorderSide(color: AppColors.lossRed.withValues(alpha: 0.3)), 
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24)
                     ),
                   ),
                 ],
-              )
+              ),
             ],
           ),
         ),

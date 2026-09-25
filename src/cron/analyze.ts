@@ -497,6 +497,18 @@ async function runAnalysis(timeframe: string) {
         const cleanSymbolTV = symbol.split(":")[0].replace("/", "");
         const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
 
+        const rawReason = [
+          signal.reason ? `Motivo: ${signal.reason}.` : "",
+          macroWarningStr,
+          machetazoWarning,
+          strat4Warning
+        ].filter(Boolean).join(" ");
+        const finalReasonStr = rawReason.replace(/<[^>]*>/g, '').trim();
+
+        await db.update(signalHistory)
+          .set({ reason: finalReasonStr })
+          .where(eq(signalHistory.id, signalId));
+
         for (const user of activeUsers) {
           // Permitir que usuarios sin API Keys reciban la notificación de la señal como teaser
           

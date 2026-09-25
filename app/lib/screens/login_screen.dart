@@ -571,10 +571,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildWebFooter(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 32.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        runSpacing: 12,
         children: [
-          Row(
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Icon(Icons.lock_outline, color: AppColors.winGreen, size: 12),
               const SizedBox(width: 6),

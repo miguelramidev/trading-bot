@@ -359,7 +359,15 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
         children: [
           const Text('Resumen Cuantitativo', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          _infoRow('Estrategia', widget.signal['strategy'] ?? 'MACD + VWAP'),
+          _infoRow('Estrategia', widget.signal['strategy'] ?? widget.signal['regime'] ?? 'Motor Cuántico'),
+          const SizedBox(height: 16),
+          _infoRow('Correlación BTC', widget.signal['btcCorrelation'] ?? 'N/A'),
+          const SizedBox(height: 16),
+          _infoRow('Alineación Macro', widget.signal['bias4h'] == 'UP' ? 'ALCISTA' : (widget.signal['bias4h'] == 'DOWN' ? 'BAJISTA' : 'NEUTRAL')),
+          const SizedBox(height: 16),
+          _infoRow('Funding Rate', widget.signal['fundingRate'] ?? 'N/A'),
+          const SizedBox(height: 16),
+          _infoRow('Open Interest', widget.signal['openInterest'] ?? 'N/A'),
           const Divider(color: AppColors.border, height: 24),
           Row(
             children: [
@@ -368,10 +376,14 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
               Expanded(child: _infoBlock('Take Profit', '\$${widget.signal['takeProfit'] ?? '0.00'}', AppColors.winGreen, alignRight: true)),
             ],
           ),
+          if (widget.signal['executedEntryPrice'] != null || widget.signal['entry'] != null) ...[
+            const Divider(color: AppColors.border, height: 24),
+            _infoRow('Punto de Entrada', '\$${widget.signal['executedEntryPrice'] ?? widget.signal['entry']}'),
+          ],
           const Divider(color: AppColors.border, height: 24),
-          const Text('RAZÓN DEL TRADE (SÍNTESIS)', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
+          const Text('RAZÓN / DETALLES DE LA SEÑAL', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 8),
-          Text(widget.signal['reason'] ?? 'Sin razón analítica específica.', style: const TextStyle(color: AppColors.textSecondary, height: 1.5, fontSize: 12)),
+          Text(widget.signal['reason'] ?? 'Operación algorítmica detectada bajo parámetros institucionales (Tendencia de BTC: ${widget.signal['btcRegime'] ?? 'N/A'}).', style: const TextStyle(color: AppColors.textSecondary, height: 1.5, fontSize: 12)),
         ],
       ),
     );

@@ -101,6 +101,13 @@
     - [x] Reparación de Rutas GoRouter (context.go) para mantener las URLs independientes en la barra de direcciones del navegador.
     - [x] Simplificación visual en Desktop (remover botones falsos) y fijar decimales a 4 dígitos en precios.
     - [x] **Firebase Cloud Messaging (FCM) Multi-Dispositivo:** Implementadas notificaciones Push reales para Web y Android simultáneamente (vía fcm_tokens array). Alertas de "Nueva Señal" y "Trade Cerrado" activas desde el backend Serverless.
+
+## 13. Estabilización de Infraestructura y Resolución de Bugs Críticos - [Completado]
+* [x] **Compatibilidad Total de Llaves RSA (Asimétricas):** Parcheado el motor `Trader` (tanto en `analyze.ts` como en `webhook.ts`) para desencriptar y autenticarse en Binance usando la llave RSA privada del usuario, alineando el backend con el nuevo dashboard.
+* [x] **Prevención de Caídas Silenciosas de API (CCXT):** Suprimido el error fatal `warnWithoutSymbol` introducido por las nuevas políticas estrictas de la API de Binance al limpiar órdenes huérfanas, permitiendo que el Cron vuelva a iterar sobre el Top 100 sin morir al inicio.
+* [x] **Parche de Ámbito Multi-Tenant (ReferenceError):** Corregido un bug crítico de alcance de variables donde `currentBinanceBalance` no existía al insertar la señal global en NeonDB, lo que causaba que oportunidades matemáticas perfectas (como `1000BONK`) se desecharan en la fase de guardado.
+* [x] **Notificaciones Resilientes (Try-Catch):** Encapsulado el bloque de envíos a Telegram y a Firebase (Push) en bloques de captura de errores individuales. Ahora, si el token FCM de un usuario expira o falla, el bot no interrumpe el ciclo y continúa enviando la señal al resto del pool.
+* [x] **Trampa In-cerrable UI (Dashboard Modal):** Se interceptaron los códigos HTTP 500 y el flag `setup_required` en Flutter para lanzar un `WillPopScope` (Modal in-cerrable) obligando visualmente a los usuarios sin API Keys a navegar a Ajustes, impidiendo que rompan la carga del Dashboard.
 ---
 
 ## 🚨 ACCIONES PENDIENTES URGENTES (RECORDATORIO DE SEGURIDAD) 🚨

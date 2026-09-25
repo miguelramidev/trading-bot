@@ -500,7 +500,11 @@ async function runAnalysis(timeframe: string) {
           let userSecret = "";
           try {
             if (user.binanceApiKey) userKey = decrypt(user.binanceApiKey);
-            if (user.binanceApiSecret) userSecret = decrypt(user.binanceApiSecret);
+            if (user.rsaPrivateKey) {
+              userSecret = decrypt(user.rsaPrivateKey);
+            } else if (user.binanceApiSecret) {
+              userSecret = decrypt(user.binanceApiSecret);
+            }
           } catch(e) { console.error("Error decrypting keys for user", user.id); }
           
           const userTrader = new Trader(userKey, userSecret);

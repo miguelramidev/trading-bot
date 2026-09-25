@@ -226,7 +226,12 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
     return;
   }
   const userKey = decrypt(user.binanceApiKey);
-  const userSecret = decrypt(user.binanceApiSecret || "");
+  let userSecret = "";
+  if (user.rsaPrivateKey) {
+    userSecret = decrypt(user.rsaPrivateKey);
+  } else if (user.binanceApiSecret) {
+    userSecret = decrypt(user.binanceApiSecret);
+  }
   const trader = new Trader(userKey, userSecret);
   const executionResult = await trader.executeTrade(
      signal.symbol,

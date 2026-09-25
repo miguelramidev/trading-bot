@@ -89,8 +89,9 @@
     - [x] Implementación de Autenticación Biométrica Nativa (`local_auth`).
 * [x] **Arquitectura Multi-Tenant (B2B SaaS):**
     - [x] Migración del esquema Neon DB para soportar `user_config` vinculado a `firebase_uid`.
-    - [x] Encriptación asimétrica militar (RSA/Ed25519): Generación de llaves públicas/privadas desde el frontend en Dart y descifrado seguro en AWS para la inyección de API Keys de Binance en CCXT sin filtración.
-    - [x] Conversión del Bot y Cron Jobs de un modelo "Global Singleton" a un bucle "Per-User" que evalúa saldo y opera de forma independiente por cuenta.
+    - [x] Encriptación asimétrica militar (RSA/Ed25519) / AES-256-GCM para proteger las API Keys de Binance.
+    - [x] Conversión del Bot y Cron Jobs a un bucle **"Per-User" real**: El cron `analyze.ts` escanea el mercado y luego itera sobre cada usuario, usando sus llaves encriptadas para validar saldos y ejecutar su gestión de riesgo de forma 100% aislada.
+    - [x] Fusión de cuentas y refactorización de Webhook: Soporte dual Telegram/FCM donde los usuarios pueden interactuar con los botones de Telegram ejecutando las órdenes en su cuenta personal de Binance (aislada del bot global).
 * [x] **Dashboard Interactivo en Vivo:**
     - [x] Sustitución de *Mock Data* por endpoints reales (`/api/dashboard`).
     - [x] Creación de `daily_reports` para mapear los historiales de capital por usuario y trazarlos usando `fl_chart` (Gráfico de rendimiento de capital a 30 días).

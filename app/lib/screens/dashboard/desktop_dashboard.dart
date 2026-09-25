@@ -51,13 +51,14 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
     try {
       final response = await ApiClient.get('/api/dashboard');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'setup_required') {
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 500) {
+        if (data['status'] == 'setup_required' || data['status'] == 'error' || response.statusCode == 500) {
           setState(() {
             _setupRequired = true;
             _isLoading = false;
           });
+          _showSetupModal(data['message'] ?? 'API Key inválida o sin configurar. Por favor, actualiza tus credenciales.');
         } else {
           setState(() {
             _setupRequired = false;
@@ -76,12 +77,54 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
         }
       } else {
         if (mounted) setState(() => _isLoading = false);
+        _showSetupModal('Error de conexión o credenciales inválidas.');
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+
+
+  void _showSetupModal(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Evita cerrar con el botón atrás
+          child: AlertDialog(
+            backgroundColor: const Color(0xFF1E2025), // AppColors.surface
+            title: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                const SizedBox(width: 8),
+                const Text('Credenciales Inválidas', style: TextStyle(color: Colors.white, fontSize: 18)),
+              ],
+            ),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF22C55E), // AppColors.winGreen
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  context.go('/settings');
+                },
+                child: const Text('Ir a Ajustes'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

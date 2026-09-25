@@ -442,7 +442,7 @@ async function runAnalysis(timeframe: string) {
           volumeFilter: signal.volumeFilter, fundingRate: fundingRateText, openInterest: oiText, btcCorrelation: btcCorrStr, btcRegime: btcRegimeStr,
           volumeRank: rank,
           decision: null, // Pendiente
-          accountBalance: currentBinanceBalance.toFixed(2),
+          accountBalance: "0.00",
           numGrids: numGrids,
           gridStep: displayStepPct,
           gridSL: fmt(gridSL),

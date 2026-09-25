@@ -1,8 +1,9 @@
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
+import { Resource } from "sst";
 
-const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
+const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64 || (Resource as any).FIREBASE_SERVICE_ACCOUNT_B64?.value;
 
-if (!admin.apps.length) {
+if (!admin.apps || admin.apps.length === 0) {
   if (serviceAccountBase64) {
     try {
       const serviceAccount = JSON.parse(Buffer.from(serviceAccountBase64, 'base64').toString('utf8'));
@@ -18,7 +19,7 @@ if (!admin.apps.length) {
   }
 }
 
-export const messaging = admin.apps.length ? admin.messaging() : null;
+export const messaging = (admin.apps && admin.apps.length > 0) ? admin.messaging() : null;
 
 export async function sendPushNotification(fcmToken: string, title: string, body: string, data?: any) {
   if (!messaging) {

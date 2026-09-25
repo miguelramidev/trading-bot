@@ -74,7 +74,7 @@ class AuthService {
                   // Guardarlo en el backend
                   final fcmResponse = await ApiClient.post('/api/users/fcm-token', body: {
                     'token': fcmToken
-                  }, requiresAuth: true);
+                  });
                   if (fcmResponse.statusCode == 200) {
                      print('✅ FCM Token guardado exitosamente.');
                   }
@@ -112,3 +112,4 @@ class AuthService {
   // Escuchar cambios de estado (si se loguea o desloguea)
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 }
+

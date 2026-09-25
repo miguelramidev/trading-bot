@@ -190,10 +190,9 @@ class _MobileHistoryState extends State<MobileHistory> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(child: Text(trade['symbol'], style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              Row(
+                children: [
+                  Text(trade['symbol'], style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -201,7 +200,6 @@ class _MobileHistoryState extends State<MobileHistory> {
                     child: Text('${trade['direction']} ${trade['leverage']}x', style: TextStyle(color: isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed), fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ],
-              ),
               ),
               Row(
                 children: [
@@ -237,14 +235,12 @@ class _MobileHistoryState extends State<MobileHistory> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(width: 6, height: 6, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(trade['strategy'] ?? '', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                  ],
-                ),
+              Row(
+                children: [
+                  Container(width: 6, height: 6, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                  Text(trade['strategy'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                ],
               ),
               Text('ENT: \$${trade['entryPrice']} → SAL: \$${trade['exitPrice']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
             ],
@@ -280,5 +276,3 @@ class _MobileHistoryState extends State<MobileHistory> {
   }
 
 }
-
-

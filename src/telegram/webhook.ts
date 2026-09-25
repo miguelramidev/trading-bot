@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import ccxt from "ccxt";
 import { Resource } from "sst";
 import { Trader } from "../bot/trader.js";
+import { decrypt } from "../api/core/utils/encryption.js";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
@@ -218,7 +219,15 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
   
   await ctx.answerCbQuery("⏳ Ejecutando orden en Binance...");
 
-  const trader = new Trader();
+  const chatId = ctx.chat?.id.toString();
+  const user = await db.query.userConfig.findFirst({ where: eq(userConfig.chatId, chatId || "") });
+  if (!user || !user.binanceApiKey) {
+    await ctx.answerCbQuery("❌ Configura tus API Keys en la app primero.");
+    return;
+  }
+  const userKey = decrypt(user.binanceApiKey);
+  const userSecret = decrypt(user.binanceApiSecret || "");
+  const trader = new Trader(userKey, userSecret);
   const executionResult = await trader.executeTrade(
      signal.symbol,
      signal.direction!,

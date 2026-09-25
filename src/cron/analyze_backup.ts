@@ -5,7 +5,6 @@ import { db } from "../db/index.js";
 import { signalHistory, userConfig } from "../db/schema.js";
 import { DataFetcher } from "../bot/data.js";
 import { Trader } from "../bot/trader.js";
-import { decrypt } from "../api/core/utils/encryption.js";
 import { Resource } from "sst";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
@@ -193,6 +192,18 @@ async function runAnalysis(timeframe: string) {
       }
     }
   } catch(e) { console.error("Error fetching BTC 1D", e); }
+
+  const balanceObj = await dataFetcher.getUSDTBalance();
+  const currentBinanceBalance = balanceObj.free;
+  
+  if (currentBinanceBalance < 25) {
+    console.log(`Balance insuficiente (${currentBinanceBalance}). Abortando análisis.`);
+    for (const user of activeUsers) {
+      // Evitamos spamear al usuario cada 15m si su dinero está ocupado en trades.
+      // await bot.telegram.sendMessage(user.chatId, `⚠️ <b>Balance Insuficiente</b>...`);
+    }
+    return; // No se esfuerza en analizar
+  }
 
   const pairsData = await dataFetcher.getTop100Pairs();
 
@@ -493,66 +504,48 @@ async function runAnalysis(timeframe: string) {
         const cleanSymbolTV = symbol.split(":")[0].replace("/", "");
         const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
 
+        const marginToInvest = Math.min(25.0, currentBinanceBalance);
+        const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
+        const targetNotional = Math.max(10.0, exchangeMinNotional);
+
+        let leverage = 1;
+        let notional = marginToInvest;
+
+        while (notional < targetNotional && leverage < 10) {
+          leverage++;
+          notional = marginToInvest * leverage;
+        }
+        
+        let positionWarning = "";
+        if (notional < targetNotional) {
+           positionWarning = `⚠️ <b>Riesgo:</b> Tu capital ($${marginToInvest.toFixed(2)}) a x10 no alcanza el mínimo ($${targetNotional.toFixed(2)}). Binance rechazará la orden.\n`;
+        }
+
+        const msg = `🚨 <b>NUEVA SEÑAL ENCONTRADA (Sniper)</b> 🚨\n\n` +
+          `🪙 <b>Par:</b> ${signal.symbol} (Top #${rank})\n` +
+          `📈 <b>Dirección:</b> ${signal.direction}\n` +
+          `⏳ <b>Temporalidad:</b> ${signal.timeframe}\n` +
+          `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
+          `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
+          `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
+          `💰 <b>INVERSIÓN PROYECTADA (Monto Fijo):</b>\n` +
+          `🛡️ <b>Margen (Capital):</b> $${marginToInvest.toFixed(2)} USDT\n` +
+          `⚙️ <b>Apalancamiento:</b> x${leverage}\n` +
+          `🚀 <b>Posición Total:</b> $${notional.toFixed(2)} USDT\n` +
+          positionWarning + `\n` +
+          `🎯 <b>PARÁMETROS DEL TRADE (ATR: ${displayStepPct}):</b>\n` +
+          `🛑 <b>Stop Loss (1 ATR):</b> $${fmt(gridSL)}\n` +
+          `🏆 <b>Take Profit (2 ATR):</b> $${fmt(gridTP)}\n\n` +
+          `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
+          (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
+          macroWarningStr +
+          machetazoWarning +
+          strat4Warning +
+          `💡 <i>Motivo: ${signal.reason}</i>\n` +
+          `📊 <b>Ver Gráfico:</b> <a href="${tvLink}">Abrir ${cleanSymbolTV} en TradingView</a>\n\n` +
+          `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
+
         for (const user of activeUsers) {
-          if (!user.binanceApiKey) continue;
-          
-          let userKey = "";
-          let userSecret = "";
-          try {
-            userKey = decrypt(user.binanceApiKey);
-            userSecret = decrypt(user.binanceApiSecret || "");
-          } catch(e) { console.error("Error decrypting keys for user", user.id); continue; }
-          
-          const userTrader = new Trader(userKey, userSecret);
-          let currentBinanceBalance = 0;
-          try {
-            const bal = await userTrader.getUSDTBalance(); // Wait, wait. Trader.getUSDTBalance() or Trader.getFreeBalance()? Wait, neither! I must verify! I will use `const dataFetcherUser = new DataFetcher(userKey, userSecret); currentBinanceBalance = (await dataFetcherUser.getUSDTBalance()).free;` But DataFetcher constructor doesn't take keys!
-            currentBinanceBalance = (await userTrader.getFreeBalance()); // Ah wait, I need to check Trader methods.
-          } catch (e) { console.error("Error fetching balance for user", user.id); }
-          
-          if (currentBinanceBalance < 25) continue;
-
-          const marginToInvest = Math.min(user.montoOperacion || 25.0, currentBinanceBalance);
-          const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
-          const targetNotional = Math.max(10.0, exchangeMinNotional);
-
-          let leverage = 1;
-          let notional = marginToInvest;
-
-          while (notional < targetNotional && leverage < 10) {
-            leverage++;
-            notional = marginToInvest * leverage;
-          }
-          
-          let positionWarning = "";
-          if (notional < targetNotional) {
-             positionWarning = `⚠️ <b>Riesgo:</b> Tu capital ($${marginToInvest.toFixed(2)}) a x10 no alcanza el mínimo ($${targetNotional.toFixed(2)}). Binance rechazará la orden.\n`;
-          }
-
-          const msg = `🚨 <b>NUEVA SEÑAL ENCONTRADA (Sniper)</b> 🚨\n\n` +
-            `🪙 <b>Par:</b> ${signal.symbol} (Top #${rank})\n` +
-            `📈 <b>Dirección:</b> ${signal.direction}\n` +
-            `⏳ <b>Temporalidad:</b> ${signal.timeframe}\n` +
-            `📏 <b>Estrategia:</b> ${signal.regime} (Est. ${signal.strategy})\n` +
-            `💵 <b>Precio Actual:</b> $${fmt(signal.entry)}\n` +
-            `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
-            `💰 <b>INVERSIÓN PROYECTADA (Monto Fijo):</b>\n` +
-            `🛡️ <b>Margen (Capital):</b> $${marginToInvest.toFixed(2)} USDT\n` +
-            `⚙️ <b>Apalancamiento:</b> x${leverage}\n` +
-            `🚀 <b>Posición Total:</b> $${notional.toFixed(2)} USDT\n` +
-            positionWarning + `\n` +
-            `🎯 <b>PARÁMETROS DEL TRADE (ATR: ${displayStepPct}):</b>\n` +
-            `🛑 <b>Stop Loss (1 ATR):</b> $${fmt(gridSL)}\n` +
-            `🏆 <b>Take Profit (2 ATR):</b> $${fmt(gridTP)}\n\n` +
-            `💰 <b>Funding:</b> ${fundingRateText} | 📈 <b>OI:</b> ${oiText}\n` +
-            (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
-            macroWarningStr +
-            machetazoWarning +
-            strat4Warning +
-            `💡 <i>Motivo: ${signal.reason}</i>\n` +
-            `📊 <b>Ver Gráfico:</b> <a href="${tvLink}">Abrir ${cleanSymbolTV} en TradingView</a>\n\n` +
-            `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
-
           if (user.fcmTokens && user.fcmTokens.length > 0) {
             for (const t of user.fcmTokens) {
               await sendPushNotification(

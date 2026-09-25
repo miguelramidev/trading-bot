@@ -19,6 +19,17 @@ export class Trader {
     });
   }
 
+  async getFreeBalance(): Promise<number> {
+    try {
+      if (!this.exchange.apiKey) return 0;
+      const balance = await this.exchange.fetchBalance();
+      return parseFloat(balance.free['USDT'] || '0');
+    } catch(e) {
+      console.error("Error fetching free balance:", e);
+      return 0;
+    }
+  }
+
   async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number): Promise<string> {
     try {
       await this.exchange.loadMarkets();

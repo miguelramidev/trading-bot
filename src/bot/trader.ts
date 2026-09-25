@@ -5,8 +5,9 @@ export class Trader {
   private exchange: any;
 
   constructor(apiKey?: string, apiSecret?: string) {
-    const binanceKey = apiKey || process.env.BINANCE_API_KEY || (Resource as any).BINANCE_API_KEY?.value;
-    const binanceSecret = apiSecret || process.env.BINANCE_API_SECRET || (Resource as any).BINANCE_API_SECRET?.value;
+    // Si pasamos un apiKey, usamos SIEMPRE ese (incluso si apiSecret es vacío), para evitar cruzar llaves.
+    const binanceKey = apiKey !== undefined ? apiKey : (process.env.BINANCE_API_KEY || (Resource as any).BINANCE_API_KEY?.value);
+    const binanceSecret = apiKey !== undefined ? (apiSecret || "") : (process.env.BINANCE_API_SECRET || (Resource as any).BINANCE_API_SECRET?.value);
     const secretKey = binanceSecret ? binanceSecret.replace(/\\n/g, '\n') : "";
 
     this.exchange = new (ccxt as any).binance({

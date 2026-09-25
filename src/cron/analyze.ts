@@ -494,14 +494,14 @@ async function runAnalysis(timeframe: string) {
         const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
 
         for (const user of activeUsers) {
-          if (!user.binanceApiKey) continue;
+          // Permitir que usuarios sin API Keys reciban la notificación de la señal como teaser
           
           let userKey = "";
           let userSecret = "";
           try {
-            userKey = decrypt(user.binanceApiKey);
-            userSecret = decrypt(user.binanceApiSecret || "");
-          } catch(e) { console.error("Error decrypting keys for user", user.id); continue; }
+            if (user.binanceApiKey) userKey = decrypt(user.binanceApiKey);
+            if (user.binanceApiSecret) userSecret = decrypt(user.binanceApiSecret);
+          } catch(e) { console.error("Error decrypting keys for user", user.id); }
           
           const userTrader = new Trader(userKey, userSecret);
           let currentBinanceBalance = 0;
@@ -510,7 +510,8 @@ async function runAnalysis(timeframe: string) {
             currentBinanceBalance = (await userTrader.getFreeBalance()); // Ah wait, I need to check Trader methods.
           } catch (e) { console.error("Error fetching balance for user", user.id); }
           
-          if (currentBinanceBalance < 25) continue;
+          // Si el balance es menor a 25 o hay error de API, no saltamos al usuario.
+          // Queremos que igual reciba la notificación de la señal, aunque no pueda operar.
 
           const marginToInvest = Math.min(user.montoOperacion || 25.0, currentBinanceBalance);
           const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);

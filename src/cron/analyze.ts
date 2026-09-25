@@ -537,17 +537,15 @@ async function runAnalysis(timeframe: string) {
           const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
           const targetNotional = Math.max(10.0, exchangeMinNotional);
 
-          let leverage = 1;
-          let notional = marginToInvest;
-
-          while (notional < targetNotional && leverage < 10) {
-            leverage++;
-            notional = marginToInvest * leverage;
-          }
+          const leverage = user.leverage || 1;
+          const notional = marginToInvest * leverage;
           
           let positionWarning = "";
           if (notional < targetNotional) {
-             positionWarning = `⚠️ <b>Riesgo:</b> Tu capital ($${marginToInvest.toFixed(2)}) a x10 no alcanza el mínimo ($${targetNotional.toFixed(2)}). Binance rechazará la orden.\n`;
+             positionWarning = `⚠️ <b>Riesgo:</b> Tu capital proyectado ($${marginToInvest.toFixed(2)}) a x${leverage} no alcanza el mínimo ($${targetNotional.toFixed(2)}). Binance rechazará la orden.\n`;
+          }
+          if (currentBinanceBalance < marginToInvest) {
+             positionWarning += `⚠️ <b>Riesgo:</b> Tu balance ($${currentBinanceBalance.toFixed(2)}) es menor a tu configuración ($${marginToInvest.toFixed(2)}). Binance rechazará la orden.\n`;
           }
 
           const msg = `🚨 <b>NUEVA SEÑAL ENCONTRADA (Sniper)</b> 🚨\n\n` +

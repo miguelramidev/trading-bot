@@ -35,7 +35,7 @@ export class Trader {
     }
   }
 
-  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number, configuredMargin: number = 25.0): Promise<string> {
+  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number, configuredMargin: number = 25.0, configuredLeverage: number = 10): Promise<string> {
     try {
       await this.exchange.loadMarkets();
       const market = this.exchange.markets[symbol];
@@ -46,26 +46,23 @@ export class Trader {
       const balance = await this.exchange.fetchBalance();
       const usdtVal = balance.free['USDT'];
       const usdtBalance = typeof usdtVal === 'number' ? usdtVal : parseFloat(usdtVal || '0');
-      if (usdtBalance <= 0) return "❌ Balance insuficiente.";
+      
+      if (usdtBalance < configuredMargin) {
+         return `❌ Balance insuficiente. Tienes $${usdtBalance.toFixed(2)} USDT, pero tu configuración requiere $${configuredMargin.toFixed(2)} USDT por operación.`;
+      }
 
-      // 2. Usar el monto configurado por el usuario o fallback
-      const marginToInvest = Math.min(configuredMargin, usdtBalance);
+      const marginToInvest = configuredMargin;
 
       // 3. Obtener el mínimo Notional real de la moneda y forzar un piso de 10 USDT
       const exchangeMinNotional = market.limits.cost?.min || 5.0;
       const targetNotional = Math.max(10.0, exchangeMinNotional);
 
-      // 4. Calcular Apalancamiento para llegar al targetNotional
-      let leverage = 1;
-      let notional = marginToInvest;
-
-      while (notional < targetNotional && leverage < 10) {
-        leverage++;
-        notional = marginToInvest * leverage;
-      }
+      // 4. Usar el apalancamiento configurado por el usuario
+      const leverage = configuredLeverage;
+      const notional = marginToInvest * leverage;
 
       if (notional < targetNotional) {
-         return `❌ Descartada automáticamente: Capital muy bajo ($${marginToInvest.toFixed(2)} USDT). Incluso con apalancamiento máximo permitido (x10), el tamaño de la posición ($${notional.toFixed(2)}) no supera el mínimo requerido por nuestra regla/Binance ($${targetNotional.toFixed(2)}).`;
+         return `❌ Capital + Apalancamiento muy bajo para el mínimo de Binance. (Notional proyectado: $${notional.toFixed(2)}, Requerido: $${targetNotional.toFixed(2)}). Sube tu margen o tu apalancamiento en la configuración.`;
       }
 
       // 5. Configurar el Apalancamiento en Binance

@@ -16,6 +16,9 @@ export class Trader {
       enableRateLimit: true,
       options: {
         defaultType: 'future',
+        fetchOpenOrders: {
+          warnWithoutSymbol: false
+        }
       },
     });
   }

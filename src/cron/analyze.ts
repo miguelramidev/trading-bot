@@ -21,7 +21,11 @@ async function runAnalysis(timeframe: string) {
   const trader = new Trader();
   
   // Limpieza de huérfanos antes de analizar
-  await trader.cleanOrphanOrders();
+  try {
+    await trader.cleanOrphanOrders();
+  } catch(e: any) {
+    console.error("Warning: Failed to clean orphan orders:", e.message);
+  }
   
   // --- MONITOR DE OPERACIONES ACTIVAS ---
   const activeTrades = await db.query.signalHistory.findMany({

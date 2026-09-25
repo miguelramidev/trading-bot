@@ -497,13 +497,13 @@ async function runAnalysis(timeframe: string) {
         const cleanSymbolTV = symbol.split(":")[0].replace("/", "");
         const tvLink = `https://www.tradingview.com/chart/?symbol=BINANCE:${cleanSymbolTV}.P`;
 
-        const rawReason = [
-          signal.reason ? `Motivo: ${signal.reason}.` : "",
-          macroWarningStr,
-          machetazoWarning,
-          strat4Warning
-        ].filter(Boolean).join(" ");
-        const finalReasonStr = rawReason.replace(/<[^>]*>/g, '').trim();
+        const rawWarnings = [
+          signal.reason ? `Motivo: ${signal.reason}` : "",
+          macroWarningStr.trim(),
+          machetazoWarning.trim(),
+          strat4Warning.trim()
+        ].filter(Boolean);
+        const finalReasonStr = rawWarnings.map(w => "• " + w.replace(/<[^>]*>/g, '')).join('\n\n');
 
         await db.update(signalHistory)
           .set({ reason: finalReasonStr })

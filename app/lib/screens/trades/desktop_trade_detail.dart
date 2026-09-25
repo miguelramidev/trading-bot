@@ -119,20 +119,14 @@ class DesktopTradeDetail extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: (isPositive ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.1),
                             border: Border.all(color: (isPositive ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.3)),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text('${isPositive ? "+" : ""}${roi.toStringAsFixed(2)}% ROI (RETORNO S/ MARGEN)', style: TextStyle(color: isPositive ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                          child: Text('${isPositive ? "+" : ""}${roi.toStringAsFixed(2)}% ROI (RETORNO S/ MARGEN)', style: TextStyle(color: isPositive ? AppColors.winGreen : AppColors.lossRed, fontSize: 14, fontWeight: FontWeight.bold)),
                         ),
-                        const SizedBox(height: 48),
-                        _buildLeftRow('PNL REALIZADO ACUMULADO', '+\$0.00 USDT', AppColors.textPrimary),
-                        const SizedBox(height: 16),
-                        _buildLeftRow('FINANCIACIÓN DEVENGADA', '-0.00 USDT', AppColors.lossRed),
-                        const SizedBox(height: 16),
-                        _buildLeftRow('DELTA INSTITUCIONAL L1', '+0.000 ETH (Delta Hedged)', AppColors.winGreen),
                         const SizedBox(height: 48),
                         Container(
                           padding: const EdgeInsets.all(16),
@@ -140,15 +134,15 @@ class DesktopTradeDetail extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.shield_outlined, color: AppColors.winGreen, size: 16),
+                              const Icon(Icons.shield_outlined, color: AppColors.winGreen, size: 20),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Garantía de Ejecución Atómica L2', style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.bold)),
+                                    const Text('Garantía de Ejecución L2', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 4),
-                                    Text('Posición respaldada por colateral segregado multi-custodia. Slippage máximo tolerado: 0.001%.', style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.8), fontSize: 10)),
+                                    Text('Posición respaldada por Binance Futures API. Slippage mitigado.', style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.8), fontSize: 12)),
                                   ],
                                 ),
                               )
@@ -171,32 +165,23 @@ class DesktopTradeDetail extends StatelessWidget {
                         const Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('PARÁMETROS MATEMÁTICOS & CONDICIONES DE MERCADO', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                            Row(
-                              children: [
-                                Icon(Icons.verified, color: AppColors.winGreen, size: 10),
-                                SizedBox(width: 4),
-                                Text('AUDITADO ALADDIN/MQ', style: TextStyle(color: AppColors.winGreen, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                              ],
-                            )
+                            Text('PARÁMETROS DE MERCADO Y SEÑAL', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
                           ],
                         ),
                         const SizedBox(height: 32),
-                        _buildRightRow('ESTRATEGIA ALGORÍTMICA', trade['strategy'] ?? 'Motor Momentum Cuántico', 'Alpha-Momentum v4.2 [ID-982]', AppColors.textPrimary, AppColors.winGreen),
+                        _buildRightRow('ESTRATEGIA ALGORÍTMICA', trade['strategy'] ?? 'Motor Momentum Cuántico', 'Activa', AppColors.textPrimary, AppColors.winGreen),
                         _buildRightDivider(),
-                        _buildRightRow('VALOR NOCIONAL & MARGEN', 'Colateral aislado / cross', '\$${notional.toStringAsFixed(2)} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen Asignado: \$${margin.toStringAsFixed(2)} USDT'),
+                        _buildRightRow('VALOR NOCIONAL & MARGEN', 'Apalancamiento x${trade['leverage'] ?? 1} Cross', '\$${notional.toStringAsFixed(2)} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen: \$${margin.toStringAsFixed(2)} USDT'),
                         _buildRightDivider(),
-                        _buildRightRow('MODO DE APALANCAMIENTO', 'Factor de multiplicación dinámico', '${trade['leverage'] ?? 1}x Cross Margin', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Modo Cobertura Activo (Hedge L1)', subValColor: AppColors.textSecondary),
+                        _buildRightRow('ENTRADA VS MARK PRICE', 'Diferencial en vivo', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} → \$${double.tryParse(trade['markPrice']?.toString() ?? trade['exitPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', AppColors.textSecondary, AppColors.textPrimary),
                         _buildRightDivider(),
-                        _buildRightRow('ENTRADA VS MARK PRICE', 'Índice agregado ponderado', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} → \$${double.tryParse(trade['markPrice']?.toString() ?? trade['exitPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Diferencial spread calculado', subValColor: AppColors.winGreen),
+                        _buildRightRow('DISTANCIA A STOP LOSS', 'Garantía de salida', '\$${double.tryParse(trade['stopLoss']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, isSl: true),
                         _buildRightDivider(),
-                        _buildRightRow('DISTANCIA A STOP LOSS', 'Garantía Dinámica s/ Volatilidad', '\$${double.tryParse(trade['stopLoss']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: '-2.94% / Delta -3.8%', subValColor: AppColors.lossRed, isSl: true),
+                        _buildRightRow('DISTANCIA A TAKE PROFIT', 'Objetivo Algorítmico', '\$${double.tryParse(trade['takeProfit']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, isTp: true),
                         _buildRightDivider(),
-                        _buildRightRow('DISTANCIA A TAKE PROFIT', 'Objetivo Algorítmico VWAP +2σ', '\$${double.tryParse(trade['takeProfit']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: '+5.83% / (R/R: 1:1.98)', subValColor: AppColors.winGreen, isTp: true),
+                        _buildRightRow('FUNDING RATE', 'Tasa de permuta perp 8h', '+${trade['fundingRate'] ?? "0.0000"}%', AppColors.textSecondary, AppColors.winGreen),
                         _buildRightDivider(),
-                        _buildRightRow('FUNDING RATE & PRÓXIMO CORTE', 'Tasa de permuta perp 8h', '+${trade['fundingRate'] ?? "0.0000"}%', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Ciclo en 02:41:15', subValColor: AppColors.textSecondary),
-                        _buildRightDivider(),
-                        _buildRightRow('LIQUIDACIÓN TEÓRICA', 'Riesgo de margen cero', '\$${trade['liquidationPrice'] ?? "-"} USDT', AppColors.textSecondary, AppColors.lossRed, subVal: 'Distancia de Seguridad: 17.4%', subValColor: AppColors.winGreen),
+                        _buildRightRow('LIQUIDACIÓN', 'Riesgo de margen', '\$${trade['liquidationPrice'] ?? "-"} USDT', AppColors.textSecondary, AppColors.lossRed),
                         
                         const SizedBox(height: 24),
                         Row(
@@ -257,21 +242,21 @@ class DesktopTradeDetail extends StatelessWidget {
           children: [
             Row(
               children: [
-                if (isSl) ...[Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.lossRed, shape: BoxShape.circle)), const SizedBox(width: 6)],
-                if (isTp) ...[Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)), const SizedBox(width: 6)],
-                Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold)),
+                if (isSl) ...[Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.lossRed, shape: BoxShape.circle)), const SizedBox(width: 8)],
+                if (isTp) ...[Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)), const SizedBox(width: 8)],
+                Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 4),
-            Text(subLabel, style: TextStyle(color: subColor, fontSize: 10)),
+            Text(subLabel, style: TextStyle(color: subColor, fontSize: 12)),
           ],
         ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(val, style: TextStyle(color: valColor, fontSize: 11, fontWeight: FontWeight.bold)),
+            Text(val, style: TextStyle(color: valColor, fontSize: 14, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            if (subVal != null) Text(subVal, style: TextStyle(color: subValColor ?? AppColors.textSecondary, fontSize: 10)),
+            if (subVal != null) Text(subVal, style: TextStyle(color: subValColor ?? AppColors.textSecondary, fontSize: 12)),
           ],
         ),
       ],

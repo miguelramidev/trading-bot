@@ -120,7 +120,7 @@ async function runAnalysis(timeframe: string) {
                 );
               }
             }
-            if (user.chatId) await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" });
+            if (user.chatId) { try { await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" }); } catch(e:any) { console.error("Telegram error:", e.message); } }
           }
         } else if (trade.decision === "Descartada") {
           const hitTP = closeReason.includes("TP");
@@ -132,7 +132,7 @@ async function runAnalysis(timeframe: string) {
           }
           
           for (const user of users) {
-             if (user.chatId) await bot.telegram.sendMessage(user.chatId, msg, { parse_mode: "HTML" });
+             if (user.chatId) { try { await bot.telegram.sendMessage(user.chatId, msg, { parse_mode: "HTML" }); } catch(e:any) { console.error("Telegram error:", e.message); } }
           }
         }
       }
@@ -576,16 +576,21 @@ async function runAnalysis(timeframe: string) {
 
           if (user.fcmTokens && user.fcmTokens.length > 0) {
             for (const t of user.fcmTokens) {
-              await sendPushNotification(
-                t,
-                `Nueva Señal: ${signal.direction} en ${signal.symbol}`,
-                `Estrategia: ${signal.strategy} | SL: ${signal.stopLoss} | TP: ${signal.takeProfit}`,
-                { signalId: String(signalId), symbol: signal.symbol }
-              );
+              try {
+                await sendPushNotification(
+                  t,
+                  `Nueva Señal: ${signal.direction} en ${signal.symbol}`,
+                  `Estrategia: ${signal.strategy} | SL: ${signal.stopLoss} | TP: ${signal.takeProfit}`,
+                  { signalId: String(signalId), symbol: signal.symbol }
+                );
+              } catch(e: any) {
+                console.error("Error enviando Push a", t, e.message);
+              }
             }
           }
           if (user.chatId) {
-            await bot.telegram.sendMessage(user.chatId, msg, {
+            try {
+              await bot.telegram.sendMessage(user.chatId, msg, {
               parse_mode: "HTML",
               reply_markup: {
                 inline_keyboard: [
@@ -596,6 +601,9 @@ async function runAnalysis(timeframe: string) {
                 ]
               }
             });
+            } catch(e: any) {
+              console.error("Error enviando Telegram a", user.chatId, e.message);
+            }
           }
         }
         

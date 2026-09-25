@@ -22,6 +22,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "FIREBASE_SERVICE_ACCOUNT_B64": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "TELEGRAM_TOKEN": {
       "type": "sst.sst.Secret"
       "value": string

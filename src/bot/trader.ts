@@ -27,14 +27,15 @@ export class Trader {
     try {
       if (!this.exchange.apiKey) return 0;
       const balance = await this.exchange.fetchBalance();
-      return parseFloat(balance.free['USDT'] || '0');
+      const val = balance.free['USDT'];
+      return typeof val === 'number' ? val : parseFloat(val || '0');
     } catch(e) {
       console.error("Error fetching free balance:", e);
       return 0;
     }
   }
 
-  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number): Promise<string> {
+  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number, configuredMargin: number = 25.0): Promise<string> {
     try {
       await this.exchange.loadMarkets();
       const market = this.exchange.markets[symbol];
@@ -43,11 +44,12 @@ export class Trader {
 
       // 1. Get Balance
       const balance = await this.exchange.fetchBalance();
-      const usdtBalance = balance.free['USDT'] || 0;
+      const usdtVal = balance.free['USDT'];
+      const usdtBalance = typeof usdtVal === 'number' ? usdtVal : parseFloat(usdtVal || '0');
       if (usdtBalance <= 0) return "❌ Balance insuficiente.";
 
-      // 2. Usar un monto fijo de 25 USDT por operación (protección contra rachas)
-      const marginToInvest = Math.min(25.0, usdtBalance);
+      // 2. Usar el monto configurado por el usuario o fallback
+      const marginToInvest = Math.min(configuredMargin, usdtBalance);
 
       // 3. Obtener el mínimo Notional real de la moneda y forzar un piso de 10 USDT
       const exchangeMinNotional = market.limits.cost?.min || 5.0;

@@ -25,9 +25,10 @@ class DesktopSettings extends StatefulWidget {
 class _DesktopSettingsState extends State<DesktopSettings> {
   final _apiKeyController = TextEditingController();
   final _apiSecretController = TextEditingController();
-  final _amountController = TextEditingController(text: '25.00');
+  final _amountController = TextEditingController(text: '25');
   final _OperacionesController = TextEditingController(text: '5');
-  final _leverageController = TextEditingController(text: '10');
+  final _leverageMinController = TextEditingController(text: '1');
+  final _leverageMaxController = TextEditingController(text: '2');
   bool _isSaving = false;
   bool _isGeneratingKeys = false;
   String? _rsaPublicKey;
@@ -98,6 +99,27 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     if (user == null) return;
 
     try {
+      final levMin = int.tryParse(_leverageMinController.text) ?? 1;
+      final levMax = int.tryParse(_leverageMaxController.text) ?? 2;
+
+      if (levMin < 1 || levMax < 1 || levMin > levMax) {
+        toastification.show(
+          context: context,
+          type: ToastificationType.error,
+          style: ToastificationStyle.fillColored,
+          title: const Text('Apalancamiento inválido', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          description: const Text('El mínimo debe ser ≥ 1 y el máximo debe ser ≥ al mínimo.', style: TextStyle(color: Colors.white70)),
+          alignment: Alignment.topRight,
+          autoCloseDuration: const Duration(seconds: 4),
+          backgroundColor: AppColors.surface,
+          primaryColor: AppColors.lossRed,
+          icon: const Icon(Icons.error, color: AppColors.lossRed),
+          showProgressBar: false,
+        );
+        setState(() => _isSaving = false);
+        return;
+      }
+
       final response = await http.put(
         Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/users/config'),
         headers: {
@@ -109,7 +131,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           'binanceApiSecret': _apiSecretController.text,
           'montoOperacion': int.tryParse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 25,
           'maxOperaciones': int.tryParse(_OperacionesController.text) ?? 5,
-          'apalancamiento': int.tryParse(_leverageController.text) ?? 10,
+          'leverageMin': levMin,
+          'leverageMax': levMax,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
         }),
@@ -348,8 +371,42 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           _editableField('Monto por Operación (\$)', 'USDT', _amountController),
           const SizedBox(height: 16),
           _editableField('Límite de Operaciones Simultáneos', 'Operaciones', _OperacionesController),
-          const SizedBox(height: 16),
-          _editableField('Max Leverage (Apalancamiento)', 'x', _leverageController),
+          const SizedBox(height: 20),
+          // Leverage Min / Max dual control
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Rango de Apalancamiento', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              const SizedBox(height: 4),
+              const Text(
+                'El bot operará con el mínimo. Si el Notional de Binance no se alcanza, escalará hasta el máximo.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _leverageField('Mínimo', _leverageMinController)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        Container(
+                          width: 24,
+                          height: 2,
+                          decoration: BoxDecoration(
+                            color: AppColors.textSecondary.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: _leverageField('Máximo', _leverageMaxController)),
+                ],
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           _inputField('Stop Loss Global de Emergencia', '3.5% Drawdown Diario', isDanger: true),
         ],
@@ -531,6 +588,33 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           activeColor: AppColors.winGreen,
           onChanged: onChanged,
         )
+      ],
+    );
+  }
+
+  Widget _leverageField(String label, TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppColors.background,
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(left: 12, right: 4),
+              child: Text('x', style: TextStyle(color: AppColors.textSecondary, fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+            enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.winGreen), borderRadius: BorderRadius.circular(8)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
       ],
     );
   }

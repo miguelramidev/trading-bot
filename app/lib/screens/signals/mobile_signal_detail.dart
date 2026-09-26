@@ -137,7 +137,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
+                      onPressed: _isExecuting ? null : () {
                         final reasonController = TextEditingController();
                         showDialog(
                           context: context,
@@ -184,34 +184,21 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                         );
                       },
                       style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 18),
+                      icon: _isExecuting 
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: AppColors.textSecondary, strokeWidth: 2))
+                        : const Icon(Icons.close, color: AppColors.textSecondary, size: 18),
                       label: const Text('Descartar', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () async {
-                        try {
-                          final res = await ApiClient.post('/api/signals/${widget.signal['id']}/execute');
-                          if (res.statusCode == 200) {
-                            final data = jsonDecode(res.body);
-                            if (data['status'] == 'success') {
-                               AppToast.showSuccess(context, '¡Trade ejecutado en Binance!');
-                            } else {
-                               AppToast.showError(context, 'Rechazado: ${data['message']}');
-                            }
-                            if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
-                          } else {
-                            AppToast.showError(context, 'Error al ejecutar');
-                          }
-                        } catch (e) {
-                          AppToast.showError(context, 'Error de conexión');
-                        }
-                      },
+                      onPressed: _isExecuting ? null : () => _executeTrade(context),
                       style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: AppColors.winGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      icon: const Icon(Icons.flash_on, color: Colors.black, size: 18),
-                      label: const Text('Operar', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                      icon: _isExecuting 
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                        : const Icon(Icons.flash_on, color: Colors.black, size: 18),
+                      label: Text(_isExecuting ? '...' : 'Operar', style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -410,7 +397,34 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
     );
   }
 
+  bool _isExecuting = false;
+
+  Future<void> _executeTrade(BuildContext context) async {
+    if (_isExecuting) return;
+    setState(() => _isExecuting = true);
+    try {
+      final res = await ApiClient.post('/api/signals/${widget.signal['id']}/execute');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['status'] == 'success') {
+           AppToast.showSuccess(context, '¡Trade ejecutado en Binance!');
+        } else {
+           AppToast.showError(context, 'Rechazado: ${data['message']}');
+        }
+        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
+      } else {
+        AppToast.showError(context, 'Error al ejecutar');
+      }
+    } catch (e) {
+      AppToast.showError(context, 'Error de conexión');
+    } finally {
+      if (mounted) setState(() => _isExecuting = false);
+    }
+  }
+
   Future<void> _executeDiscard(BuildContext context, String reason) async {
+    if (_isExecuting) return;
+    setState(() => _isExecuting = true);
     try {
       final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard', body: {'reason': reason});
       if (res.statusCode == 200) {
@@ -421,6 +435,8 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
       }
     } catch (e) {
       AppToast.showError(context, 'Error de conexión');
+    } finally {
+      if (mounted) setState(() => _isExecuting = false);
     }
   }
 }

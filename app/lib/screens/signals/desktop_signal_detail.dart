@@ -257,6 +257,49 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
     return Colors.orange; // PENDIENTE
   }
 
+  bool _isExecuting = false;
+
+  Future<void> _executeTrade(BuildContext context) async {
+    if (_isExecuting) return;
+    setState(() => _isExecuting = true);
+    try {
+      final res = await ApiClient.post('/api/signals/${widget.signal['id']}/execute');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['status'] == 'success') {
+           AppToast.showSuccess(context, '¡Trade ejecutado en Binance!');
+        } else {
+           AppToast.showError(context, 'Rechazado: ${data['message']}');
+        }
+        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
+      } else {
+        AppToast.showError(context, 'Error al ejecutar');
+      }
+    } catch (e) {
+      AppToast.showError(context, 'Error de conexión');
+    } finally {
+      if (mounted) setState(() => _isExecuting = false);
+    }
+  }
+
+  Future<void> _executeDiscard(BuildContext context, String reason) async {
+    if (_isExecuting) return;
+    setState(() => _isExecuting = true);
+    try {
+      final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard', body: {'reason': reason});
+      if (res.statusCode == 200) {
+        AppToast.showInfo(context, 'Trade descartado');
+        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
+      } else {
+        AppToast.showError(context, 'Error al descartar');
+      }
+    } catch (e) {
+      AppToast.showError(context, 'Error de conexión');
+    } finally {
+      if (mounted) setState(() => _isExecuting = false);
+    }
+  }
+
   Widget _buildInfoPanel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,84 +365,71 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                   width: double.infinity,
                   height: 56,
                   child: OutlinedButton(
-                    onPressed: () {
-              final reasonController = TextEditingController();
-              showDialog(
-                context: context,
-                builder: (dialogContext) => AlertDialog(
-                  backgroundColor: AppColors.surface,
-                  title: const Text('Descartar Trade', style: TextStyle(color: AppColors.textPrimary)),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('¿Por qué estás descartando esta señal? (Opcional)', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: reasonController,
-                        style: const TextStyle(color: AppColors.textPrimary),
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          hintText: 'Ej: No me gusta la vela, mucha volatilidad, etc.',
-                          hintStyle: const TextStyle(color: AppColors.textSecondary),
-                          filled: true,
-                          fillColor: AppColors.background,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    onPressed: _isExecuting ? null : () {
+                      final reasonController = TextEditingController();
+                      showDialog(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          backgroundColor: AppColors.surface,
+                          title: const Text('Descartar Trade', style: TextStyle(color: AppColors.textPrimary)),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('¿Por qué estás descartando esta señal? (Opcional)', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: reasonController,
+                                style: const TextStyle(color: AppColors.textPrimary),
+                                maxLines: 3,
+                                decoration: InputDecoration(
+                                  hintText: 'Ej: No me gusta la vela, mucha volatilidad, etc.',
+                                  hintStyle: const TextStyle(color: AppColors.textSecondary),
+                                  filled: true,
+                                  fillColor: AppColors.background,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                ),
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () async {
+                                Navigator.pop(dialogContext);
+                                _executeDiscard(context, '');
+                              },
+                              child: const Text('Omitir', style: TextStyle(color: AppColors.textSecondary)),
+                            ),
+                            ElevatedButton(
+                              onPressed: () async {
+                                Navigator.pop(dialogContext);
+                                _executeDiscard(context, reasonController.text);
+                              },
+                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.lossRed),
+                              child: const Text('Descartar', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    child: _isExecuting 
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.textSecondary, strokeWidth: 2))
+                      : const Text('Descartar Señal', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () async {
-                        Navigator.pop(dialogContext);
-                        _executeDiscard(context, '');
-                      },
-                      child: const Text('Omitir', style: TextStyle(color: AppColors.textSecondary)),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(dialogContext);
-                        _executeDiscard(context, reasonController.text);
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.lossRed),
-                      child: const Text('Descartar', style: TextStyle(color: Colors.white)),
-                    ),
-                  ],
                 ),
-              );
-            },
-            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: const Text('Descartar Señal', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed: () async {
-              try {
-                final res = await ApiClient.post('/api/signals/${widget.signal['id']}/execute');
-                if (res.statusCode == 200) {
-                  final data = jsonDecode(res.body);
-                  if (data['status'] == 'success') {
-                     AppToast.showSuccess(context, '¡Trade ejecutado en Binance!');
-                  } else {
-                     AppToast.showError(context, 'Rechazado: ${data['message']}');
-                  }
-                  if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
-                } else {
-                  AppToast.showError(context, 'Error al ejecutar');
-                }
-              } catch (e) {
-                AppToast.showError(context, 'Error de conexión');
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.winGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            icon: const Icon(Icons.flash_on, color: Colors.black),
-            label: const Text('Operar Ahora', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
-        ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _isExecuting ? null : () => _executeTrade(context),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.winGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    icon: _isExecuting 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                      : const Icon(Icons.flash_on, color: Colors.black),
+                    label: Text(_isExecuting ? 'EJECUTANDO...' : 'Operar Ahora', style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
               ]
             ],
           );
@@ -416,20 +446,6 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
         Text(value, style: AppTheme.monoStyle.copyWith(color: valueColor, fontWeight: FontWeight.bold, fontSize: 14)),
       ],
     );
-  }
-
-  Future<void> _executeDiscard(BuildContext context, String reason) async {
-    try {
-      final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard', body: {'reason': reason});
-      if (res.statusCode == 200) {
-        AppToast.showInfo(context, 'Trade descartado');
-        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
-      } else {
-        AppToast.showError(context, 'Error al descartar');
-      }
-    } catch (e) {
-      AppToast.showError(context, 'Error de conexión');
-    }
   }
 }
 

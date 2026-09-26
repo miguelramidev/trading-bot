@@ -98,6 +98,8 @@ usersRouter.put(
     binanceApiSecret: z.string().optional(),
     montoOperacion: z.number().optional(),
     apalancamiento: z.number().optional(),
+    leverageMin: z.number().min(1).max(125).optional(),
+    leverageMax: z.number().min(1).max(125).optional(),
     maxTrades: z.number().optional(),
     rsaPublicKey: z.string().optional(),
     rsaPrivateKey: z.string().optional(),
@@ -118,6 +120,8 @@ usersRouter.put(
       if (data.binanceApiSecret) setObj.binanceApiSecret = encrypt(data.binanceApiSecret);
       if (data.montoOperacion !== undefined) setObj.montoOperacion = data.montoOperacion;
       if (data.apalancamiento !== undefined) setObj.apalancamiento = data.apalancamiento;
+      if (data.leverageMin !== undefined) setObj.leverageMin = data.leverageMin;
+      if (data.leverageMax !== undefined) setObj.leverageMax = data.leverageMax;
       if (data.maxTrades !== undefined) setObj.maxTrades = data.maxTrades;
       if (data.rsaPublicKey) setObj.rsaPublicKey = data.rsaPublicKey;
       if (data.rsaPrivateKey) setObj.rsaPrivateKey = encrypt(data.rsaPrivateKey);

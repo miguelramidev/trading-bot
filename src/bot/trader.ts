@@ -35,14 +35,14 @@ export class Trader {
     }
   }
 
-  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number, configuredMargin: number = 25.0, configuredLeverage: number = 10): Promise<string> {
+  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number, configuredMargin: number = 25.0, leverageMin: number = 1, leverageMax: number = 2): Promise<string> {
     try {
       await this.exchange.loadMarkets();
       const market = this.exchange.markets[symbol];
 
       if (!market) return `❌ Mercado ${symbol} no encontrado.`;
 
-      // 1. Get Balance
+      // 1. Validar balance (RULES.md Regla 2)
       const balance = await this.exchange.fetchBalance();
       const usdtVal = balance.free['USDT'];
       const usdtBalance = typeof usdtVal === 'number' ? usdtVal : parseFloat(usdtVal || '0');
@@ -53,16 +53,22 @@ export class Trader {
 
       const marginToInvest = configuredMargin;
 
-      // 3. Obtener el mínimo Notional real de la moneda y forzar un piso de 10 USDT
+      // 2. Obtener el mínimo Notional real de la moneda
       const exchangeMinNotional = market.limits.cost?.min || 5.0;
       const targetNotional = Math.max(10.0, exchangeMinNotional);
 
-      // 4. Usar el apalancamiento configurado por el usuario
-      const leverage = configuredLeverage;
-      const notional = marginToInvest * leverage;
+      // 3. Escalado de apalancamiento (RULES.md Regla 1)
+      // Empieza en leverageMin, sube hasta leverageMax si el notional no alcanza
+      let leverage = leverageMin;
+      let notional = marginToInvest * leverage;
+
+      while (notional < targetNotional && leverage < leverageMax) {
+        leverage++;
+        notional = marginToInvest * leverage;
+      }
 
       if (notional < targetNotional) {
-         return `❌ Capital + Apalancamiento muy bajo para el mínimo de Binance. (Notional proyectado: $${notional.toFixed(2)}, Requerido: $${targetNotional.toFixed(2)}). Sube tu margen o tu apalancamiento en la configuración.`;
+         return `❌ Capital insuficiente incluso con apalancamiento máximo (x${leverageMax}). Notional proyectado: $${notional.toFixed(2)} USDT, mínimo requerido: $${targetNotional.toFixed(2)} USDT. Sube tu margen o tu apalancamiento máximo en la configuración.`;
       }
 
       // 5. Configurar el Apalancamiento en Binance

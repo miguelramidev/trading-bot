@@ -239,7 +239,8 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
      parseFloat(signal.gridSL || "0"),
      parseFloat(signal.gridTP || "0"),
      user.montoOperacion ? parseFloat(user.montoOperacion.toString()) : 25.0,
-     user.apalancamiento ?? 10
+     user.leverageMin ?? 1,
+     user.leverageMax ?? 2
   );
 
   let finalDecision = "Tomada";

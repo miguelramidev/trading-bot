@@ -11,6 +11,8 @@ export const userConfig = pgTable("user_config", {
   binanceApiSecret: text("binance_api_secret"),
   montoOperacion: integer("monto_operacion").default(25),
   apalancamiento: integer("apalancamiento").default(10), // ✅ CAMPO CANÓNICO — configurado desde la app Flutter y Telegram /leverage
+  leverageMin: integer("leverage_min").default(1),      // Mínimo con el que siempre se opera (RULES.md Regla 1)
+  leverageMax: integer("leverage_max").default(2),      // Máximo al que puede escalar si minNotional no se alcanza (RULES.md Regla 1)
   maxTrades: integer("max_trades").default(5),
   rsaPublicKey: text("rsa_public_key"),
   rsaPrivateKey: text("rsa_private_key"),

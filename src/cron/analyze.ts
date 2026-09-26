@@ -533,16 +533,23 @@ async function runAnalysis(timeframe: string) {
           // Si el balance es menor a 25 o hay error de API, no saltamos al usuario.
           // Queremos que igual reciba la notificación de la señal, aunque no pueda operar.
 
-          const marginToInvest = Math.min(user.montoOperacion || 25.0, currentBinanceBalance);
+          const marginToInvest = user.montoOperacion || 25.0;
           const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
           const targetNotional = Math.max(10.0, exchangeMinNotional);
 
-          const leverage = user.apalancamiento ?? 10;
-          const notional = marginToInvest * leverage;
+          // Escalado de apalancamiento según RULES.md Regla 1
+          const levMin = user.leverageMin ?? 1;
+          const levMax = user.leverageMax ?? 2;
+          let leverage = levMin;
+          let notional = marginToInvest * leverage;
+          while (notional < targetNotional && leverage < levMax) {
+            leverage++;
+            notional = marginToInvest * leverage;
+          }
           
           let positionWarning = "";
           if (notional < targetNotional) {
-             positionWarning = `⚠️ <b>Riesgo:</b> Tu capital proyectado ($${marginToInvest.toFixed(2)}) a x${leverage} no alcanza el mínimo ($${targetNotional.toFixed(2)}). Binance rechazará la orden.\n`;
+             positionWarning = `⚠️ <b>Riesgo:</b> Con x${levMin}–x${levMax} y $${marginToInvest.toFixed(2)}, el notional proyectado ($${notional.toFixed(2)}) no alcanza el mínimo ($${targetNotional.toFixed(2)}). Binance rechazará la orden.\n`;
           }
           if (currentBinanceBalance < marginToInvest) {
              positionWarning += `⚠️ <b>Riesgo:</b> Tu balance ($${currentBinanceBalance.toFixed(2)}) es menor a tu configuración ($${marginToInvest.toFixed(2)}). Binance rechazará la orden.\n`;
@@ -557,7 +564,7 @@ async function runAnalysis(timeframe: string) {
             `💼 <b>Tu Balance Binance:</b> $${currentBinanceBalance.toFixed(2)} USDT\n\n` +
             `💰 <b>INVERSIÓN PROYECTADA (Monto Fijo):</b>\n` +
             `🛡️ <b>Margen (Capital):</b> $${marginToInvest.toFixed(2)} USDT\n` +
-            `⚙️ <b>Apalancamiento:</b> x${leverage}\n` +
+            `⚙️ <b>Apalancamiento:</b> x${leverage} (rango: x${levMin}–x${levMax})\n` +
             `🚀 <b>Posición Total:</b> $${notional.toFixed(2)} USDT\n` +
             positionWarning + `\n` +
             `🎯 <b>PARÁMETROS DEL TRADE (ATR: ${displayStepPct}):</b>\n` +

@@ -4,11 +4,8 @@ applications:
       phases:
         preBuild:
           commands:
-            # Instalar dependencias necesarias (Amazon Linux usa yum)
-            - yum install -y xz
-            # Instalar Flutter SDK
-            - curl -s https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.29.3-stable.tar.xz -o flutter.tar.xz
-            - tar xf flutter.tar.xz
+            # Instalar Flutter via git clone (sin dependencias de sistema)
+            - git clone https://github.com/flutter/flutter.git -b stable --depth 1
             - export PATH="$PATH:`pwd`/flutter/bin"
             - flutter --version
             - flutter config --enable-web

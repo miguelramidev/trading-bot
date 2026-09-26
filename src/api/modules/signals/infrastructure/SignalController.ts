@@ -85,7 +85,10 @@ signalsRouter.post(
         signal.symbol,
         signal.direction!,
         parseFloat(signal.gridSL || signal.stopLoss || "0"),
-        parseFloat(signal.gridTP || signal.takeProfit || "0")
+        parseFloat(signal.gridTP || signal.takeProfit || "0"),
+        user.montoOperacion ?? 25.0,
+        user.leverageMin ?? 1,
+        user.leverageMax ?? 2
       );
 
       let finalDecision = "Tomada";

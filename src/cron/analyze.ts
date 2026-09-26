@@ -433,7 +433,22 @@ async function runAnalysis(timeframe: string) {
         
         const displayStepPct = (stepPct * 100).toFixed(2) + "%";
 
-        const fmt = (n: number) => n < 0.1 ? n.toFixed(6) : n.toFixed(4);
+        // Precisión dinámica según el orden de magnitud del precio
+        // < 0.001  → 8 decimales (ej: PEPE, SHIB)
+        // < 0.1    → 6 decimales (ej: DOGE, XRP pequeño)
+        // < 1      → 6 decimales (ej: ADA, SUI)
+        // < 10     → 5 decimales (ej: XRP, MATIC)
+        // < 100    → 4 decimales (ej: SOL, AVAX)
+        // >= 100   → 2 decimales (ej: BTC, ETH)
+        const fmt = (n: number): string => {
+          if (n < 0.001) return n.toFixed(8);
+          if (n < 0.1)   return n.toFixed(6);
+          if (n < 1)     return n.toFixed(6);
+          if (n < 10)    return n.toFixed(5);
+          if (n < 100)   return n.toFixed(4);
+          return n.toFixed(2);
+        };
+
 
         const inserted = await db.insert(signalHistory).values({
           symbol, timeframe: "15m", direction: signal.direction,

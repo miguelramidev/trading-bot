@@ -12,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../dashboard_screen.dart';
 import 'settings_screen.dart';
+import '../../services/auth_service.dart';
 
 class MobileSettings extends StatefulWidget {
   const MobileSettings({super.key});
@@ -277,9 +278,15 @@ class _MobileSettingsState extends State<MobileSettings> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _switchRow('Notificaciones Web', 'Toast mientras la app está abierta', _notificationsWeb, (v) => setState(() => _notificationsWeb = v)),
+                  _switchRow('Notificaciones Web', 'Toast mientras la app está abierta', _notificationsWeb, (v) {
+                    setState(() => _notificationsWeb = v);
+                    if (v) AuthService().initFCM();
+                  }),
                   const Divider(color: AppColors.border, height: 16),
-                  _switchRow('Notificaciones Móviles (Push)', 'Alertas en tu teléfono cuando hay trades', _notificationsMobile, (v) => setState(() => _notificationsMobile = v)),
+                  _switchRow('Notificaciones Móviles (Push)', 'Alertas en tu teléfono cuando hay trades', _notificationsMobile, (v) {
+                    setState(() => _notificationsMobile = v);
+                    if (v) AuthService().initFCM();
+                  }),
                   const Divider(color: AppColors.border, height: 32),
                   
                   const Text('GENERADOR DE LLAVES Ed25519', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),

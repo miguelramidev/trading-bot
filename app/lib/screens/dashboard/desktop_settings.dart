@@ -459,9 +459,15 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             ],
           ),
           const SizedBox(height: 24),
-          _switchRow('Notificaciones Web / Escritorio', 'Recibir notificaciones flotantes (Toast) mientras la app está abierta', _notificationsWeb, (v) => setState(() => _notificationsWeb = v)),
+          _switchRow('Notificaciones Web / Escritorio', 'Recibir notificaciones flotantes (Toast) mientras la app está abierta', _notificationsWeb, (v) {
+            setState(() => _notificationsWeb = v);
+            if (v) AuthService().initFCM();
+          }),
           const Divider(color: AppColors.border, height: 24),
-          _switchRow('Notificaciones Móviles (Push)', 'Recibir alertas push en tu dispositivo móvil cuando el bot opere o detecte una señal', _notificationsMobile, (v) => setState(() => _notificationsMobile = v)),
+          _switchRow('Notificaciones Móviles (Push)', 'Recibir alertas push en tu dispositivo móvil cuando el bot opere o detecte una señal', _notificationsMobile, (v) {
+            setState(() => _notificationsMobile = v);
+            if (v) AuthService().initFCM();
+          }),
           const Divider(color: AppColors.border, height: 32),
           
           const Text('Generador de Llaves Ed25519 (Bypass IP Restriction)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),

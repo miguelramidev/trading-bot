@@ -39,7 +39,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   bool _isFakeoutActive = false;
   bool _isMacroActive = true;
   bool _isFundingActive = false;
-  bool _isPushActive = true;
+  bool _notificationsWeb = true;
+  bool _notificationsMobile = true;
 
 
   Future<void> _generateRSA() async {
@@ -133,6 +134,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           'maxOperaciones': int.tryParse(_OperacionesController.text) ?? 5,
           'leverageMin': levMin,
           'leverageMax': levMax,
+          'notificationsWeb': _notificationsWeb,
+          'notificationsMobile': _notificationsMobile,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
         }),
@@ -456,7 +459,9 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             ],
           ),
           const SizedBox(height: 24),
-          _switchRow('Notificaciones Push & Webhooks', 'Alertas instantáneas de ejecución, TP y SL vía WebSocket/Telegram Bot', _isPushActive, (v) => setState(() => _isPushActive = v)),
+          _switchRow('Notificaciones Web / Escritorio', 'Recibir notificaciones flotantes (Toast) mientras la app está abierta', _notificationsWeb, (v) => setState(() => _notificationsWeb = v)),
+          const Divider(color: AppColors.border, height: 24),
+          _switchRow('Notificaciones Móviles (Push)', 'Recibir alertas push en tu dispositivo móvil cuando el bot opere o detecte una señal', _notificationsMobile, (v) => setState(() => _notificationsMobile = v)),
           const Divider(color: AppColors.border, height: 32),
           
           const Text('Generador de Llaves Ed25519 (Bypass IP Restriction)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),

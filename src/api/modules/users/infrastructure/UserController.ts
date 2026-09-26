@@ -101,6 +101,8 @@ usersRouter.put(
     leverageMin: z.number().min(1).max(125).optional(),
     leverageMax: z.number().min(1).max(125).optional(),
     maxTrades: z.number().optional(),
+    notificationsWeb: z.boolean().optional(),
+    notificationsMobile: z.boolean().optional(),
     rsaPublicKey: z.string().optional(),
     rsaPrivateKey: z.string().optional(),
   })),
@@ -123,6 +125,8 @@ usersRouter.put(
       if (data.leverageMin !== undefined) setObj.leverageMin = data.leverageMin;
       if (data.leverageMax !== undefined) setObj.leverageMax = data.leverageMax;
       if (data.maxTrades !== undefined) setObj.maxTrades = data.maxTrades;
+      if (data.notificationsWeb !== undefined) setObj.notificationsWeb = data.notificationsWeb;
+      if (data.notificationsMobile !== undefined) setObj.notificationsMobile = data.notificationsMobile;
       if (data.rsaPublicKey) setObj.rsaPublicKey = data.rsaPublicKey;
       if (data.rsaPrivateKey) setObj.rsaPrivateKey = encrypt(data.rsaPrivateKey);
 

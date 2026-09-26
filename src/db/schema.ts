@@ -20,6 +20,8 @@ export const userConfig = pgTable("user_config", {
   leverage: integer("leverage").default(1).notNull(),
   pendingSignalId: integer("pending_signal_id").references(() => signalHistory.id),
   fcmTokens: text("fcm_tokens").array().default([]), // Tokens para Notificaciones Push (Web + Android)
+  notificationsWeb: boolean("notifications_web").default(true).notNull(),
+  notificationsMobile: boolean("notifications_mobile").default(true).notNull(),
   startingBalance: text("starting_balance").default("41.78"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

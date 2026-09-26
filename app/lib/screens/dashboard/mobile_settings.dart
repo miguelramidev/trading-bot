@@ -24,7 +24,8 @@ class _MobileSettingsState extends State<MobileSettings> {
   final _apiKeyController = TextEditingController();
   final _amountController = TextEditingController(text: '25.00');
   final _OperacionesController = TextEditingController(text: '5');
-  final _leverageController = TextEditingController(text: '10');
+  final _leverageMinController = TextEditingController(text: '1');
+  final _leverageMaxController = TextEditingController(text: '2');
   bool _isSaving = false;
   bool _isGeneratingKeys = false;
   String? _rsaPublicKey;
@@ -35,7 +36,8 @@ class _MobileSettingsState extends State<MobileSettings> {
   bool _isFakeoutActive = false;
   bool _isMacroActive = true;
   bool _isFundingActive = false;
-  bool _isPushActive = true;
+  bool _notificationsWeb = true;
+  bool _notificationsMobile = true;
 
 
   Future<void> _generateRSA() async {
@@ -95,6 +97,27 @@ class _MobileSettingsState extends State<MobileSettings> {
     if (user == null) return;
 
     try {
+      final levMin = int.tryParse(_leverageMinController.text) ?? 1;
+      final levMax = int.tryParse(_leverageMaxController.text) ?? 2;
+
+      if (levMin < 1 || levMax < 1 || levMin > levMax) {
+        toastification.show(
+          context: context,
+          type: ToastificationType.error,
+          style: ToastificationStyle.fillColored,
+          title: const Text('Apalancamiento inválido', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          description: const Text('El mínimo debe ser ≥ 1 y el máximo debe ser ≥ al mínimo.', style: TextStyle(color: Colors.white70)),
+          alignment: Alignment.topCenter,
+          autoCloseDuration: const Duration(seconds: 4),
+          backgroundColor: AppColors.surface,
+          primaryColor: AppColors.lossRed,
+          icon: const Icon(Icons.error, color: AppColors.lossRed),
+          showProgressBar: false,
+        );
+        setState(() => _isSaving = false);
+        return;
+      }
+
       final response = await http.put(
         Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/users/config'),
         headers: {
@@ -105,7 +128,10 @@ class _MobileSettingsState extends State<MobileSettings> {
           'binanceApiKey': _apiKeyController.text,
           'montoOperacion': int.tryParse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 25,
           'maxOperaciones': int.tryParse(_OperacionesController.text) ?? 5,
-          'apalancamiento': int.tryParse(_leverageController.text) ?? 10,
+          'leverageMin': levMin,
+          'leverageMax': levMax,
+          'notificationsWeb': _notificationsWeb,
+          'notificationsMobile': _notificationsMobile,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
         }),
@@ -209,8 +235,18 @@ class _MobileSettingsState extends State<MobileSettings> {
                   _fullWidthInput('Monto Fijo por Operación', '\$', 'USDT', _amountController),
                   const SizedBox(height: 16),
                   _fullWidthInput('Operaciones Simultáneas', '', 'Operaciones', _OperacionesController),
-                  const SizedBox(height: 16),
-                  _fullWidthInput('Apalancamiento Max', '', 'x', _leverageController),
+                  const SizedBox(height: 24),
+                  const Text('RANGO DE APALANCAMIENTO', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(child: _fullWidthInput('Mínimo', '', 'x', _leverageMinController)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _fullWidthInput('Máximo', '', 'x', _leverageMaxController)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('El bot operará con el mínimo y escalará hasta el máximo si Binance exige mayor Notional.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                 ],
               ),
             ),
@@ -241,7 +277,9 @@ class _MobileSettingsState extends State<MobileSettings> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _switchRow('Notificaciones Push', 'Alertas entrada, TP/SL y Webhooks', _isPushActive, (v) => setState(() => _isPushActive = v)),
+                  _switchRow('Notificaciones Web', 'Toast mientras la app está abierta', _notificationsWeb, (v) => setState(() => _notificationsWeb = v)),
+                  const Divider(color: AppColors.border, height: 16),
+                  _switchRow('Notificaciones Móviles (Push)', 'Alertas en tu teléfono cuando hay trades', _notificationsMobile, (v) => setState(() => _notificationsMobile = v)),
                   const Divider(color: AppColors.border, height: 32),
                   
                   const Text('GENERADOR DE LLAVES Ed25519', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),

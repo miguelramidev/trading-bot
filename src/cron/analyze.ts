@@ -532,9 +532,10 @@ async function runAnalysis(timeframe: string) {
           
           const marginToInvest = user.montoOperacion || 25.0;
 
-          // Si tiene cuenta conectada y el balance en FUTUROS es menor a la configuración, NO enviamos notificación.
-          // Si no tiene cuenta conectada (userKey vacío), currentBinanceBalance es 0, pero le enviamos la señal como demo.
-          if (userKey && currentBinanceBalance < marginToInvest) {
+          // Si tiene cuenta conectada y logramos leer su saldo (mayor a 0),
+          // PERO su saldo es menor a la configuración, NO enviamos notificación.
+          // (Si da 0 por un error de conexión con Binance, le enviamos la alerta igual).
+          if (userKey && currentBinanceBalance > 0 && currentBinanceBalance < marginToInvest) {
             continue;
           }
           const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);

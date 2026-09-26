@@ -10,8 +10,9 @@ class DesktopHistory extends StatefulWidget {
   final List<dynamic> trades;
   final Map<String, dynamic>? pagination;
   final String currentFilter;
+  final VoidCallback? onRefresh;
 
-  const DesktopHistory({super.key, required this.stats, required this.trades, this.pagination, this.currentFilter = 'Todos'});
+  const DesktopHistory({super.key, required this.stats, required this.trades, this.pagination, this.currentFilter = 'Todos', this.onRefresh});
 
   @override
   State<DesktopHistory> createState() => _DesktopHistoryState();
@@ -214,12 +215,35 @@ class _DesktopHistoryState extends State<DesktopHistory> {
 
   Widget _buildTabs() {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildTab('Todos'),
-        const SizedBox(width: 8),
-        _buildTab('Tomadas'),
-        const SizedBox(width: 8),
-        _buildTab('Descartadas'),
+        Row(
+          children: [
+            _buildTab('Todos'),
+            const SizedBox(width: 8),
+            _buildTab('Tomadas'),
+            const SizedBox(width: 8),
+            _buildTab('Descartadas'),
+          ],
+        ),
+        InkWell(
+          onTap: widget.onRefresh,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.sync, color: AppColors.winGreen, size: 14),
+                const SizedBox(width: 6),
+                const Text('Sincronizar', style: TextStyle(color: AppColors.winGreen, fontSize: 12, fontFamily: 'monospace')),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }

@@ -66,8 +66,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
 
     return ResponsiveLayout(
-      mobile: MobileHistory(stats: _stats, trades: _trades, pagination: _pagination, currentFilter: widget.filter),
-      desktop: DesktopHistory(stats: _stats, trades: _trades, pagination: _pagination, currentFilter: widget.filter),
+      mobile: MobileHistory(stats: _stats, trades: _trades, pagination: _pagination, currentFilter: widget.filter, onRefresh: () => _fetchHistory(widget.initialPage, widget.filter)),
+      desktop: DesktopHistory(stats: _stats, trades: _trades, pagination: _pagination, currentFilter: widget.filter, onRefresh: () => _fetchHistory(widget.initialPage, widget.filter)),
     );
   }
 }

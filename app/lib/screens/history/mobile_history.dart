@@ -8,8 +8,9 @@ class MobileHistory extends StatefulWidget {
   final List<dynamic> trades;
   final Map<String, dynamic>? pagination;
   final String currentFilter;
+  final VoidCallback? onRefresh;
 
-  const MobileHistory({super.key, required this.stats, required this.trades, this.pagination, this.currentFilter = 'Todos'});
+  const MobileHistory({super.key, required this.stats, required this.trades, this.pagination, this.currentFilter = 'Todos', this.onRefresh});
 
   @override
   State<MobileHistory> createState() => _MobileHistoryState();
@@ -27,7 +28,7 @@ class _MobileHistoryState extends State<MobileHistory> {
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         title: const Text('Historial de Trades', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-        actions: [
+        actions: [ IconButton(icon: const Icon(Icons.sync, color: AppColors.winGreen), onPressed: widget.onRefresh),
            Container(
              margin: const EdgeInsets.only(right: 16),
              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

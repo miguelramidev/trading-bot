@@ -1,0 +1,1 @@
+import { db } from './src/db'; import { signalHistory } from './src/db/schema'; import { desc } from 'drizzle-orm'; async function run() { const sigs = await db.select().from(signalHistory).orderBy(desc(signalHistory.createdAt)).limit(5); console.log(sigs); } run().then(() => process.exit(0));

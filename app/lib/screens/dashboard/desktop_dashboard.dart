@@ -391,7 +391,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
                 _tradeRow(
                   p['symbol'] ?? 'UNKNOWN',
                   "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] ?? 1}x",
-                  "\$${(p['entryPrice'] ?? 0).toStringAsFixed(2)}",
+                  "\`                  "\${fmtPrice(p['entryPrice'])}",
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
                   "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",
                   onTap: () => context.go('/dashboard/trade/${(p["symbol"]?.toString() ?? "UNKNOWN").replaceAll("/", "-")}', extra: p),

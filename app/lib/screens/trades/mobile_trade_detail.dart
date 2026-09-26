@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/price_formatter.dart';
 import 'package:go_router/go_router.dart';
 
 class MobileTradeDetail extends StatelessWidget {
@@ -145,17 +146,17 @@ class MobileTradeDetail extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _buildInfoCard('PRECIO ENTRADA', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Base Ejecución L2')),
+                Expanded(child: _buildInfoCard('PRECIO ENTRADA', '\$${fmtPrice(trade['entryPrice'])}', 'Base Ejecución L2')),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('MARK PRICE', '\$${double.tryParse(trade['markPrice']?.toString() ?? trade['exitPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Delta: \$0.00', showDot: true)), // Delta calculation omitted for MVP
+                Expanded(child: _buildInfoCard('MARK PRICE', '\$${fmtPrice(trade['markPrice'] ?? trade['exitPrice'])}', 'Delta: \$0.00', showDot: true)),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _buildInfoCard('STOP LOSS', '\$${double.tryParse(trade['stopLoss']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Garantía Dinámica', topBadge: '-2.9%', isRed: true)),
+                Expanded(child: _buildInfoCard('STOP LOSS', '\$${fmtPrice(trade['stopLoss'])}', 'Garantía Dinámica', topBadge: '-2.9%', isRed: true)),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('TAKE PROFIT', '\$${double.tryParse(trade['takeProfit']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', 'Objetivo Algorítmico', topBadge: '+5.8%', isGreenSub: true)),
+                Expanded(child: _buildInfoCard('TAKE PROFIT', '\$${fmtPrice(trade['takeProfit'])}', 'Objetivo Algorítmico', topBadge: '+5.8%', isGreenSub: true)),
               ],
             ),
             const SizedBox(height: 24),

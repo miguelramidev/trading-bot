@@ -7,6 +7,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/network/api_client.dart';
+import '../../core/utils/price_formatter.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
@@ -153,7 +154,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                 child: _buildTradeCard(
                   p['symbol'] ?? 'UNKNOWN',
                   "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] ?? 1}x",
-                  "\$${(p['entryPrice'] ?? 0).toStringAsFixed(2)}",
+                  "\`                  "\${fmtPrice(p['entryPrice'])}",
                   p['size'].toString(),
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
                   "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",

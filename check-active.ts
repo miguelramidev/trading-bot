@@ -1,0 +1,1 @@
+import { db } from './src/db'; import { signalHistory } from './src/db/schema'; import { eq } from 'drizzle-orm'; async function run() { const active = await db.query.signalHistory.findMany({ where: eq(signalHistory.isActiveTrade, true) }); console.log(Active trades: ); console.log(active.map(a => a.symbol)); } run().then(() => process.exit(0));

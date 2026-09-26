@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/price_formatter.dart';
 import 'package:go_router/go_router.dart';
 
 class DesktopTradeDetail extends StatelessWidget {
@@ -184,11 +185,11 @@ class DesktopTradeDetail extends StatelessWidget {
                         _buildRightDivider(),
                         _buildRightRow('VALOR NOCIONAL & MARGEN', 'Apalancamiento x${trade['leverage'] ?? 1} Cross', '\$${notional.toStringAsFixed(2)} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen: \$${margin.toStringAsFixed(2)} USDT'),
                         _buildRightDivider(),
-                        _buildRightRow('ENTRADA VS PRECIO SALIDA', isClosed ? 'Precio ejecutado' : 'Diferencial en vivo', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} → \$${double.tryParse(trade['exitPrice']?.toString() ?? trade['markPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', AppColors.textSecondary, AppColors.textPrimary),
+                        _buildRightRow('ENTRADA VS PRECIO SALIDA', isClosed ? 'Precio ejecutado' : 'Diferencial en vivo', '\$${fmtPrice(trade['entryPrice'])} → \$${fmtPrice(trade['exitPrice'] ?? trade['markPrice'])}', AppColors.textSecondary, AppColors.textPrimary),
                         _buildRightDivider(),
-                        _buildRightRow('STOP LOSS', 'Nivel de salida por pérdida', '\$${double.tryParse(trade['stopLoss']?.toString().replaceAll('-', '') ?? '')?.toStringAsFixed(4) ?? (trade['stopLoss'] ?? '-')}', AppColors.textSecondary, AppColors.lossRed, isSl: true),
+                        _buildRightRow('STOP LOSS', 'Nivel de salida por pérdida', '\$${fmtPrice(trade['stopLoss'])}', AppColors.textSecondary, AppColors.lossRed, isSl: true),
                         _buildRightDivider(),
-                        _buildRightRow('TAKE PROFIT', 'Objetivo Algorítmico', '\$${double.tryParse(trade['takeProfit']?.toString().replaceAll('-', '') ?? '')?.toStringAsFixed(4) ?? (trade['takeProfit'] ?? '-')}', AppColors.textSecondary, AppColors.winGreen, isTp: true),
+                        _buildRightRow('TAKE PROFIT', 'Objetivo Algorítmico', '\$${fmtPrice(trade['takeProfit'])}', AppColors.textSecondary, AppColors.winGreen, isTp: true),
                         _buildRightDivider(),
                         _buildRightRow('FUNDING RATE', 'Tasa de permuta perp 8h', '+${trade['fundingRate'] ?? "0.0000"}%', AppColors.textSecondary, AppColors.winGreen),
                         _buildRightDivider(),

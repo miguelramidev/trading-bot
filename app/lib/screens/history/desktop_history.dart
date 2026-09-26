@@ -24,7 +24,6 @@ class _DesktopHistoryState extends State<DesktopHistory> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          _buildHeader(),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -46,56 +45,7 @@ class _DesktopHistoryState extends State<DesktopHistory> {
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: AppColors.winGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-            child: const Text('MQ', style: TextStyle(color: AppColors.winGreen, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(width: 16),
-          const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('MacroQuant Executive', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-              Text('/ Libro Mayor Contable (Ledger)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-            ],
-          ),
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.download, size: 16),
-            label: const Text('Exportar CSV / FIX Audit'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              foregroundColor: AppColors.textPrimary,
-              side: const BorderSide(color: AppColors.border),
-              elevation: 0,
-            ),
-          ),
-          const SizedBox(width: 16),
-          ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.flash_on, size: 16),
-            label: const Text('Ejecutar Orden'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.winGreen,
-              foregroundColor: Colors.black,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Header removido al global MainScreen
 
   Widget _buildStatsRow() {
     return Row(

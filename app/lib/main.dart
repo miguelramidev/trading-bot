@@ -60,6 +60,20 @@ final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>()
 final GoRouter _router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
+  redirect: (context, state) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isLoggingIn = state.uri.path == '/';
+    
+    // Si no está logueado y trata de ir a otra ruta, redirigir a '/'
+    if (user == null && !isLoggingIn) {
+      return '/';
+    }
+    
+    // Si está logueado pero trata de ir a '/', redirigirlo a dashboard si kIsWeb o si no necesita biométrico
+    // Pero como el AuthWrapper se encarga del biométrico, si la ruta es '/' lo dejamos renderizar AuthWrapper.
+    // Opcionalmente podemos dejar que AuthWrapper maneje '/' siempre.
+    return null;
+  },
   routes: [
     GoRoute(
       path: '/',

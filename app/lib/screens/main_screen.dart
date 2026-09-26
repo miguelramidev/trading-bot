@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import 'dashboard/responsive_layout.dart';
 import '../core/theme/app_colors.dart';
 
@@ -51,9 +53,63 @@ class MainScreen extends StatelessWidget {
               ],
             ),
             const VerticalDivider(thickness: 1, width: 1, color: AppColors.border),
-            Expanded(child: navigationShell),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildDesktopTopBar(context),
+                  Expanded(child: navigationShell),
+                ],
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopTopBar(BuildContext context) {
+    String title = 'MacroQuant Executive';
+    String subtitle = 'Panel de Control';
+    if (navigationShell.currentIndex == 0) subtitle = 'Monitor Algorítmico';
+    if (navigationShell.currentIndex == 1) subtitle = 'Historial de Señales';
+    if (navigationShell.currentIndex == 2) subtitle = 'Configuración de Motor';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('/', style: TextStyle(color: AppColors.textSecondary))),
+              Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+            ],
+          ),
+          Row(
+            children: [
+              Row(
+                children: [
+                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                  const Text('Conectado', style: TextStyle(color: AppColors.winGreen, fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(width: 24),
+              IconButton(
+                icon: const Icon(Icons.logout, color: AppColors.textSecondary),
+                tooltip: 'Cerrar sesión',
+                onPressed: () async {
+                  await AuthService().signOut();
+                  if (context.mounted) context.go('/');
+                },
+              ),
+            ],
+          )
+        ],
       ),
     );
   }

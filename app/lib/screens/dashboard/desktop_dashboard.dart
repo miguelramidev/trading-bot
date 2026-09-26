@@ -135,7 +135,6 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
           Expanded(
             child: Column(
               children: [
-                _buildTopBar(context),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(32.0),
@@ -208,47 +207,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Text('MacroQuant Panel', style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                child: Text('MONITOR ALGORÍTMICO', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-              ),
-              const SizedBox(width: 24),
-              Row(
-                children: [
-                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-                  const SizedBox(width: 8),
-                  Text('Motor Cuántico en línea • Sincronización en tiempo real', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11)),
-                ],
-              )
-            ],
-          ),
-          Row(
-            children: [
-              const Icon(Icons.notifications_none, color: AppColors.textSecondary),
-              const SizedBox(width: 16),
-              const Icon(Icons.wifi, color: AppColors.winGreen),
-              const SizedBox(width: 8),
-              Text('Conectado', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 11, fontWeight: FontWeight.bold)),
-            ],
-          )
-        ],
-      ),
-    );
-  }
+  // _buildTopBar removido al layout global MainScreen
 
   Widget _buildHeroSection(BuildContext context) {
     return Row(

@@ -187,7 +187,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           Expanded(
             child: Column(
               children: [
-                _buildTopBar(context),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(32.0),
@@ -240,88 +239,9 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
-  Widget _buildSidebar(BuildContext context) {
-    return Container(
-      width: 80,
-      color: AppColors.surface,
-      child: Column(
-        children: [
-          const SizedBox(height: 32),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.winGreen.withOpacity(0.1), shape: BoxShape.circle),
-            child: const Text('MQ', style: TextStyle(color: AppColors.winGreen, fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(height: 8),
-          Text('L2•ZRH', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 9, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 48),
-          GestureDetector(onTap: () => Navigator.pushReplacementNamed(context, '/Inicio'), child: _sidebarIcon(Icons.grid_view, 'INICIO', false)),
-          const SizedBox(height: 32),
-          _sidebarIcon(Icons.show_chart, 'HISTORIAL', false),
-          const SizedBox(height: 32),
-          GestureDetector(onTap: () => Navigator.pushReplacementNamed(context, '/settings'), child: _sidebarIcon(Icons.tune, 'CONFIGURACIÓN', true)),
-          const Spacer(),
-          const Icon(Icons.headphones_outlined, color: AppColors.textSecondary),
-          const SizedBox(height: 32),
-          IconButton(
-            icon: const Icon(Icons.logout, color: AppColors.textSecondary),
-            onPressed: () async {
-              await AuthService().signOut();
-              if (context.mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-            },
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
+  // _buildSidebar removido, ya no es necesario
 
-  Widget _sidebarIcon(IconData icon, String label, bool isActive) {
-    final color = isActive ? AppColors.winGreen : AppColors.textSecondary;
-    return Column(
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(height: 8),
-        Text(label, style: AppTheme.monoStyle.copyWith(color: color, fontSize: 9)),
-      ],
-    );
-  }
-
-  Widget _buildTopBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border, width: 1))),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Text('MacroQuant Executive', style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 18)),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('/', style: TextStyle(color: AppColors.textSecondary))),
-              Text('Configuración de Motor Algorítmico', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-            ],
-          ),
-          Row(
-            children: [
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.refresh, color: AppColors.textPrimary, size: 16),
-                label: const Text('Rebalancear', style: TextStyle(color: AppColors.textPrimary)),
-                style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border)),
-              ),
-              const SizedBox(width: 16),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.bolt, color: Colors.black, size: 16),
-                label: const Text('Ejecutar Orden', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.winGreen),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
+  // _buildTopBar removido al layout global MainScreen
 
   Widget _buildHeroSection(BuildContext context) {
     return Container(

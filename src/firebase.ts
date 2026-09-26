@@ -1,15 +1,15 @@
-import admin from 'firebase-admin';
-import { getMessaging } from 'firebase-admin/messaging';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getMessaging, Messaging } from 'firebase-admin/messaging';
 import { Resource } from "sst";
 
 const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64 || (Resource as any).FIREBASE_SERVICE_ACCOUNT_B64?.value;
 
-if (!admin.apps || admin.apps.length === 0) {
+if (!getApps().length) {
   if (serviceAccountBase64) {
     try {
       const serviceAccount = JSON.parse(Buffer.from(serviceAccountBase64, 'base64').toString('utf8'));
-      admin.initializeApp({
-        credential: admin.default.credential.cert(serviceAccount)
+      initializeApp({
+        credential: cert(serviceAccount)
       });
       console.log('Firebase Admin Initialized Successfully.');
     } catch (e) {
@@ -20,7 +20,7 @@ if (!admin.apps || admin.apps.length === 0) {
   }
 }
 
-export const messaging = (admin.apps && admin.apps.length > 0) ? admin.messaging() : null;
+export const messaging: Messaging | null = (getApps().length > 0) ? getMessaging() : null;
 
 export async function sendPushNotification(fcmToken: string, title: string, body: string, data?: any) {
   if (!messaging) {
@@ -37,7 +37,7 @@ export async function sendPushNotification(fcmToken: string, title: string, body
       android: {
         priority: "high",
         notification: {
-            channelId: "macroquant_alerts",
+            channelId: "macroquant_alerts_v2",
             icon: "notification_icon",
             sound: "default"
         }

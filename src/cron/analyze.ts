@@ -110,7 +110,7 @@ async function runAnalysis(timeframe: string) {
           const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
 
           for (const user of users) {
-            if (user.notificationsMobile && user.fcmTokens && user.fcmTokens.length > 0) {
+            if ((user.notificationsMobile || user.notificationsWeb) && user.fcmTokens && user.fcmTokens.length > 0) {
               for (const t of user.fcmTokens) {
                 await sendPushNotification(
                   t,
@@ -579,7 +579,7 @@ async function runAnalysis(timeframe: string) {
             `📊 <b>Ver Gráfico:</b> <a href="${tvLink}">Abrir ${cleanSymbolTV} en TradingView</a>\n\n` +
             `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
 
-          if (user.notificationsMobile && user.fcmTokens && user.fcmTokens.length > 0) {
+          if ((user.notificationsMobile || user.notificationsWeb) && user.fcmTokens && user.fcmTokens.length > 0) {
             for (const t of user.fcmTokens) {
               try {
                 await sendPushNotification(

@@ -469,7 +469,7 @@ async function runAnalysis(timeframe: string) {
            if (btcCorrVal < 0) {
               macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está ALCISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el SHORT original.\n\n`;
            } else if (bias4h === "UP" && btcShortTermBias === "DOWN") {
-              macroWarningStr = `🛑 <b>VETO ANTI-MACHETAZO:</b> BTC es Alcista (1D) y la moneda (4H) también, pero BTC está CAYENDO a corto plazo (15m). Se cancela la Inversión a LONG para no atrapar el cuchillo cayendo.\n\n`;
+              macroWarningStr = `🛑 <b>VETO DE PROTECCIÓN:</b> BTC es Alcista (1D) y la moneda (4H) también, pero BTC está CAYENDO a corto plazo (15m). Se cancela la Inversión a LONG para no atrapar el cuchillo cayendo.\n\n`;
            } else {
               macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está ALCISTA en 1D, pero no hay fuerza en 4H. No se invirtió la señal. Hacer SHORT es riesgoso.\n\n`;
            }
@@ -477,7 +477,7 @@ async function runAnalysis(timeframe: string) {
            if (btcCorrVal < 0) {
               macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está BAJISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el LONG original.\n\n`;
            } else if (bias4h === "DOWN" && btcShortTermBias === "UP") {
-              macroWarningStr = `🛑 <b>VETO ANTI-MACHETAZO:</b> BTC es Bajista (1D) y la moneda (4H) también, pero BTC está SUBIENDO a corto plazo (15m). Se cancela la Inversión a SHORT para evitar un rebote fuerte.\n\n`;
+              macroWarningStr = `🛑 <b>VETO DE PROTECCIÓN:</b> BTC es Bajista (1D) y la moneda (4H) también, pero BTC está SUBIENDO a corto plazo (15m). Se cancela la Inversión a SHORT para evitar un rebote fuerte.\n\n`;
            } else {
               macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está BAJISTA en 1D, pero no hay debilidad en 4H. No se invirtió la señal. Hacer LONG es riesgoso.\n\n`;
            }
@@ -489,9 +489,9 @@ async function runAnalysis(timeframe: string) {
         
         let machetazoWarning = "";
         if (signal.direction === "LONG" && btcShortTermBias === "DOWN" && !wasInverted) {
-            machetazoWarning = `🚨 <b>PELIGRO DE MACHETAZO:</b> Bitcoin está cayendo con fuerza en 15m. Entrar en LONG ahora tiene altísimo riesgo de atrapar un cuchillo cayendo.\n\n`;
+            machetazoWarning = `🚨 <b>ALERTA DE CAÍDA BRUSCA:</b> Bitcoin está retrocediendo con fuerza en 15m. Entrar en LONG ahora tiene altísimo riesgo de atrapar un cuchillo cayendo.\n\n`;
         } else if (signal.direction === "SHORT" && btcShortTermBias === "UP" && !wasInverted) {
-            machetazoWarning = `🚨 <b>PELIGRO DE PUMP:</b> Bitcoin está subiendo con fuerza en 15m. Entrar en SHORT ahora es riesgoso contra el impulso del mercado.\n\n`;
+            machetazoWarning = `🚨 <b>ALERTA DE REBOTE:</b> Bitcoin está subiendo con fuerza en 15m. Entrar en SHORT ahora es riesgoso contra el impulso del mercado.\n\n`;
         }
 
         const cleanSymbolTV = symbol.split(":")[0].replace("/", "");

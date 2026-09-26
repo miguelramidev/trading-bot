@@ -532,8 +532,9 @@ async function runAnalysis(timeframe: string) {
           
           const marginToInvest = user.montoOperacion || 25.0;
 
-          // Si el balance es menor a la configuración, NO enviamos notificación (a pedido del usuario).
-          if (currentBinanceBalance < marginToInvest) {
+          // Si tiene cuenta conectada y el balance en FUTUROS es menor a la configuración, NO enviamos notificación.
+          // Si no tiene cuenta conectada (userKey vacío), currentBinanceBalance es 0, pero le enviamos la señal como demo.
+          if (userKey && currentBinanceBalance < marginToInvest) {
             continue;
           }
           const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);

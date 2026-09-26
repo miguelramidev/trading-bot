@@ -22,6 +22,7 @@ export const userConfig = pgTable("user_config", {
   fcmTokens: text("fcm_tokens").array().default([]), // Tokens para Notificaciones Push (Web + Android)
   notificationsWeb: boolean("notifications_web").default(true).notNull(),
   notificationsMobile: boolean("notifications_mobile").default(true).notNull(),
+  notificationsTelegram: boolean("notifications_telegram").default(true).notNull(),
   startingBalance: text("starting_balance").default("41.78"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

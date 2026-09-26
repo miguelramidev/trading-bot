@@ -117,6 +117,7 @@ usersRouter.get("/config", async (c) => {
         leverageMax: user.leverageMax,
         notificationsWeb: user.notificationsWeb,
         notificationsMobile: user.notificationsMobile,
+        notificationsTelegram: user.notificationsTelegram,
         hasBinanceKeys: !!user.binanceApiKey && !!user.binanceApiSecret,
         hasRsaKeys: !!user.rsaPublicKey && !!user.rsaPrivateKey,
         rsaPublicKey: user.rsaPublicKey,
@@ -140,6 +141,7 @@ usersRouter.put(
     maxTrades: z.number().optional(),
     notificationsWeb: z.boolean().optional(),
     notificationsMobile: z.boolean().optional(),
+    notificationsTelegram: z.boolean().optional(),
     rsaPublicKey: z.string().optional(),
     rsaPrivateKey: z.string().optional(),
   })),
@@ -164,6 +166,7 @@ usersRouter.put(
       if (data.maxTrades !== undefined) setObj.maxTrades = data.maxTrades;
       if (data.notificationsWeb !== undefined) setObj.notificationsWeb = data.notificationsWeb;
       if (data.notificationsMobile !== undefined) setObj.notificationsMobile = data.notificationsMobile;
+      if (data.notificationsTelegram !== undefined) setObj.notificationsTelegram = data.notificationsTelegram;
       if (data.rsaPublicKey) setObj.rsaPublicKey = data.rsaPublicKey;
       if (data.rsaPrivateKey) setObj.rsaPrivateKey = encrypt(data.rsaPrivateKey);
 

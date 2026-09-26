@@ -41,6 +41,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   bool _isFundingActive = false;
   bool _notificationsWeb = true;
   bool _notificationsMobile = true;
+  bool _notificationsTelegram = true;
   bool _isLoadingConfig = true;
 
   @override
@@ -168,6 +169,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           'leverageMax': levMax,
           'notificationsWeb': _notificationsWeb,
           'notificationsMobile': _notificationsMobile,
+        'notificationsTelegram': _notificationsTelegram,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
         }),
@@ -385,11 +387,23 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           ),
           const SizedBox(height: 24),
           _switchRow('MACD Zero-Cross', 'Divergencias y cruces de momentum en 15m y 1h', _isMacdActive, (v) => setState(() => _isMacdActive = v)),
-          const Divider(color: AppColors.border, height: 32),
+          const Divider(color: AppColors.border, height: 16),
+                    _switchRow('Notificaciones Telegram', 'Alertas por bot de Telegram', _notificationsTelegram, (v) {
+                      setState(() => _notificationsTelegram = v);
+                    }),
+                    const Divider(color: AppColors.border, height: 32),
           _switchRow('Liquidity Sweep (Fakeouts)', 'Detección de absorción institucional y caza de liquidez en soporte/resistencia', _isFakeoutActive, (v) => setState(() => _isFakeoutActive = v)),
-          const Divider(color: AppColors.border, height: 32),
+          const Divider(color: AppColors.border, height: 16),
+                    _switchRow('Notificaciones Telegram', 'Alertas por bot de Telegram', _notificationsTelegram, (v) {
+                      setState(() => _notificationsTelegram = v);
+                    }),
+                    const Divider(color: AppColors.border, height: 32),
           _switchRow('Macro Inversion Filter', 'Filtro de alineación con régimen de volatilidad y tendencia diaria de BTC/ETH', _isMacroActive, (v) => setState(() => _isMacroActive = v)),
-          const Divider(color: AppColors.border, height: 32),
+          const Divider(color: AppColors.border, height: 16),
+                    _switchRow('Notificaciones Telegram', 'Alertas por bot de Telegram', _notificationsTelegram, (v) {
+                      setState(() => _notificationsTelegram = v);
+                    }),
+                    const Divider(color: AppColors.border, height: 32),
           _switchRow('Funding Rate Shield', 'Descarte automático de posiciones con coste de acarreo o arbitraje negativo >0.01%', _isFundingActive, (v) => setState(() => _isFundingActive = v)),
         ],
       ),
@@ -420,7 +434,11 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             setState(() => _notificationsMobile = v);
             if (v) AuthService().initFCM();
           }),
-          const Divider(color: AppColors.border, height: 32),
+          const Divider(color: AppColors.border, height: 16),
+                    _switchRow('Notificaciones Telegram', 'Alertas por bot de Telegram', _notificationsTelegram, (v) {
+                      setState(() => _notificationsTelegram = v);
+                    }),
+                    const Divider(color: AppColors.border, height: 32),
           
           const Text('Generador de Llaves Ed25519 (Bypass IP Restriction)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           const SizedBox(height: 8),

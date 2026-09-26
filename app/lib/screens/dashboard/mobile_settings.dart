@@ -39,6 +39,7 @@ class _MobileSettingsState extends State<MobileSettings> {
   bool _isFundingActive = false;
   bool _notificationsWeb = true;
   bool _notificationsMobile = true;
+  bool _notificationsTelegram = true;
   bool _isLoadingConfig = true;
 
   @override
@@ -165,6 +166,7 @@ class _MobileSettingsState extends State<MobileSettings> {
           'leverageMax': levMax,
           'notificationsWeb': _notificationsWeb,
           'notificationsMobile': _notificationsMobile,
+        'notificationsTelegram': _notificationsTelegram,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
         }),
@@ -319,7 +321,11 @@ class _MobileSettingsState extends State<MobileSettings> {
                     setState(() => _notificationsMobile = v);
                     if (v) AuthService().initFCM();
                   }),
-                  const Divider(color: AppColors.border, height: 32),
+                  const Divider(color: AppColors.border, height: 16),
+                    _switchRow('Notificaciones Telegram', 'Alertas por bot de Telegram', _notificationsTelegram, (v) {
+                      setState(() => _notificationsTelegram = v);
+                    }),
+                    const Divider(color: AppColors.border, height: 32),
                   
                   const Text('GENERADOR DE LLAVES Ed25519', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
                   const SizedBox(height: 8),

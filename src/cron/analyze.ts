@@ -120,7 +120,7 @@ async function runAnalysis(timeframe: string) {
                 );
               }
             }
-            if (user.chatId) { try { await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" }); } catch(e:any) { console.error("Telegram error:", e.message); } }
+            if (user.chatId && user.notificationsTelegram) { try { await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" }); } catch(e:any) { console.error("Telegram error:", e.message); } }
           }
         } else if (trade.decision === "Descartada") {
           const hitTP = closeReason.includes("TP");
@@ -132,7 +132,7 @@ async function runAnalysis(timeframe: string) {
           }
           
           for (const user of users) {
-             if (user.chatId) { try { await bot.telegram.sendMessage(user.chatId, msg, { parse_mode: "HTML" }); } catch(e:any) { console.error("Telegram error:", e.message); } }
+             if (user.chatId && user.notificationsTelegram) { try { await bot.telegram.sendMessage(user.chatId, msg, { parse_mode: "HTML" }); } catch(e:any) { console.error("Telegram error:", e.message); } }
           }
         }
       }
@@ -593,7 +593,7 @@ async function runAnalysis(timeframe: string) {
               }
             }
           }
-          if (user.chatId) {
+          if (user.chatId && user.notificationsTelegram) {
             try {
               await bot.telegram.sendMessage(user.chatId, msg, {
               parse_mode: "HTML",

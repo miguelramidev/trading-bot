@@ -1,0 +1,26 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            # Instalar Flutter SDK
+            - curl -s https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.29.3-stable.tar.xz -o flutter.tar.xz
+            - tar xf flutter.tar.xz
+            - export PATH="$PATH:`pwd`/flutter/bin"
+            - flutter --version
+            - flutter config --enable-web
+            - flutter pub get
+        build:
+          commands:
+            - export PATH="$PATH:`pwd`/flutter/bin"
+            - flutter build web --release --base-href /
+      artifacts:
+        baseDirectory: build/web
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - flutter/bin/cache/**/*
+          - .pub-cache/**/*
+    appRoot: app

@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { getMessaging } from 'firebase-admin/messaging';
 import { Resource } from "sst";
 
 const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64 || (Resource as any).FIREBASE_SERVICE_ACCOUNT_B64?.value;
@@ -8,7 +9,7 @@ if (!admin.apps || admin.apps.length === 0) {
     try {
       const serviceAccount = JSON.parse(Buffer.from(serviceAccountBase64, 'base64').toString('utf8'));
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.default.credential.cert(serviceAccount)
       });
       console.log('Firebase Admin Initialized Successfully.');
     } catch (e) {

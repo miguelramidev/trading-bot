@@ -5,6 +5,7 @@ import 'package:k_chart/flutter_k_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/network/api_client.dart';
+import '../../core/utils/price_formatter.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -240,7 +241,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           children: [
             Text(widget.signal['symbol'] ?? 'SOL/USDT', style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text('\$${widget.signal['price'] ?? '0.00'}', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 18)),
+            Text('${fmtPrice(widget.signal['entry'])} USDT', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 18)),
           ],
         ),
         Container(
@@ -377,14 +378,14 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           const Divider(color: AppColors.border, height: 24),
           Row(
             children: [
-              Expanded(child: _infoBlock('Stop Loss', '\$${widget.signal['stopLoss'] ?? '0.00'}', AppColors.lossRed)),
+              Expanded(child: _infoBlock('Stop Loss', '${fmtPrice(widget.signal['stopLoss'])} USDT', AppColors.lossRed)),
               Container(width: 1, height: 40, color: AppColors.border),
-              Expanded(child: _infoBlock('Take Profit', '\$${widget.signal['takeProfit'] ?? '0.00'}', AppColors.winGreen, alignRight: true)),
+              Expanded(child: _infoBlock('Take Profit', '${fmtPrice(widget.signal['takeProfit'])} USDT', AppColors.winGreen, alignRight: true)),
             ],
           ),
           if (widget.signal['executedEntryPrice'] != null || widget.signal['entry'] != null) ...[
             const Divider(color: AppColors.border, height: 24),
-            _infoRow('Punto de Entrada', '\$${widget.signal['executedEntryPrice'] ?? widget.signal['entry']}'),
+            _infoRow('Punto de Entrada', '${fmtPrice(widget.signal['executedEntryPrice'] ?? widget.signal['entry'])} USDT'),
           ],
           const Divider(color: AppColors.border, height: 24),
           const Text('RAZÓN / DETALLES DE LA SEÑAL', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),

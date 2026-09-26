@@ -5,6 +5,7 @@ import 'package:k_chart/flutter_k_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/network/api_client.dart';
+import '../../core/utils/price_formatter.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -149,7 +150,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
           child: Text('SEÑAL $dir', style: AppTheme.monoStyle.copyWith(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontWeight: FontWeight.bold)),
         ),
         const Spacer(),
-        Text('\$${widget.signal['price'] ?? '0.00'}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+        Text('${fmtPrice(widget.signal['entry'])} USDT', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -322,12 +323,12 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
               const SizedBox(height: 16),
               _infoRow('Open Interest', widget.signal['openInterest'] ?? 'N/A'),
               const Divider(color: AppColors.border, height: 32),
-              _infoRow('Stop Loss', "\$${widget.signal['stopLoss'] ?? '0.00'}", valueColor: AppColors.lossRed),
+              _infoRow('Stop Loss', "${fmtPrice(widget.signal['stopLoss'])} USDT", valueColor: AppColors.lossRed),
               const SizedBox(height: 16),
-              _infoRow('Take Profit', "\$${widget.signal['takeProfit'] ?? '0.00'}", valueColor: AppColors.winGreen),
+              _infoRow('Take Profit', "${fmtPrice(widget.signal['takeProfit'])} USDT", valueColor: AppColors.winGreen),
               if (widget.signal['executedEntryPrice'] != null || widget.signal['entry'] != null) ...[
                 const SizedBox(height: 16),
-                _infoRow('Punto de Entrada', "\$${widget.signal['executedEntryPrice'] ?? widget.signal['entry']}", valueColor: Colors.blue),
+                _infoRow('Punto de Entrada', "${fmtPrice(widget.signal['executedEntryPrice'] ?? widget.signal['entry'])} USDT", valueColor: Colors.blue),
               ],
               const Divider(color: AppColors.border, height: 32),
               const Text('RAZÓN / DETALLES DE LA SEÑAL', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),

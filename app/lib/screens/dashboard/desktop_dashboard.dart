@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/network/api_client.dart';
+import '../../core/utils/price_formatter.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -391,7 +392,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
                 _tradeRow(
                   p['symbol'] ?? 'UNKNOWN',
                   "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] ?? 1}x",
-                  "\`                  "\${fmtPrice(p['entryPrice'])}",
+                  "\$${fmtPrice(p['entryPrice'])}",
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
                   "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",
                   onTap: () => context.go('/dashboard/trade/${(p["symbol"]?.toString() ?? "UNKNOWN").replaceAll("/", "-")}', extra: p),

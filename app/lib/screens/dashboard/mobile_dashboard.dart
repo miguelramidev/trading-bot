@@ -154,7 +154,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                 child: _buildTradeCard(
                   p['symbol'] ?? 'UNKNOWN',
                   "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] ?? 1}x",
-                  "\`                  "\${fmtPrice(p['entryPrice'])}",
+                  "\$${fmtPrice(p['entryPrice'])}",
                   p['size'].toString(),
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
                   "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",

@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
+import 'services/auth_service.dart';
 import 'screens/dashboard/settings_screen.dart';
 import 'screens/signals/signal_detail_screen.dart';
 import 'screens/trades/trade_detail_screen.dart';
@@ -212,6 +213,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // En Web, no usamos biometría (FaceID/Huella), así que lo pasamos directamente al Dashboard
         if (kIsWeb) {
+          AuthService().initFCM();
           WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); }); return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
@@ -223,6 +225,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         // Si ya está logueado en Firebase Y pasó la biometría
+        AuthService().initFCM();
         WidgetsBinding.instance.addPostFrameCallback((_) { context.go('/dashboard'); }); return const Scaffold(body: Center(child: CircularProgressIndicator()));
       },
     );

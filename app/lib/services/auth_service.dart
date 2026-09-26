@@ -106,6 +106,33 @@ class AuthService {
     await _auth.signOut();
   }
 
+  // Inicializar FCM para el usuario logueado
+  Future<void> initFCM() async {
+    try {
+      NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        String? fcmToken = await FirebaseMessaging.instance.getToken(
+          vapidKey: kIsWeb ? "BOdyQFifaU2KNLkvPdByFZ37Yi-7kCC34X2IkBWNdzwNF7LTUKPccBoMoFxdLgf6GzSpkLpMKIySuIpUuFn07eY" : null
+        );
+        if (fcmToken != null) {
+          final fcmResponse = await ApiClient.post('/api/users/fcm-token', body: {
+            'token': fcmToken
+          });
+          if (fcmResponse.statusCode == 200) {
+             print('✅ FCM Token guardado exitosamente.');
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️ No se pudo inicializar FCM: $e');
+    }
+  }
+
   // Obtener usuario actual
   User? get currentUser => _auth.currentUser;
   

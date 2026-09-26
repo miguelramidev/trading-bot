@@ -4,6 +4,8 @@ applications:
       phases:
         preBuild:
           commands:
+            # Instalar dependencias necesarias
+            - apt-get update -qq && apt-get install -y xz-utils
             # Instalar Flutter SDK
             - curl -s https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.29.3-stable.tar.xz -o flutter.tar.xz
             - tar xf flutter.tar.xz

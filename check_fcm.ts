@@ -1,0 +1,1 @@
+import { db } from './src/db/index.js'; import { userConfig } from './src/db/schema.js'; async function main() { const users = await db.query.userConfig.findMany(); console.log(users.map(u => ({ id: u.id, email: u.email, fcm: u.fcmTokens }))); process.exit(0); } main();

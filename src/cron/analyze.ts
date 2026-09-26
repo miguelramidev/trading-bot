@@ -537,7 +537,7 @@ async function runAnalysis(timeframe: string) {
           const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
           const targetNotional = Math.max(10.0, exchangeMinNotional);
 
-          const leverage = user.leverage || 1;
+          const leverage = user.apalancamiento ?? 10;
           const notional = marginToInvest * leverage;
           
           let positionWarning = "";

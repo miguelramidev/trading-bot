@@ -63,7 +63,7 @@ bot.command("status", async (ctx) => {
   }
   
   const status = config.isPaused ? "Pausado ⏸️" : "Activo ▶️";
-  await ctx.reply(`Estado del bot: ${status}\nApalancamiento actual: ${config.leverage}x`);
+  await ctx.reply(`Estado del bot: ${status}\nApalancamiento actual: ${config.apalancamiento ?? 10}x`);
 });
 
 bot.command("leverage", async (ctx) => {
@@ -74,7 +74,7 @@ bot.command("leverage", async (ctx) => {
     const config = await db.query.userConfig.findFirst({
       where: eq(userConfig.chatId, chatId),
     });
-    const current = config?.leverage || 1;
+    const current = config?.apalancamiento ?? 10;
     await ctx.reply(`Apalancamiento actual: ${current}x\nUsa /leverage [1-125] para cambiarlo.`);
     return;
   }
@@ -87,10 +87,10 @@ bot.command("leverage", async (ctx) => {
   
   await db
     .insert(userConfig)
-    .values({ chatId, leverage: newLeverage })
+    .values({ chatId, apalancamiento: newLeverage })
     .onConflictDoUpdate({
       target: userConfig.chatId,
-      set: { leverage: newLeverage, updatedAt: new Date() },
+      set: { apalancamiento: newLeverage, updatedAt: new Date() },
     });
     
   await ctx.reply(`✅ Apalancamiento actualizado a ${newLeverage}x.`);
@@ -239,7 +239,7 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
      parseFloat(signal.gridSL || "0"),
      parseFloat(signal.gridTP || "0"),
      user.montoOperacion ? parseFloat(user.montoOperacion.toString()) : 25.0,
-     user.leverage
+     user.apalancamiento ?? 10
   );
 
   let finalDecision = "Tomada";

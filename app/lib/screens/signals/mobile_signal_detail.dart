@@ -117,24 +117,35 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                _buildInfoPanel(),
-                const SizedBox(height: 24),
-                Text('CONFIRMACIÓN MACRO (ALINEACIÓN)', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: AppColors.winGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.winGreen.withValues(alpha: 0.3))),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.analytics_outlined, color: AppColors.winGreen, size: 16),
+                      const SizedBox(width: 8),
+                      Text('GRÁFICOS COMPLEMENTARIOS (MACRO)', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 12),
                 _buildCandleMiniChart('${widget.signal['symbol'] ?? 'SOL'} (4H)', macro4hCandles),
                 const SizedBox(height: 16),
                 _buildCandleMiniChart('${widget.signal['symbol'] ?? 'SOL'} (1D)', macro1dCandles),
                 const SizedBox(height: 16),
                 _buildCandleMiniChart('BTC/USDT (1D)', btc1dCandles),
+                const SizedBox(height: 24),
+                _buildInfoPanel(),
                 const SizedBox(height: 100), // Space for bottom buttons
               ],
             ),
           ),
           // Fixed Bottom Buttons
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
+          if (_getSignalStatus() == 'PENDIENTE DE DECISIÓN')
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

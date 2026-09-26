@@ -76,12 +76,16 @@ historyRouter.get(
           id: t.id,
           symbol: t.symbol,
           direction: t.direction,
-          leverage: t.accountBalance && t.minNotional ? Math.ceil(parseFloat(t.minNotional) / parseFloat(t.accountBalance)) : 1,
+          leverage: t.leverage || 1,
           strategy: t.strategy || t.regime || "Strategy",
           entryPrice: t.executedEntryPrice || t.entry || "0",
           exitPrice: t.executedExitPrice || "-",
+          stopLoss: t.gridSL || t.stopLoss || "-",
+          takeProfit: t.gridTP || t.takeProfit || "-",
+          margin: t.accountBalance || "0",
           roi: roi,
           pnl: pnl,
+          fundingRate: t.fundingRate || "0.0000",
           status: statusStr,
           date: t.evaluatedAt,
           reason: t.reason
@@ -125,6 +129,64 @@ historyRouter.get(
 
     } catch (e: any) {
       console.error("History error:", e);
+      return c.json({ error: e.message }, 500);
+    }
+  }
+);
+
+// GET /api/history/:id — Secure single trade fetch (only owner can access)
+historyRouter.get(
+  "/:id",
+  async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
+    const firebaseUid = authHeader.split(" ")[1];
+
+    const tradeId = parseInt(c.req.param("id"), 10);
+    if (isNaN(tradeId)) return c.json({ error: "Invalid trade ID" }, 400);
+
+    try {
+      const user = await db.query.userConfig.findFirst({ where: eq(userConfig.firebaseUid, firebaseUid) });
+      if (!user) return c.json({ error: "User not found" }, 404);
+
+      const t = await db.query.signalHistory.findFirst({
+        where: eq(signalHistory.id, tradeId)
+      });
+
+      if (!t) return c.json({ error: "Trade not found" }, 404);
+
+      const pnlVal = parseFloat(t.realizedPnl || "0");
+      const roiVal = parseFloat(t.realizedRoi || "0");
+      const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
+
+      let statusStr = "DESCARTADO";
+      if (!wasActuallyDiscarded && t.decision?.includes("Cerrada")) {
+        statusStr = pnlVal > 0 || t.decision.includes("TP") ? "TP HIT" : "SL HIT";
+      } else if (t.isActiveTrade) {
+        statusStr = "ACTIVA";
+      }
+
+      return c.json({
+        id: t.id,
+        symbol: t.symbol,
+        direction: t.direction,
+        leverage: t.leverage || 1,
+        strategy: t.strategy || t.regime || "Strategy",
+        entryPrice: t.executedEntryPrice || t.entry || "0",
+        exitPrice: t.executedExitPrice || "-",
+        stopLoss: t.gridSL || t.stopLoss || "-",
+        takeProfit: t.gridTP || t.takeProfit || "-",
+        margin: t.accountBalance || "0",
+        roi: roiVal,
+        pnl: pnlVal,
+        fundingRate: t.fundingRate || "0.0000",
+        status: statusStr,
+        date: t.evaluatedAt,
+        reason: t.reason
+      });
+
+    } catch (e: any) {
+      console.error("Trade detail error:", e);
       return c.json({ error: e.message }, 500);
     }
   }

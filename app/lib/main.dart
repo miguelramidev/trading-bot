@@ -14,6 +14,7 @@ import 'services/auth_service.dart';
 import 'screens/dashboard/settings_screen.dart';
 import 'screens/signals/signal_detail_screen.dart';
 import 'screens/trades/trade_detail_screen.dart';
+import 'screens/trades/trade_detail_loader.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/dashboard_screen.dart';
 
@@ -116,10 +117,11 @@ final GoRouter _router = GoRouter(
                 GoRoute(
                   path: 'trade/:id',
                   pageBuilder: (context, state) {
-                    final trade = state.extra as Map<String, dynamic>? ?? {};
+                    final tradeId = state.pathParameters['id'] ?? '';
+                    final preloaded = state.extra as Map<String, dynamic>?;
                     return CustomTransitionPage(
                       key: state.pageKey,
-                      child: TradeDetailScreen(trade: trade, isClosed: true),
+                      child: TradeDetailLoader(tradeId: tradeId, preloaded: preloaded),
                       transitionsBuilder: (context, animation, secondaryAnimation, child) {
                         return FadeTransition(opacity: animation, child: child);
                       },

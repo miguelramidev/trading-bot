@@ -13,8 +13,10 @@ class DesktopTradeDetail extends StatelessWidget {
     final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
     final pnl = double.tryParse(trade['unrealizedPnl']?.toString() ?? '') ?? double.tryParse(trade['pnl']?.toString() ?? '') ?? 0.0;
     final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '') ?? 0.0;
-    final margin = double.tryParse(trade['initialMargin']?.toString() ?? '') ?? ((double.tryParse(trade['entryPrice']?.toString() ?? '') ?? 1.0) * (double.tryParse(trade['size']?.toString() ?? '') ?? 1.0) / (double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0));
-    final notional = margin * (double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0);
+    final leverage = double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0;
+    // margin comes from accountBalance stored at trade creation time, or from initialMargin if available
+    final margin = double.tryParse(trade['margin']?.toString() ?? '') ?? double.tryParse(trade['initialMargin']?.toString() ?? '') ?? 0.0;
+    final notional = margin * leverage;
     final isPositive = pnl >= 0;
 
     return Scaffold(
@@ -42,14 +44,18 @@ class DesktopTradeDetail extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
+                      Container(width: 8, height: 8, decoration: BoxDecoration(color: isClosed ? AppColors.textSecondary : AppColors.winGreen, shape: BoxShape.circle)),
                       const SizedBox(width: 12),
-                      const Text('MQ // INSPECTOR DE POSICIÓN ACTIVA', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      Text(isClosed ? 'MQ // INSPECTOR DE POSICIÓN CERRADA' : 'MQ // INSPECTOR DE POSICIÓN ACTIVA', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
                       const SizedBox(width: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.winGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: AppColors.winGreen.withValues(alpha: 0.3))),
-                        child: const Text('L2 EXECUTION ENGINE', style: TextStyle(color: AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold)),
+                        decoration: BoxDecoration(
+                          color: (isClosed ? AppColors.textSecondary : AppColors.winGreen).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: (isClosed ? AppColors.textSecondary : AppColors.winGreen).withValues(alpha: 0.3))
+                        ),
+                        child: Text(isClosed ? (trade['status'] ?? 'CERRADA') : 'EN CURSO', style: TextStyle(color: isClosed ? AppColors.textSecondary : AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -76,14 +82,19 @@ class DesktopTradeDetail extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Flexible(child: Text(trade['symbol'] ?? 'UNK', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                            Expanded(
+                              child: Text(
+                                (trade['symbol'] ?? 'UNK').toString().replaceFirst(':USDT', ''),
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
+                              ),
+                            ),
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                               child: const Text('PERPETUO', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                             ),
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                               decoration: BoxDecoration(color: (isLong ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: (isLong ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.3))),
@@ -91,7 +102,7 @@ class DesktopTradeDetail extends StatelessWidget {
                                 children: [
                                   Container(width: 6, height: 6, decoration: BoxDecoration(color: (isLong ? AppColors.winGreen : AppColors.lossRed), shape: BoxShape.circle)),
                                   const SizedBox(width: 6),
-                                  Text('${isLong ? "LONG" : "SHORT"} ${trade['leverage']}X CROSS', style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  Text('${isLong ? "LONG" : "SHORT"} x${trade['leverage'] ?? "?"}', style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             )
@@ -169,15 +180,15 @@ class DesktopTradeDetail extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 32),
-                        _buildRightRow('ESTRATEGIA ALGORÍTMICA', trade['strategy'] ?? 'Motor Momentum Cuántico', 'Activa', AppColors.textPrimary, AppColors.winGreen),
+                        _buildRightRow('ESTRATEGIA ALGORÍTMICA', trade['strategy'] ?? '-', isClosed ? (trade['status'] ?? 'CERRADA') : 'EN CURSO', AppColors.textPrimary, isClosed ? AppColors.textSecondary : AppColors.winGreen),
                         _buildRightDivider(),
                         _buildRightRow('VALOR NOCIONAL & MARGEN', 'Apalancamiento x${trade['leverage'] ?? 1} Cross', '\$${notional.toStringAsFixed(2)} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen: \$${margin.toStringAsFixed(2)} USDT'),
                         _buildRightDivider(),
-                        _buildRightRow('ENTRADA VS MARK PRICE', 'Diferencial en vivo', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} → \$${double.tryParse(trade['markPrice']?.toString() ?? trade['exitPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', AppColors.textSecondary, AppColors.textPrimary),
+                        _buildRightRow('ENTRADA VS PRECIO SALIDA', isClosed ? 'Precio ejecutado' : 'Diferencial en vivo', '\$${double.tryParse(trade['entryPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} → \$${double.tryParse(trade['exitPrice']?.toString() ?? trade['markPrice']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'}', AppColors.textSecondary, AppColors.textPrimary),
                         _buildRightDivider(),
-                        _buildRightRow('DISTANCIA A STOP LOSS', 'Garantía de salida', '\$${double.tryParse(trade['stopLoss']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, isSl: true),
+                        _buildRightRow('STOP LOSS', 'Nivel de salida por pérdida', '\$${double.tryParse(trade['stopLoss']?.toString().replaceAll('-', '') ?? '')?.toStringAsFixed(4) ?? (trade['stopLoss'] ?? '-')}', AppColors.textSecondary, AppColors.lossRed, isSl: true),
                         _buildRightDivider(),
-                        _buildRightRow('DISTANCIA A TAKE PROFIT', 'Objetivo Algorítmico', '\$${double.tryParse(trade['takeProfit']?.toString() ?? '')?.toStringAsFixed(4) ?? '-'} USDT', AppColors.textSecondary, AppColors.textPrimary, isTp: true),
+                        _buildRightRow('TAKE PROFIT', 'Objetivo Algorítmico', '\$${double.tryParse(trade['takeProfit']?.toString().replaceAll('-', '') ?? '')?.toStringAsFixed(4) ?? (trade['takeProfit'] ?? '-')}', AppColors.textSecondary, AppColors.winGreen, isTp: true),
                         _buildRightDivider(),
                         _buildRightRow('FUNDING RATE', 'Tasa de permuta perp 8h', '+${trade['fundingRate'] ?? "0.0000"}%', AppColors.textSecondary, AppColors.winGreen),
                         _buildRightDivider(),

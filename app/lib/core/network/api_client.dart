@@ -44,4 +44,13 @@ class ApiClient {
       body: body != null ? jsonEncode(body) : null,
     );
   }
+
+  static Future<http.Response> patch(String endpoint, Map<String, dynamic> body, {Map<String, String>? headers}) async {
+    final uri = Uri.parse('$baseUrl$endpoint');
+    return await http.patch(
+      uri,
+      headers: await _getHeaders(headers),
+      body: jsonEncode(body),
+    );
+  }
 }

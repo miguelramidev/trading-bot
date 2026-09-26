@@ -530,10 +530,12 @@ async function runAnalysis(timeframe: string) {
             currentBinanceBalance = (await userTrader.getFreeBalance()); // Ah wait, I need to check Trader methods.
           } catch (e) { console.error("Error fetching balance for user", user.id); }
           
-          // Si el balance es menor a 25 o hay error de API, no saltamos al usuario.
-          // Queremos que igual reciba la notificación de la señal, aunque no pueda operar.
-
           const marginToInvest = user.montoOperacion || 25.0;
+
+          // Si el balance es menor a la configuración, NO enviamos notificación (a pedido del usuario).
+          if (currentBinanceBalance < marginToInvest) {
+            continue;
+          }
           const exchangeMinNotional = await dataFetcher.getMinNotional(symbol);
           const targetNotional = Math.max(10.0, exchangeMinNotional);
 

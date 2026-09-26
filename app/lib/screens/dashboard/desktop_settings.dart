@@ -41,6 +41,38 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   bool _isFundingActive = false;
   bool _notificationsWeb = true;
   bool _notificationsMobile = true;
+  bool _isLoadingConfig = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    try {
+      final response = await ApiClient.get('/api/users/config');
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['success'] == true) {
+          final data = json['data'];
+          setState(() {
+            _amountController.text = data['montoOperacion']?.toString() ?? '25';
+            _OperacionesController.text = data['maxTrades']?.toString() ?? '5';
+            _leverageMinController.text = data['leverageMin']?.toString() ?? '1';
+            _leverageMaxController.text = data['leverageMax']?.toString() ?? '2';
+            _notificationsWeb = data['notificationsWeb'] ?? true;
+            _notificationsMobile = data['notificationsMobile'] ?? true;
+            _rsaPublicKey = data['rsaPublicKey'];
+          });
+        }
+      }
+    } catch (e) {
+      print('Error cargando configuración: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingConfig = false);
+    }
+  }
 
 
   Future<void> _generateRSA() async {

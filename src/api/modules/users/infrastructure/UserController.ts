@@ -90,6 +90,43 @@ usersRouter.post("/keys/generate", async (c) => {
   }
 });
 
+// GET /api/users/config
+usersRouter.get("/config", async (c) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const firebaseUid = authHeader.split(" ")[1];
+
+  try {
+    const user = await db.query.userConfig.findFirst({
+      where: eq(userConfig.firebaseUid, firebaseUid),
+    });
+
+    if (!user) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    // Retornamos la configuración, ocultando credenciales sensibles
+    return c.json({
+      success: true,
+      data: {
+        montoOperacion: user.montoOperacion,
+        maxTrades: user.maxTrades,
+        leverageMin: user.leverageMin,
+        leverageMax: user.leverageMax,
+        notificationsWeb: user.notificationsWeb,
+        notificationsMobile: user.notificationsMobile,
+        hasBinanceKeys: !!user.binanceApiKey && !!user.binanceApiSecret,
+        hasRsaKeys: !!user.rsaPublicKey && !!user.rsaPrivateKey,
+        rsaPublicKey: user.rsaPublicKey,
+      }
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
 // PUT /api/users/config
 usersRouter.put(
   "/config",

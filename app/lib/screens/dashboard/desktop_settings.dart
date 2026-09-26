@@ -64,6 +64,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             _leverageMaxController.text = data['leverageMax']?.toString() ?? '2';
             _notificationsWeb = data['notificationsWeb'] ?? true;
             _notificationsMobile = data['notificationsMobile'] ?? true;
+            _notificationsTelegram = data['notificationsTelegram'] ?? true;
+            _isBotActive = !(data['isPaused'] ?? false);
             _rsaPublicKey = data['rsaPublicKey'];
           });
         }
@@ -303,7 +305,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           Switch(
             value: _isBotActive,
             activeColor: AppColors.winGreen,
-            onChanged: (v) => setState(() => _isBotActive = v),
+            onChanged: (v) async {
+              setState(() => _isBotActive = v);
+              await ApiClient.patch('/api/users/bot-status', {'isPaused': !v});
+            },
           )
         ],
       ),

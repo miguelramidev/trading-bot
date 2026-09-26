@@ -243,7 +243,10 @@ class _MobileSettingsState extends State<MobileSettings> {
                           ],
                         ),
                       ),
-                      Switch(value: _isBotActive, activeColor: AppColors.winGreen, onChanged: (v) => setState(() => _isBotActive = v)),
+                      Switch(value: _isBotActive, activeColor: AppColors.winGreen, onChanged: (v) async {
+                        setState(() => _isBotActive = v);
+                        await ApiClient.patch('/api/users/bot-status', {'isPaused': !v});
+                      }),
                     ],
                   ),
                   const SizedBox(height: 16),

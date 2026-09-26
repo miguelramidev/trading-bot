@@ -63,6 +63,16 @@ usersRouter.patch(
 );
 
 
+// PATCH /api/users/bot-status — Activar/pausar el bot desde la app (por firebaseUid)
+usersRouter.patch("/bot-status", zValidator("json", z.object({ isPaused: z.boolean() })), async (c) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
+  const firebaseUid = authHeader.split(" ")[1];
+  const { isPaused } = c.req.valid("json");
+  await db.update(userConfig).set({ isPaused }).where(eq(userConfig.firebaseUid, firebaseUid));
+  return c.json({ success: true, isPaused });
+});
+
 // POST /api/users/keys/generate
 usersRouter.post("/keys/generate", async (c) => {
   const authHeader = c.req.header("Authorization");
@@ -118,6 +128,7 @@ usersRouter.get("/config", async (c) => {
         notificationsWeb: user.notificationsWeb,
         notificationsMobile: user.notificationsMobile,
         notificationsTelegram: user.notificationsTelegram,
+        isPaused: user.isPaused,
         hasBinanceKeys: !!user.binanceApiKey && !!user.binanceApiSecret,
         hasRsaKeys: !!user.rsaPublicKey && !!user.rsaPrivateKey,
         rsaPublicKey: user.rsaPublicKey,

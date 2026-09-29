@@ -40,3 +40,10 @@ b4ab0c5e965acaeabad14dac5ad74d15479891e0:scratch/migrate.ts:postgres-url-with-pa
 # cifraron con la vieja se borraron en lugar de migrarse. La llave vieja sigue en el historial, por eso se marca en los
 # escaneos completos, pero ya no protege nada. No reutilizarla.
 b4ab0c5e965acaeabad14dac5ad74d15479891e0:src/api/core/utils/encryption.ts:hardcoded-encryption-key:6
+
+# --- Claves privadas de un script de prueba, ya revocadas ---
+# test_pem.js (agregado en 7a9e03d el 2026-08-31 y borrado en 4b09245) era un script de ccxt para probar el parseo
+# de claves Ed25519 y tenía dos claves privadas. Las API keys viejas de Binance ya se borraron y se cargó una nueva
+# generada por la app, así que esas claves ya no dan acceso a nada. Siguen en el historial, por eso se marcan en los
+# escaneos completos.
+7a9e03d0e3cd108767d43f280da0db1e0aef1e85:test_pem.js:private-key:4

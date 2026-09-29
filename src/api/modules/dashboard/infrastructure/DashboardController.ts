@@ -5,15 +5,13 @@ import { eq, desc, and } from "drizzle-orm";
 import { signalHistory, dailyReports } from "../../../../db/schema.js";
 import { decrypt } from "../../../core/utils/encryption.js";
 import ccxt from "ccxt";
+import { newErrorId } from "../../../core/utils/errors.js";
+import type { AuthEnv } from "../../../core/middleware/auth.js";
 
-export const dashboardRouter = new Hono();
+export const dashboardRouter = new Hono<AuthEnv>();
 
 dashboardRouter.get("/", async (c) => {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  const firebaseUid = authHeader.split(" ")[1];
+  const firebaseUid = c.get("uid");
 
   try {
     const user = await db.query.userConfig.findFirst({
@@ -133,10 +131,13 @@ dashboardRouter.get("/", async (c) => {
     });
 
   } catch (error: any) {
-    console.error("Dashboard error:", error);
-    return c.json({ 
+    // El detalle queda solo en el log; la app muestra este mensaje en su modal de configuración.
+    const errorId = newErrorId();
+    console.error(`[${errorId}] Dashboard error:`, error);
+    return c.json({
       status: "error",
-      message: error.message,
+      message: `No se pudo consultar Binance. Revisa tus API Keys o reintenta (ref ${errorId}).`,
+      errorId,
       balance: 0,
       unrealizedPnl: 0,
       unrealizedPnlPercent: 0,

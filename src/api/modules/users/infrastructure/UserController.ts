@@ -6,62 +6,43 @@ import { zValidator } from "@hono/zod-validator";
 import { db } from "../../../../db/index.js";
 import { userConfig } from "../../../../db/schema.js";
 import { eq } from "drizzle-orm";
+import { internalError } from "../../../core/utils/errors.js";
+import type { AuthEnv } from "../../../core/middleware/auth.js";
 
 import { SyncUserUseCase } from "../application/SyncUserUseCase.js";
 import { PostgresUserRepository } from "./PostgresUserRepository.js";
 
-export const usersRouter = new Hono();
+export const usersRouter = new Hono<AuthEnv>();
 
 // Configuración de Inyección de Dependencias (SOLID)
 const userRepository = new PostgresUserRepository();
 const syncUserUseCase = new SyncUserUseCase(userRepository);
 
 // POST /api/users/sync
+// El uid y el email salen del token verificado; del body solo se acepta el nombre.
 usersRouter.post(
   "/sync",
   zValidator("json", z.object({
-    firebaseUid: z.string(),
-    email: z.string().email(),
     name: z.string().optional(),
   })),
   async (c) => {
-    const data = c.req.valid("json");
+    const firebaseUid = c.get("uid");
+    const email = c.get("email");
+    if (!email) return c.json({ error: "El token no incluye email" }, 400);
+
+    const { name } = c.req.valid("json");
     try {
-      const user = await syncUserUseCase.execute(data);
+      const user = await syncUserUseCase.execute({ firebaseUid, email, name: name ?? c.get("name") });
       return c.json({ success: true, user });
     } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+      return internalError(c, error, "users/sync");
     }
   }
 );
 
-// PATCH /api/users/:chatId/pause
-usersRouter.patch(
-  "/:chatId/pause",
-  zValidator("param", z.object({
-    chatId: z.string(),
-  })),
-  zValidator("json", z.object({
-    isPaused: z.boolean(),
-  })),
-  async (c) => {
-    const { chatId } = c.req.valid("param");
-    const { isPaused } = c.req.valid("json");
-    
-    await db.update(userConfig)
-      .set({ isPaused })
-      .where(eq(userConfig.chatId, chatId));
-      
-    return c.json({ success: true, isPaused });
-  }
-);
-
-
 // PATCH /api/users/bot-status — Activar/pausar el bot desde la app (por firebaseUid)
 usersRouter.patch("/bot-status", zValidator("json", z.object({ isPaused: z.boolean() })), async (c) => {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
-  const firebaseUid = authHeader.split(" ")[1];
+  const firebaseUid = c.get("uid");
   const { isPaused } = c.req.valid("json");
   await db.update(userConfig).set({ isPaused }).where(eq(userConfig.firebaseUid, firebaseUid));
   return c.json({ success: true, isPaused });
@@ -69,11 +50,7 @@ usersRouter.patch("/bot-status", zValidator("json", z.object({ isPaused: z.boole
 
 // POST /api/users/keys/generate
 usersRouter.post("/keys/generate", async (c) => {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  const firebaseUid = authHeader.split(" ")[1];
+  const firebaseUid = c.get("uid");
 
   try {
     const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
@@ -90,17 +67,13 @@ usersRouter.post("/keys/generate", async (c) => {
 
     return c.json({ success: true, publicKey });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500);
+    return internalError(c, e, "users/keys/generate");
   }
 });
 
 // GET /api/users/config
 usersRouter.get("/config", async (c) => {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  const firebaseUid = authHeader.split(" ")[1];
+  const firebaseUid = c.get("uid");
 
   try {
     const user = await db.query.userConfig.findFirst({
@@ -129,7 +102,7 @@ usersRouter.get("/config", async (c) => {
       }
     });
   } catch (error: any) {
-    return c.json({ success: false, error: error.message }, 500);
+    return internalError(c, error, "users/config GET");
   }
 });
 
@@ -151,14 +124,9 @@ usersRouter.put(
     rsaPrivateKey: z.string().optional(),
   })),
   async (c) => {
-    // 1. Autenticación / Middleware casero
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-    const firebaseUid = authHeader.split(" ")[1];
+    const firebaseUid = c.get("uid");
 
-    // 2. Validación y actualización
+    // Validación y actualización
     const data = c.req.valid("json");
     try {
       const setObj: any = {};
@@ -186,7 +154,7 @@ usersRouter.put(
 
       return c.json({ success: true, message: "Configuration updated successfully" });
     } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+      return internalError(c, error, "users/config PUT");
     }
   }
 );
@@ -199,11 +167,7 @@ usersRouter.post(
     token: z.string(),
   })),
   async (c) => {
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-    const firebaseUid = authHeader.split(" ")[1];
+    const firebaseUid = c.get("uid");
     const { token } = c.req.valid("json");
 
     try {
@@ -222,7 +186,7 @@ usersRouter.post(
 
       return c.json({ success: true, message: "FCM token updated successfully" });
     } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+      return internalError(c, error, "users/fcm-token");
     }
   }
 );

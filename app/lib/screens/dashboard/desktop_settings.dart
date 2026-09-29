@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/network/api_client.dart';
 
@@ -156,13 +155,9 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         return;
       }
 
-      final response = await http.put(
-        Uri.parse('https://d283s0b41l.execute-api.ca-central-1.amazonaws.com/api/users/config'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${user.uid}',
-        },
-        body: jsonEncode({
+      final response = await ApiClient.put(
+        '/api/users/config',
+        body: {
           'binanceApiKey': _apiKeyController.text,
           'binanceApiSecret': _apiSecretController.text,
           'montoOperacion': int.tryParse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 25,
@@ -174,7 +169,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         'notificationsTelegram': _notificationsTelegram,
           if (_rsaPublicKey != null) 'rsaPublicKey': _rsaPublicKey,
           if (_rsaPrivateKey != null) 'rsaPrivateKey': _rsaPrivateKey,
-        }),
+        },
       );
 
       if (response.statusCode == 200 && mounted) {

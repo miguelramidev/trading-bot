@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   secret: "secreto-de-prueba",
   handleUpdate: vi.fn(),
+  use: vi.fn(),
   returning: vi.fn(),
   deleteWhere: vi.fn(),
   resource: { TELEGRAM_TOKEN: { value: "token-falso" }, TELEGRAM_WEBHOOK_SECRET: { value: "secreto-de-prueba" } } as any,
@@ -15,6 +16,7 @@ vi.mock("telegraf", () => ({
     command = vi.fn();
     action = vi.fn();
     on = vi.fn();
+    use = mocks.use;
     handleUpdate = mocks.handleUpdate;
   },
 }));
@@ -31,6 +33,10 @@ vi.mock("../src/db/index.js", () => ({
 vi.stubEnv("TELEGRAM_TOKEN", "token-falso");
 const { handler } = await import("../src/telegram/webhook.js");
 const { isValidWebhookSecret, getSecretHeader } = await import("../src/telegram/verifyWebhook.js");
+const { isAllowedChat } = await import("../src/telegram/allowlist.js");
+
+// Middleware de lista de permitidos que webhook.ts registra con bot.use() al cargarse.
+const chatGuard = mocks.use.mock.calls[0][0] as (ctx: any, next: () => Promise<void>) => Promise<void>;
 
 const HEADER = "x-telegram-bot-api-secret-token";
 const update = { update_id: 1001, message: { text: "/status" } };
@@ -163,5 +169,61 @@ describe("handler del webhook", () => {
     const res = await handler(makeEvent({ [HEADER]: mocks.secret }, JSON.stringify(update)));
     expect(res.statusCode).toBe(200);
     expect(mocks.handleUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("isAllowedChat", () => {
+  it("acepta un chat de la lista, sea número o texto, y tolera espacios", () => {
+    expect(isAllowedChat(12345, "12345")).toBe(true);
+    expect(isAllowedChat("12345", " 999 , 12345 ")).toBe(true);
+  });
+
+  it("rechaza un chat que no está en la lista o si no hay chat", () => {
+    expect(isAllowedChat(777, "12345,999")).toBe(false);
+    expect(isAllowedChat(undefined, "12345")).toBe(false);
+  });
+
+  it("falla cerrado si la lista no está configurada o está vacía", () => {
+    expect(isAllowedChat(12345, undefined)).toBe(false);
+    expect(isAllowedChat(12345, "")).toBe(false);
+    expect(isAllowedChat(12345, " , ")).toBe(false);
+  });
+});
+
+describe("guard de chats permitidos (bot.use)", () => {
+  beforeEach(() => {
+    vi.stubEnv("ALLOWED_CHAT_IDS", "12345");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.stubEnv("ALLOWED_CHAT_IDS", "");
+  });
+
+  it("deja pasar un update de un chat permitido", async () => {
+    const next = vi.fn().mockResolvedValue(undefined);
+    await chatGuard({ chat: { id: 12345 } }, next);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignora un update de un chat no permitido (comando, callback o /start)", async () => {
+    const next = vi.fn();
+    await chatGuard({ chat: { id: 777 }, message: { text: "/start" } }, next);
+    await chatGuard({ chat: { id: 777 }, callbackQuery: { data: "paper_accept_1" } }, next);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("ignora un update sin chat", async () => {
+    const next = vi.fn();
+    await chatGuard({}, next);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("falla cerrado si ALLOWED_CHAT_IDS no está configurado", async () => {
+    vi.stubEnv("ALLOWED_CHAT_IDS", "");
+    const next = vi.fn();
+    await chatGuard({ chat: { id: 12345 } }, next);
+    expect(next).not.toHaveBeenCalled();
   });
 });

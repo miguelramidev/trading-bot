@@ -2,57 +2,14 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../../../db/index.js";
-import { signalHistory } from "../../../../db/schema.js";
-import { desc, eq } from "drizzle-orm";
+import { signalHistory, userConfig } from "../../../../db/schema.js";
+import { eq } from "drizzle-orm";
 import { decrypt } from "../../../core/utils/encryption.js";
-import { userConfig } from "../../../../db/schema.js";
 import { Trader } from "../../../../bot/trader.js";
+import { internalError, newErrorId } from "../../../core/utils/errors.js";
+import type { AuthEnv } from "../../../core/middleware/auth.js";
 
-
-export const signalsRouter = new Hono();
-
-// GET /api/signals
-// Retorna las últimas señales con páginación básica
-signalsRouter.get(
-  "/",
-  zValidator("query", z.object({
-    limit: z.string().optional().default("50"),
-  })),
-  async (c) => {
-    const { limit: queryLimit } = c.req.valid("query");
-    
-    // Aquí idealmente llamaríamos al Application Service, pero 
-    // para empezar conectamos el Repository/DB directo.
-    const signals = await db.query.signalHistory.findMany({
-      orderBy: [desc(signalHistory.evaluatedAt)],
-      limit: parseInt(queryLimit)
-    });
-    
-    return c.json({ data: signals });
-  }
-);
-
-// GET /api/signals/:id
-signalsRouter.get(
-  "/:id",
-  zValidator("param", z.object({
-    id: z.string().transform((val) => parseInt(val, 10)),
-  })),
-  async (c) => {
-    const { id } = c.req.valid("param");
-    
-    const signal = await db.query.signalHistory.findFirst({
-      where: eq(signalHistory.id, id)
-    });
-    
-    if (!signal) {
-      return c.json({ error: "Signal not found" }, 404);
-    }
-    
-    return c.json({ data: signal });
-  }
-);
-
+export const signalsRouter = new Hono<AuthEnv>();
 
 // POST /api/signals/:id/execute
 signalsRouter.post(
@@ -62,9 +19,7 @@ signalsRouter.post(
   })),
   async (c) => {
     const { id } = c.req.valid("param");
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
-    const firebaseUid = authHeader.split(" ")[1];
+    const firebaseUid = c.get("uid");
 
     try {
       const user = await db.query.userConfig.findFirst({ where: eq(userConfig.firebaseUid, firebaseUid) });
@@ -103,10 +58,19 @@ signalsRouter.post(
         .set({ decision: finalDecision, reason: reasonText, isActiveTrade: true })
         .where(eq(signalHistory.id, id));
 
-      return c.json({ status: finalDecision === "Tomada" ? "success" : "error", message: executionResult });
+      // Los rechazos de negocio (saldo, capital) se muestran tal cual; el detalle de un error fatal
+      // (texto de Binance/ccxt) queda solo en el log, con una referencia para el cliente.
+      let clientMessage = executionResult;
+      if (executionResult.startsWith("❌ Error Fatal")) {
+        const errorId = newErrorId();
+        console.error(`[${errorId}] executeTrade falló para la señal ${id}: ${executionResult}`);
+        clientMessage = `❌ Error al ejecutar la orden (ref ${errorId}). Revisa tu posición en Binance antes de reintentar.`;
+      }
+
+      return c.json({ status: finalDecision === "Tomada" ? "success" : "error", message: clientMessage });
 
     } catch (e: any) {
-      return c.json({ error: e.message }, 500);
+      return internalError(c, e, `signals/${id}/execute`);
     }
   }
 );
@@ -119,8 +83,6 @@ signalsRouter.post(
   })),
   async (c) => {
     const { id } = c.req.valid("param");
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
 
     try {
       const signal = await db.query.signalHistory.findFirst({ where: eq(signalHistory.id, id) });
@@ -143,7 +105,7 @@ signalsRouter.post(
 
       return c.json({ status: "success", message: "Trade descartado" });
     } catch (e: any) {
-      return c.json({ error: e.message }, 500);
+      return internalError(c, e, `signals/${id}/discard`);
     }
   }
 );

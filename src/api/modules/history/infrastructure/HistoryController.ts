@@ -4,8 +4,10 @@ import { zValidator } from "@hono/zod-validator";
 import { db } from "../../../../db/index.js";
 import { signalHistory, userConfig } from "../../../../db/schema.js";
 import { desc, eq, and, isNotNull } from "drizzle-orm";
+import { internalError } from "../../../core/utils/errors.js";
+import type { AuthEnv } from "../../../core/middleware/auth.js";
 
-export const historyRouter = new Hono();
+export const historyRouter = new Hono<AuthEnv>();
 
 historyRouter.get(
   "/",
@@ -15,10 +17,8 @@ historyRouter.get(
     filter: z.string().optional().default("Todos"), // "Todos", "Tomadas", "Descartadas"
   })),
   async (c) => {
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
-    const firebaseUid = authHeader.split(" ")[1];
-    
+    const firebaseUid = c.get("uid");
+
     const { page, limit, filter } = c.req.valid("query");
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -128,8 +128,7 @@ historyRouter.get(
       });
 
     } catch (e: any) {
-      console.error("History error:", e);
-      return c.json({ error: e.message }, 500);
+      return internalError(c, e, "history list");
     }
   }
 );
@@ -138,9 +137,7 @@ historyRouter.get(
 historyRouter.get(
   "/:id",
   async (c) => {
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
-    const firebaseUid = authHeader.split(" ")[1];
+    const firebaseUid = c.get("uid");
 
     const tradeId = parseInt(c.req.param("id"), 10);
     if (isNaN(tradeId)) return c.json({ error: "Invalid trade ID" }, 400);
@@ -186,8 +183,7 @@ historyRouter.get(
       });
 
     } catch (e: any) {
-      console.error("Trade detail error:", e);
-      return c.json({ error: e.message }, 500);
+      return internalError(c, e, "history detail");
     }
   }
 );

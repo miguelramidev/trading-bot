@@ -8,9 +8,29 @@ import { Resource } from "sst";
 import { Trader } from "../bot/trader.js";
 import { decrypt } from "../api/core/utils/encryption.js";
 import { getSecretHeader, isValidWebhookSecret } from "./verifyWebhook.js";
+import { isAllowedChat } from "./allowlist.js";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
+
+// Si el secret no está disponible (no linkeado o sin setear) devuelve undefined y se ignora todo.
+function getAllowedChatIds(): string | undefined {
+  try {
+    return process.env.ALLOWED_CHAT_IDS || (Resource as any).ALLOWED_CHAT_IDS?.value;
+  } catch {
+    return undefined;
+  }
+}
+
+// Primer middleware: cualquier update (comando, callback o texto, incluido /start) de un chat
+// que no esté en la lista de permitidos se ignora sin responder.
+bot.use(async (ctx, next) => {
+  if (!isAllowedChat(ctx.chat?.id, getAllowedChatIds())) {
+    console.warn(`[webhook] Update ignorado de un chat no permitido: ${ctx.chat?.id ?? "sin chat"}`);
+    return;
+  }
+  return next();
+});
 
 bot.command("start", async (ctx) => {
   const chatId = ctx.chat.id.toString();

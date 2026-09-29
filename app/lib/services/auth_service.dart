@@ -44,9 +44,8 @@ class AuthService {
         try {
           print('Sincronizando usuario con backend PostgreSQL...');
           // 5. Sincronizar el usuario con la Base de Datos en AWS Neon
+          // El backend toma el uid y el email del token verificado; solo se manda el nombre.
           final response = await ApiClient.post('/api/users/sync', body: {
-              'firebaseUid': fbUser.uid,
-              'email': fbUser.email ?? 'no-email@unknown.com',
               'name': fbUser.displayName ?? 'Trader',
           });
 

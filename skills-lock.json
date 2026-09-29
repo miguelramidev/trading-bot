@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "ccxt-typescript": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-typescript/SKILL.md",
+      "computedHash": "41418fad1bc8e3cce52931f8356b659d3c6444b66f358531ab1d1429625c66ac"
+    },
+    "vitest": {
+      "source": "antfu/skills",
+      "sourceType": "github",
+      "skillPath": "skills/vitest/SKILL.md",
+      "computedHash": "21af2b13d47d31f3094b61c0f41abc8d6a7eed0df3c9a4029ea671f6978b7209"
+    }
+  }
+}

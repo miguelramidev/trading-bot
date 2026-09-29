@@ -8,6 +8,7 @@ Guía para Claude Code (claude.ai/code) al trabajar en este repositorio.
 - Los scripts `test-*.ts` y `check-*.ts` de la raíz pueden operar contra Binance real: **preguntar antes de correrlos**.
 - **Nunca** leer ni mostrar secretos, archivos `.env` ni claves de API.
 - No modificar la lógica de apalancamiento de `RULES.md` sin tests que la cubran.
+- Las reglas del proyecto (RULES.md y la skill reglas-trading) tienen prioridad sobre cualquier skill externa.
 
 ## Resumen del proyecto
 
@@ -38,6 +39,7 @@ npx tsx <archivo>.ts   # ⚠️ scripts de prueba ad-hoc: pueden operar contra B
 ## Arquitectura
 
 **La infra se define de forma declarativa en `sst.config.ts`**: leerlo primero para entender qué corre dónde. Conecta:
+
 - API Gateway `TelegramWebhook` → `src/telegram/webhook.handler` (comandos de Telegram + callbacks de botones inline)
 - API Gateway `AppApi` (ruta `$default`) → `src/api/server.handler` (app Hono que sirve al front-end Flutter)
 - `Cron15m` (cada 15 min) → `src/cron/analyze.handler15m` (loop principal de análisis + monitoreo de trades)
@@ -52,6 +54,7 @@ Tampoco están en `ALL_SECRETS` las listas de permitidos, que se leen con el mis
 **Dónde viven `DATABASE_URL` y `ENCRYPTION_KEY`:** en producción viven en SST Secrets; en local, en `.env`, que está ignorado por git. Nunca se escriben en el código (el hook de gitleaks bloquea el commit). `ENCRYPTION_KEY` (hex de 64 caracteres = 32 bytes) no tiene valor por defecto y se linkea explícitamente, sin pasar por `ALL_SECRETS`, a los cuatro handlers que cifran o descifran (webhook, API, `Cron15m` y `DailyReport`): si falta o es inválida, el proceso falla al iniciar con un error que no muestra la llave.
 
 **Estructura del backend (`src/`):**
+
 - `cron/analyze.ts` — el corazón del sistema (~660 líneas): monitorea trades abiertos por SL/TP y luego corre todo el pipeline de estrategias. Empezar acá para la lógica de señales.
 - `bot/data.ts` — `DataFetcher`: datos de mercado de solo lectura vía CCXT (OHLCV, funding rate, open interest, universo por volumen, balance).
 - `bot/trader.ts` — `Trader`: ejecución autenticada vía CCXT. `executeTrade()` implementa el algoritmo de escalado de apalancamiento de `RULES.md` Regla 1 (parte de `leverageMin`, sube hasta `leverageMax` para cumplir el `minNotional` de Binance; si no, rechaza — nunca un fallback con `Math.min`). `cleanOrphanOrders()` cancela órdenes SL/TP huérfanas cuya posición ya cerró.

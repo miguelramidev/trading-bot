@@ -25,7 +25,8 @@
       "Bash(npx drizzle-kit *)",
       "Bash(npx tsx test-*)",
       "Bash(npx tsx check-*)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npx hono request *)"
     ]
   },
   "enabledPlugins": {

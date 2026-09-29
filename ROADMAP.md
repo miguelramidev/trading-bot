@@ -115,3 +115,14 @@
 * [ ] **Actualizar Entorno Local:** Cambiar la variable `DATABASE_URL` en el archivo `.env` del repositorio local.
 * [ ] **Actualizar Entorno AWS/SST:** Actualizar los secretos/variables de entorno de SST y volver a hacer deploy si es necesario para que el bot y el dashboard vuelvan a conectarse a la base de datos de Neon.
 
+---
+
+## 14. Pendientes Técnicos (detectados al limpiar `tsc`)
+* [ ] **`Trader.getFreeBalance()` confunde error de red con saldo 0:** captura cualquier excepción y devuelve `0` (`src/bot/trader.ts:26`), igual que cuando el usuario no tiene API key. En `analyze.ts` eso hace que un fallo de Binance se trate como "saldo 0": el filtro de saldo insuficiente no se aplica y el mensaje muestra "Tu Balance: $0.00". Diseñar un retorno que distinga "sin llaves" de "error al consultar" (por ejemplo `number | null`, o dejar propagar el error) y decidir qué hacer con el usuario en cada caso.
+* [ ] **Definir una regla única de notificación por saldo:** hoy `analyze.ts` (filtro de la línea ~553) es inconsistente. Un usuario con saldo 0 (sin llaves, o error al consultar Binance) recibe la señal con un aviso de balance insuficiente, pero uno con `0 < saldo < margen` no recibe nada (el `continue` salta también el push FCM). Decidir un criterio único (notificar siempre con aviso, o no notificar siempre) y documentarlo en `RULES.md`; debe resolverse junto con el ítem de `getFreeBalance` para poder distinguir "sin llaves" de "error de red". La validación autoritativa de la Regla 2 sigue en `executeTrade`.
+* [ ] **Guardar el apalancamiento usado en `signalHistory` (opción A):**
+    - [ ] Agregar la columna `leverage` (integer, nullable) a `signalHistory` en `schema.ts` y aplicarla con `db:push` (solo a pedido explícito).
+    - [ ] **Antes de tocar `executeTrade`**, escribir tests de vitest que cubran el escalado de apalancamiento de `RULES.md` Regla 1 (incluidos los invariantes: nunca por debajo de `leverageMin`, nunca por encima de `leverageMax`, rechazo si no alcanza el `minNotional`, y `leverageMin == leverageMax`).
+    - [ ] Hacer que `executeTrade` exponga el apalancamiento aplicado y guardarlo en `signalHistory` al ejecutar (desde `SignalController` y `webhook.ts`).
+    - [ ] `HistoryController` deja de devolver `leverage: null` y lee la columna; Flutter ya muestra "—" cuando el valor es `null`.
+

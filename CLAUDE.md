@@ -62,3 +62,4 @@ En producción los secretos son **SST Secrets**, no variables de entorno. Todo h
 - Comentarios, documentos de negocio y textos de cara al usuario están en **español**; mantenerlo al editar.
 - `scratch/` y `data_dl/` están en `.gitignore`; los `test-*.ts`/`check-*.ts` de la raíz son scripts de prueba ad-hoc, no la suite de vitest.
 - `AUDITORIA.md` documenta cómo auditar la operación en vivo del bot; `ROADMAP.md` lleva el trabajo planificado.
+- El proyecto usa TypeScript 7 (nativo). El LSP de Claude Code corre sobre TypeScript 6 global como respaldo, así que puede diferir levemente: la fuente de verdad para errores de tipos es `pnpm exec tsc --noEmit`.

@@ -14,10 +14,11 @@ class DesktopTradeDetail extends StatelessWidget {
     final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
     final pnl = double.tryParse(trade['unrealizedPnl']?.toString() ?? '') ?? double.tryParse(trade['pnl']?.toString() ?? '') ?? 0.0;
     final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '') ?? 0.0;
-    final leverage = double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0;
+    // El apalancamiento puede venir null (trades del historial): en ese caso el nocional se muestra como "—".
+    final leverage = double.tryParse(trade['leverage']?.toString() ?? '');
     // margin comes from accountBalance stored at trade creation time, or from initialMargin if available
     final margin = double.tryParse(trade['margin']?.toString() ?? '') ?? double.tryParse(trade['initialMargin']?.toString() ?? '') ?? 0.0;
-    final notional = margin * leverage;
+    final double? notional = leverage != null ? margin * leverage : null;
     final isPositive = pnl >= 0;
 
     return Scaffold(
@@ -103,7 +104,7 @@ class DesktopTradeDetail extends StatelessWidget {
                                 children: [
                                   Container(width: 6, height: 6, decoration: BoxDecoration(color: (isLong ? AppColors.winGreen : AppColors.lossRed), shape: BoxShape.circle)),
                                   const SizedBox(width: 6),
-                                  Text('${isLong ? "LONG" : "SHORT"} x${trade['leverage'] ?? "?"}', style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  Text('${isLong ? "LONG" : "SHORT"} ${trade['leverage'] != null ? "x${trade['leverage']}" : "—"}', style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             )
@@ -183,7 +184,7 @@ class DesktopTradeDetail extends StatelessWidget {
                         const SizedBox(height: 32),
                         _buildRightRow('ESTRATEGIA ALGORÍTMICA', trade['strategy'] ?? '-', isClosed ? (trade['status'] ?? 'CERRADA') : 'EN CURSO', AppColors.textPrimary, isClosed ? AppColors.textSecondary : AppColors.winGreen),
                         _buildRightDivider(),
-                        _buildRightRow('VALOR NOCIONAL & MARGEN', 'Apalancamiento x${trade['leverage'] ?? 1} Cross', '\$${notional.toStringAsFixed(2)} USDT', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen: \$${margin.toStringAsFixed(2)} USDT'),
+                        _buildRightRow('VALOR NOCIONAL & MARGEN', 'Apalancamiento ${trade['leverage'] != null ? "x${trade['leverage']}" : "—"} Cross', notional != null ? '\$${notional.toStringAsFixed(2)} USDT' : '—', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen: \$${margin.toStringAsFixed(2)} USDT'),
                         _buildRightDivider(),
                         _buildRightRow('ENTRADA VS PRECIO SALIDA', isClosed ? 'Precio ejecutado' : 'Diferencial en vivo', '\$${fmtPrice(trade['entryPrice'])} → \$${fmtPrice(trade['exitPrice'] ?? trade['markPrice'])}', AppColors.textSecondary, AppColors.textPrimary),
                         _buildRightDivider(),

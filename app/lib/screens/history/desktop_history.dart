@@ -160,7 +160,7 @@ class _DesktopHistoryState extends State<DesktopHistory> {
                 decoration: BoxDecoration(color: (isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed)).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                 child: Text(trade['direction'], style: TextStyle(color: isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed), fontSize: 11, fontWeight: FontWeight.bold)),
               )),
-              mui.DataCell(Text('${trade['leverage']}x', style: const TextStyle(fontWeight: FontWeight.bold))),
+              mui.DataCell(Text(trade['leverage'] != null ? '${trade['leverage']}x' : '—', style: const TextStyle(fontWeight: FontWeight.bold))),
               mui.DataCell(Text(trade['strategy'], style: const TextStyle(color: AppColors.textSecondary))),
               mui.DataCell(Text('\$${trade['entryPrice']}')),
               mui.DataCell(Text('\$${trade['exitPrice']}')),

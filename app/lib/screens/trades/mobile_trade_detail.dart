@@ -14,8 +14,11 @@ class MobileTradeDetail extends StatelessWidget {
     final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
     final pnl = double.tryParse(trade['unrealizedPnl']?.toString() ?? '') ?? double.tryParse(trade['pnl']?.toString() ?? '') ?? 0.0;
     final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '') ?? 0.0;
-    final margin = double.tryParse(trade['initialMargin']?.toString() ?? '') ?? ((double.tryParse(trade['entryPrice']?.toString() ?? '') ?? 1.0) * (double.tryParse(trade['size']?.toString() ?? '') ?? 1.0) / (double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0));
-    final notional = margin * (double.tryParse(trade['leverage']?.toString() ?? '') ?? 1.0);
+    // El apalancamiento puede venir null (trades del historial): en ese caso margen y monto se muestran como "—".
+    final leverage = double.tryParse(trade['leverage']?.toString() ?? '');
+    final double? margin = double.tryParse(trade['initialMargin']?.toString() ?? '') ??
+        (leverage != null ? (double.tryParse(trade['entryPrice']?.toString() ?? '') ?? 1.0) * (double.tryParse(trade['size']?.toString() ?? '') ?? 1.0) / leverage : null);
+    final double? notional = (margin != null && leverage != null) ? margin * leverage : null;
     final isPositive = pnl >= 0;
 
     return Scaffold(
@@ -85,7 +88,7 @@ class MobileTradeDetail extends StatelessWidget {
                     children: [
                       Container(width: 6, height: 6, decoration: BoxDecoration(color: (isLong ? AppColors.winGreen : AppColors.lossRed), shape: BoxShape.circle)),
                       const SizedBox(width: 6),
-                      Text('${isLong ? "LONG" : "SHORT"}\n${trade['leverage'] ?? 1}x', textAlign: TextAlign.center, style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                      Text('${isLong ? "LONG" : "SHORT"}\n${trade['leverage'] != null ? "${trade['leverage']}x" : "—"}', textAlign: TextAlign.center, style: TextStyle(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 )
@@ -138,9 +141,9 @@ class MobileTradeDetail extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _buildInfoCard('MONTO INVERTIDO', '\$${notional.toStringAsFixed(2)} USDT', 'Margen: \$${margin.toStringAsFixed(2)}')),
+                Expanded(child: _buildInfoCard('MONTO INVERTIDO', notional != null ? '\$${notional.toStringAsFixed(2)} USDT' : '—', 'Margen: ${margin != null ? '\$${margin.toStringAsFixed(2)}' : '—'}')),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('APALANCAMIENTO', '${trade['leverage'] ?? 1}x ${trade['marginMode']?.toString().toUpperCase() ?? 'CROSS'}', 'Modo Cobertura Activo', isGreenSub: true)),
+                Expanded(child: _buildInfoCard('APALANCAMIENTO', '${trade['leverage'] != null ? "${trade['leverage']}x" : "—"} ${trade['marginMode']?.toString().toUpperCase() ?? 'CROSS'}', 'Modo Cobertura Activo', isGreenSub: true)),
               ],
             ),
             const SizedBox(height: 16),

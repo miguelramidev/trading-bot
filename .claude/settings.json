@@ -27,5 +27,8 @@
       "Bash(npx tsx check-*)",
       "Bash(git push *)"
     ]
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true
   }
 }

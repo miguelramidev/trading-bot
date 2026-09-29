@@ -197,7 +197,7 @@ class _MobileHistoryState extends State<MobileHistory> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: (isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed)).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
-                    child: Text('${trade['direction']} ${trade['leverage']}x', style: TextStyle(color: isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed), fontSize: 10, fontWeight: FontWeight.bold)),
+                    child: Text('${trade['direction']} ${trade['leverage'] != null ? "${trade['leverage']}x" : "—"}', style: TextStyle(color: isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed), fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),

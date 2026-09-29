@@ -541,8 +541,7 @@ async function runAnalysis(timeframe: string) {
           const userTrader = new Trader(userKey, userSecret);
           let currentBinanceBalance = 0;
           try {
-            const bal = await userTrader.getUSDTBalance(); // Wait, wait. Trader.getUSDTBalance() or Trader.getFreeBalance()? Wait, neither! I must verify! I will use `const dataFetcherUser = new DataFetcher(userKey, userSecret); currentBinanceBalance = (await dataFetcherUser.getUSDTBalance()).free;` But DataFetcher constructor doesn't take keys!
-            currentBinanceBalance = (await userTrader.getFreeBalance()); // Ah wait, I need to check Trader methods.
+            currentBinanceBalance = await userTrader.getFreeBalance();
           } catch (e) { console.error("Error fetching balance for user", user.id); }
           
           const marginToInvest = user.montoOperacion || 25.0;

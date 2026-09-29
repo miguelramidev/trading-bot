@@ -76,7 +76,7 @@ historyRouter.get(
           id: t.id,
           symbol: t.symbol,
           direction: t.direction,
-          leverage: t.leverage || 1,
+          leverage: null, // signalHistory no guarda el apalancamiento usado (ver ROADMAP.md)
           strategy: t.strategy || t.regime || "Strategy",
           entryPrice: t.executedEntryPrice || t.entry || "0",
           exitPrice: t.executedExitPrice || "-",
@@ -170,7 +170,7 @@ historyRouter.get(
         id: t.id,
         symbol: t.symbol,
         direction: t.direction,
-        leverage: t.leverage || 1,
+        leverage: null, // signalHistory no guarda el apalancamiento usado (ver ROADMAP.md)
         strategy: t.strategy || t.regime || "Strategy",
         entryPrice: t.executedEntryPrice || t.entry || "0",
         exitPrice: t.executedExitPrice || "-",

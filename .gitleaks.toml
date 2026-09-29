@@ -1,0 +1,49 @@
+title = "trading-bot: reglas de gitleaks"
+
+# Sin esta línea, tener un .gitleaks.toml propio desactiva las reglas por defecto de gitleaks.
+[extend]
+useDefault = true
+
+# Llave de cifrado hexadecimal de 32 bytes (AES-256) escrita en el código o en un archivo de config.
+# Caso real que gitleaks no detectaba: const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "<64 hex>";
+# El nombre (encryption/cipher/crypto/aes/master + key/secret) debe estar a menos de 80 caracteres del valor.
+# El filtro de entropía descarta valores de prueba como "ab".repeat(32).
+[[rules]]
+id = "hardcoded-encryption-key"
+description = "Llave de cifrado hexadecimal de 32 bytes escrita en el código"
+regex = '''(?i)(?:encryption|cipher|crypto|aes|master)[_-]?(?:key|secret)\b[^\n"'`]{0,80}["'`]?([0-9a-f]{64})\b'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["encryption", "cipher", "crypto", "aes", "master"]
+tags = ["key", "encryption"]
+
+# URL de conexión a Postgres con la contraseña incrustada. gitleaks no trae una regla para esto.
+# Caso real: postgresql://usuario:clave@host/db (el commit b4ab0c5 expuso una así).
+# La longitud mínima y la entropía descartan placeholders como "u:p@127.0.0.1" o "user:password@localhost".
+[[rules]]
+id = "postgres-url-with-password"
+description = "URL de Postgres con usuario y contraseña incrustados"
+regex = '''(?i)postgres(?:ql)?://[^\s:/@"'`]+:([^\s@"'`/]{6,})@[^\s"'`]+'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["postgres://", "postgresql://"]
+tags = ["database", "credentials"]
+
+# Contraseñas de Neon (prefijo npg_), aunque aparezcan sueltas y no dentro de una URL.
+[[rules]]
+id = "neon-password"
+description = "Contraseña de Neon (npg_)"
+regex = '''\bnpg_[A-Za-z0-9]{20,}\b'''
+keywords = ["npg_"]
+tags = ["database", "credentials"]
+
+# Directorios de dependencias y compilados: los ignora git y no son parte del repo.
+[[allowlists]]
+description = "Dependencias y archivos generados"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.sst/''',
+  '''(^|/)\.dart_tool/''',
+  '''(^|/)app/build/''',
+  '''(^|/)dist/''',
+]

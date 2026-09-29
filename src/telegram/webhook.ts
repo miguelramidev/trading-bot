@@ -238,14 +238,17 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
     return;
   }
   
-  await ctx.answerCbQuery("⏳ Ejecutando orden en Binance...");
-
+  // Se valida el usuario y sus llaves ANTES de la primera respuesta: Telegram solo admite una respuesta
+  // por callback, y si ya se contestó "Ejecutando…" el aviso de llaves faltantes se perdería.
   const chatId = ctx.chat?.id.toString();
   const user = await db.query.userConfig.findFirst({ where: eq(userConfig.chatId, chatId || "") });
   if (!user || !user.binanceApiKey) {
     await ctx.answerCbQuery("❌ Configura tus API Keys en la app primero.");
     return;
   }
+
+  await ctx.answerCbQuery("⏳ Ejecutando orden en Binance...");
+
   const userKey = decrypt(user.binanceApiKey);
   let userSecret = "";
   if (user.rsaPrivateKey) {

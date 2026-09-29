@@ -134,7 +134,7 @@
 * [x] **C4:** el webhook de Telegram verifica `X-Telegram-Bot-Api-Secret-Token` en tiempo constante antes de parsear, deduplica por `update_id` (`telegram_updates`, falla cerrado) y siempre responde 200 tras autenticar. Timeout de 30 s.
 * [x] **Despliegue de la tanda 1:** tabla `telegram_updates` creada a mano en Neon → `sst secret set TELEGRAM_WEBHOOK_SECRET` → `setWebhook` con `secret_token` → `pnpm run deploy`. Verificado: 401 sin header y con header incorrecto, y `/status` responde.
 
-**Tanda 2 (hecha en código, falta desplegar):**
+**Tanda 2 (desplegada y verificada):**
 * [x] **C1:** middleware central `verifyIdToken` en `/api/*` (`api/core/middleware`). El uid sale solo del token verificado. Única ruta pública: `GET /` (health). Flutter manda `getIdToken()` y reintenta una vez con token nuevo ante un 401.
 * [x] **Lista de permitidos:** secret `ALLOWED_FIREBASE_UIDS` (uids separados por coma). Uid verificado que no está en la lista: 403. Sin el secret configurado: 403 para todos (falla cerrado).
 * [x] **A4:** `discard` (y `execute`) quedan detrás del mismo middleware.
@@ -143,16 +143,67 @@
 * [x] **M2:** `POST /api/users/sync` toma uid y email del token; del body solo el nombre.
 * [x] **M3:** los 500 devuelven `{error:"Error interno", errorId}` y el detalle queda solo en el log. El texto de un `❌ Error Fatal` de `executeTrade` tampoco llega al cliente.
 * [x] Borradas `GET /api/signals` y `GET /api/signals/:id` (nadie las usaba; parte de L1).
-* [ ] **Despliegue de la tanda 2 (manual, en este orden):** `sst secret set ALLOWED_FIREBASE_UIDS` y `ALLOWED_CHAT_IDS` (`--stage prod`) → `pnpm run deploy` (backend; desde acá la app vieja recibe 401) → `git push` a `main` (Amplify despliega la web) → compilar e instalar el APK de Android. Telegram sigue operativo durante el corte.
+* [x] **Despliegue de la tanda 2 (hecho):** `sst secret set ALLOWED_FIREBASE_UIDS` y `ALLOWED_CHAT_IDS` (`--stage prod`) → `pnpm run deploy` (backend; desde acá la app vieja recibe 401) → `git push` a `main` (Amplify despliega la web) → compilar e instalar el APK de Android. Telegram sigue operativo durante el corte.
+
+**Tanda 3 (hecha en código, falta desplegar):**
+* [x] **C3:** `ENCRYPTION_KEY` sin valor por defecto. Es un Secret de SST (`sst.config.ts`) linkeado explícitamente a los cuatro handlers que cifran o descifran (webhook, API, `Cron15m`, `DailyReport`), no a `ALL_SECRETS`. Se valida al importar `encryption.ts` (64 hex = 32 bytes): si falta o es inválida el proceso falla al iniciar, con un error que no muestra la llave. Estrategia: no se migran los datos cifrados; se borran y se cargan llaves nuevas de Binance desde la app.
+* [x] **L5:** `decrypt()` lanza ante cualquier valor que no tenga el formato `iv:authTag:ciphertext` (antes lo devolvía tal cual); `encrypt("")` también lanza. Los mensajes de error no incluyen el valor. Tests en `tests/encryption.test.ts`.
+* [x] Arreglos chicos: el callback de Telegram valida al usuario y sus llaves antes de la primera respuesta (antes el aviso de llaves faltantes se perdía); `POST /api/users/keys/generate` responde 404 si no existe la fila del usuario (antes devolvía éxito sin guardar nada).
+* [x] Escaneo de secretos: hook de pre-commit con gitleaks (`.githooks/`, activado por `prepare`), `.gitleaks.toml` con reglas propias, `.gitleaksignore` (claves públicas de Firebase y las URLs de Neon del commit `b4ab0c5`, cuya contraseña ya fue rotada). Borrados los scripts de `scratch/` con secretos o URLs de base y, con `git rm`, `check-balance.ts` y `test-balance2.ts` de la raíz (estaban rotos).
+* [ ] **Despliegue de la tanda 3 (manual, en este orden):** `sst secret set ENCRYPTION_KEY` con `openssl rand -hex 32` (`--stage prod`; y agregarla al `.env` local) → borrar en Binance las API keys viejas (sin posiciones abiertas que dependan del bot; los SL/TP ya colocados se mantienen) → en Neon, `UPDATE user_config SET binance_api_key = NULL, binance_api_secret = NULL, rsa_private_key = NULL, rsa_public_key = NULL` → `pnpm run deploy` → verificar (`/status` responde, el dashboard pide configurar las API Keys, el próximo tick del cron sin errores) → en la app generar el par de claves (después del deploy, para que se cifre con la llave nueva) → en Binance crear una API key nueva con esa clave pública (Ed25519, Futures habilitado, retiros deshabilitados) → pegar la API key en la app y guardar.
+* [ ] **Fingerprints pendientes del `.gitleaksignore`:** al confirmar la revocación de todas las API keys viejas de Binance, agregar los de `test_pem.js` (commit `7a9e03d`, dos claves privadas). Después del deploy, la llave de cifrado vieja del commit `b4ab0c5` (`encryption.ts:6`) también queda inválida y se puede ignorar con un comentario.
 
 **Pendientes (por gravedad):**
-* [ ] **C3 (crítica):** `ENCRYPTION_KEY` tiene un valor por defecto en el código y no está declarada como Secret de SST. Moverla a un Secret sin fallback, rotarla, re-encriptar y pedir a los usuarios rotar sus API keys de Binance. Considerar la llave actual comprometida.
 * [ ] **A1 (alta):** doble ejecución posible (check-then-act no atómico). Reservar la señal con un UPDATE atómico antes de operar y revisar posiciones abiertas del símbolo. La dedupe por `update_id` solo cubre reentregas de Telegram, no un doble toque.
 * [ ] **A2 (alta):** la API web ejecuta señales viejas sin límite de edad (Telegram: 15 min). Función compartida "señal ejecutable" (edad, deriva de precio, SL/TP del lado correcto).
 * [ ] **A3 (alta):** `signalHistory` no tiene dueño y `decision` es global: un usuario que actúa bloquea la señal para todos, y cualquiera puede ejecutar cualquier id. Tabla de decisiones por usuario.
 * [ ] **A6 (alta):** en `executeTrade`, si falla la colocación del SL/TP solo se loguea y se informa "✅ TRADE EJECUTADO" (posición sin protección). Requiere tests antes de tocarlo.
 * [ ] **M4–M7 (media):** CORS `*` y sin rate limiting (con tokens verificados es menos grave, pero sigue abierto); Regla 3 sin aplicar del lado servidor; validación débil de la config (`leverageMin > leverageMax` viola la Regla 1); `/api/history/:id` sin ownership (con un solo usuario en la lista baja de prioridad).
-* [ ] **L2–L6 (baja):** `market/klines` sin validar parámetros; alta de token FCM no atómica; `reason` de señales editable desde Telegram sin ownership; `decrypt()` devuelve texto plano si el formato no coincide; el dashboard no filtra trades activos por usuario.
+* [ ] **L2–L6 (baja):** `market/klines` sin validar parámetros; alta de token FCM no atómica; `reason` de señales editable desde Telegram sin ownership; el dashboard no filtra trades activos por usuario.
 * [ ] **Flutter: mensaje ante 401/403 definitivo:** hoy el dashboard muestra su modal de configuración de API Keys aunque el problema sea de sesión o de cuenta no autorizada. Mostrar "cuenta no autorizada" o volver al login.
 * [ ] **Constraint única de `firebase_uid` en `user_config`:** está en `schema.ts` pero no en la base real (`db:push` la propuso con un truncate y se canceló). Aplicarla con un `ALTER TABLE` puntual, después de comprobar que no hay duplicados.
+
+---
+
+## 16. Multiusuario (futuro)
+Hoy el acceso lo controlan dos secrets de SST (`ALLOWED_FIREBASE_UIDS` y `ALLOWED_CHAT_IDS`): agregar un usuario exige `sst secret set` y un deploy, y no hay roles. Este diseño los reemplaza por estado de aprobación y rol guardados en la base, y por una vinculación de Telegram con código de un solo uso. Es solo un plan: nada de esto está implementado.
+
+**Prerrequisitos (no empezar antes de cerrarlos):**
+* [ ] **C3 cerrado** (código hecho en la tanda 3, falta el despliegue): `ENCRYPTION_KEY` como Secret de SST sin valor por defecto, rotada, con las llaves re-encriptadas y las API keys de Binance rotadas. No se deben guardar llaves de terceros con una llave de cifrado comprometida.
+* [ ] **A3:** ownership por usuario de las señales (tabla de decisiones por `(uid, signalId)` con registro de a quién se notificó). Sin esto, la decisión de un usuario bloquea la señal para los demás y cualquiera puede ejecutar cualquier id.
+* [ ] **M7:** `/api/history/:id` valida que el trade pertenezca al usuario autenticado.
+* [ ] **L6:** el dashboard filtra los trades activos por usuario, para no filtrar SL, TP y estrategia de trades ajenos.
+* [ ] **Constraint única de `firebase_uid`** aplicada en la base (ver el pendiente de la sección 15): el alta por `sync` no debe poder duplicar filas con estado.
+* [ ] **Recomendado antes de abrir el registro:** M4 (rate limiting y CORS con lista de orígenes, porque `sync` crearía filas pendientes para cualquier cuenta de Google) y A1 (reserva atómica de señales, porque crece la concurrencia).
+
+**1. Estado de aprobación y rol en `user_config`, verificado desde la base**
+* [ ] Agregar `status` (`pendiente` | `aprobado`, por defecto `pendiente`) y `role` (`admin` | `usuario`, por defecto `usuario`) a `user_config`. El primer admin se crea a mano con SQL.
+* [ ] El middleware sigue verificando el ID token con `verifyIdToken` y después busca al usuario por uid en `user_config`. Sin fila o con estado `pendiente`: 403. Con `aprobado`: deja pasar y expone `uid` y `role` en el contexto de Hono. Si la base falla: rechaza (falla cerrado).
+* [ ] Dos niveles de acceso: rutas solo con token verificado (`POST /api/users/sync` y un `GET /api/users/me` para que la app consulte su estado) y el resto de `/api/*`, que exige `aprobado`.
+* [ ] `sync` crea la fila en `pendiente` para un uid nuevo y nunca cambia `status` ni `role` en un uid existente.
+* [ ] Un guard `requireAdmin` para las rutas de administración (listar pendientes, aprobar y quitar acceso).
+* [ ] Flutter: pantalla "tu cuenta espera aprobación" según `/api/users/me`. Se integra con el pendiente de mostrar un mensaje ante 403.
+* [ ] Al terminar: eliminar el secret `ALLOWED_FIREBASE_UIDS`, su link en `sst.config.ts` y `parseAllowlist` si ya no lo usa nada.
+
+**2. Vinculación de Telegram con código de un solo uso (`/start CODIGO`)**
+* [ ] Endpoint `POST /api/users/telegram-link` (solo usuarios aprobados) que genera un código aleatorio de alta entropía, válido para un `/start` de Telegram (letras, números, `_` y `-`), con vencimiento corto (por ejemplo 10 minutos). Se guarda solo su hash, con el uid, la fecha de vencimiento y `used_at`. La app muestra el enlace `t.me/<bot>?start=CODIGO`.
+* [ ] En el webhook, `/start CODIGO` desde un chat desconocido consume el código con un `UPDATE … WHERE used_at IS NULL AND expires_at > now() RETURNING` atómico y guarda ese `chat_id` en la fila del uid. Un código usado, vencido o inexistente no se consume ni responde nada útil.
+* [ ] Un chat no puede quedar vinculado a dos uids (`chat_id` es único). Limitar los intentos fallidos por chat.
+* [ ] El middleware de Telegram deja de usar `ALLOWED_CHAT_IDS`: resuelve el chat contra `user_config` (`chat_id` de un usuario `aprobado`). Un chat desconocido solo puede enviar `/start CODIGO`, y todo lo demás se ignora sin responder. El secret token del webhook y la dedupe por `update_id` se mantienen.
+* [ ] La identidad para ejecutar sale de ese vínculo: los callbacks de Telegram operan con las llaves del usuario dueño del chat y con el ownership de A3.
+* [ ] Al terminar: eliminar el secret `ALLOWED_CHAT_IDS`, su link y `telegram/allowlist.ts`.
+
+**3. Comandos de administración restringidos por rol**
+* [ ] `/positions` y `/report_*` usan hoy las llaves globales del dueño y reportes globales: pasan a exigir que el chat vinculado tenga `role = admin`. Para un usuario común se ignoran sin responder.
+* [ ] Comandos de admin nuevos para aprobar sin usar SQL (por ejemplo `/pendientes` y `/aprobar <id>`), también restringidos por rol, con equivalente en la API (`requireAdmin`).
+* [ ] Solo un admin puede cambiar `role` o quitar `aprobado`, y los cambios quedan en el log.
+
+**4. Migración desde el estado actual**
+* [ ] Agregar las columnas y la tabla de códigos (`db:push` a mano, cuidando el desvío de la constraint de `firebase_uid`) → cargar por SQL al usuario actual como `aprobado` y `admin`, con su `chat_id` ya vinculado → desplegar el middleware que lee la base **conservando** las listas como respaldo → verificar la app y Telegram → retirar los secrets `ALLOWED_*`. Así no hay corte ni lockout.
+* [ ] Tests de vitest (sin red): usuario sin fila, `pendiente`, `aprobado` y `admin`; guard `requireAdmin`; código de un solo uso (repetido, vencido, de otro uid); chat desconocido ignorado salvo `/start CODIGO`; comando de admin denegado a un usuario común.
+
+**Decisiones abiertas:**
+* Latencia y revocación: buscar en la base en cada request suma una consulta a Neon. Se puede cachear en memoria unos 30 a 60 segundos a costa de que una revocación tarde en aplicarse. Evaluar también `checkRevoked` para acciones de dinero.
+* Si hace falta un tercer estado (por ejemplo `bloqueado`) para distinguir a alguien rechazado de alguien pendiente.
+* Quién aprueba (app, Telegram o ambos) y cómo se avisa al admin de un pendiente nuevo.
 

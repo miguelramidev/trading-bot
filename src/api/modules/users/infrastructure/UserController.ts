@@ -58,12 +58,18 @@ usersRouter.post("/keys/generate", async (c) => {
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
     });
 
-    await db.update(userConfig)
+    const updated = await db.update(userConfig)
       .set({
         rsaPublicKey: publicKey,
         rsaPrivateKey: encrypt(privateKey),
       })
-      .where(eq(userConfig.firebaseUid, firebaseUid));
+      .where(eq(userConfig.firebaseUid, firebaseUid))
+      .returning({ id: userConfig.id });
+
+    // Sin fila del usuario no se guardó nada: no se puede devolver una clave pública que no quedó registrada.
+    if (updated.length === 0) {
+      return c.json({ error: "User not found" }, 404);
+    }
 
     return c.json({ success: true, publicKey });
   } catch (e: any) {

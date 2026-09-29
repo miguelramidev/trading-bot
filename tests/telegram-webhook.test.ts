@@ -31,6 +31,8 @@ vi.mock("../src/db/index.js", () => ({
 }));
 
 vi.stubEnv("TELEGRAM_TOKEN", "token-falso");
+// webhook.ts importa encryption.ts, que exige ENCRYPTION_KEY al cargarse: llave falsa, solo para el test.
+vi.stubEnv("ENCRYPTION_KEY", "ab".repeat(32));
 const { handler } = await import("../src/telegram/webhook.js");
 const { isValidWebhookSecret, getSecretHeader } = await import("../src/telegram/verifyWebhook.js");
 const { isAllowedChat } = await import("../src/telegram/allowlist.js");

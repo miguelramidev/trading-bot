@@ -10,7 +10,8 @@
     "remove": "sst remove",
     "backtest": "tsx src/scripts/backtest.ts",
     "db:push": "drizzle-kit push",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "keywords": [],
   "author": "",

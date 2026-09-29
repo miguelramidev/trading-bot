@@ -1,0 +1,8 @@
+#!/bin/sh
+# Bloquea el commit si gitleaks encuentra secretos en los cambios preparados (staged).
+# Reglas en .gitleaks.toml; falsos positivos aprobados en .gitleaksignore.
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks no está instalado (brew install gitleaks): commit bloqueado." >&2
+  exit 1
+fi
+exec gitleaks git --pre-commit --staged --redact --no-banner --verbose

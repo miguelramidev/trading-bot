@@ -1,0 +1,42 @@
+# Claves de API de cliente de Firebase (prefijo AIza): son identificadores públicos por diseño,
+# van dentro de la app y del service worker, y no se rotan. Se restringen por app/dominio en Google Cloud.
+# Ignorar SOLO estos fingerprints: no agregar reglas ni archivos enteros, para no tapar hallazgos reales.
+#
+# Formato: archivo:regla:línea (árbol y commits preparados) o commit:archivo:regla:línea (historial).
+# Si un archivo se regenera y la línea cambia, el fingerprint deja de coincidir y hay que actualizarlo.
+
+# --- Árbol actual y commits preparados (staged) ---
+app/android/app/google-services.json:gcp-api-key:23
+app/android/app/google-services.json:gcp-api-key:67
+app/google-services.json:gcp-api-key:23
+app/google-services.json:gcp-api-key:67
+app/lib/firebase_options.dart:gcp-api-key:50
+app/lib/firebase_options.dart:gcp-api-key:59
+app/lib/firebase_options.dart:gcp-api-key:67
+app/web/firebase-messaging-sw.js:gcp-api-key:5
+
+# --- Historial ---
+7012fba4d944b5998e45085a3dd1ee89d19902b0:app/android/app/google-services.json:gcp-api-key:23
+7012fba4d944b5998e45085a3dd1ee89d19902b0:app/android/app/google-services.json:gcp-api-key:67
+7012fba4d944b5998e45085a3dd1ee89d19902b0:app/google-services.json:gcp-api-key:23
+7012fba4d944b5998e45085a3dd1ee89d19902b0:app/google-services.json:gcp-api-key:67
+7012fba4d944b5998e45085a3dd1ee89d19902b0:app/lib/firebase_options.dart:gcp-api-key:50
+7012fba4d944b5998e45085a3dd1ee89d19902b0:app/lib/firebase_options.dart:gcp-api-key:59
+7012fba4d944b5998e45085a3dd1ee89d19902b0:app/lib/firebase_options.dart:gcp-api-key:67
+d0281c64a7035d6cf80beeafde800571f6768398:app/web/firebase-messaging-sw.js:gcp-api-key:5
+
+# --- Credencial de base de datos ya rotada ---
+# El commit b4ab0c5 (2026-09-23) incluyó URLs de Neon con contraseña en scripts de scratch/ (ya sacados del árbol
+# en 29d2e77). Esa contraseña YA FUE ROTADA en Neon (después de ese commit), así que ya no da acceso a nada.
+# Siguen en el historial, por eso gitleaks los marca en los escaneos completos.
+b4ab0c5e965acaeabad14dac5ad74d15479891e0:scratch/check_users.ts:postgres-url-with-password:4
+b4ab0c5e965acaeabad14dac5ad74d15479891e0:scratch/insert_fake_reports.ts:postgres-url-with-password:4
+b4ab0c5e965acaeabad14dac5ad74d15479891e0:scratch/migrate.js:postgres-url-with-password:3
+b4ab0c5e965acaeabad14dac5ad74d15479891e0:scratch/migrate.ts:postgres-url-with-password:4
+
+# --- Llave de cifrado vieja, ya reemplazada ---
+# El commit b4ab0c5 (2026-09-23) introdujo en encryption.ts una llave AES por defecto. La tanda 3 la eliminó del código
+# (ENCRYPTION_KEY ahora es un Secret de SST sin valor por defecto) y se desplegó con una llave nueva; los datos que se
+# cifraron con la vieja se borraron en lugar de migrarse. La llave vieja sigue en el historial, por eso se marca en los
+# escaneos completos, pero ya no protege nada. No reutilizarla.
+b4ab0c5e965acaeabad14dac5ad74d15479891e0:src/api/core/utils/encryption.ts:hardcoded-encryption-key:6

@@ -6,6 +6,14 @@
 
 declare module "sst" {
   export interface Resource {
+    "ALLOWED_CHAT_IDS": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "ALLOWED_FIREBASE_UIDS": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "AppApi": {
       "type": "sst.aws.ApiGatewayV2"
       "url": string
@@ -19,6 +27,10 @@ declare module "sst" {
       "value": string
     }
     "DATABASE_URL": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "ENCRYPTION_KEY": {
       "type": "sst.sst.Secret"
       "value": string
     }

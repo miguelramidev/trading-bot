@@ -26,12 +26,15 @@ export default $config({
     // Listas de permitidos (valores separados por coma). Tampoco van en ALL_SECRETS: cada una la lee un solo handler.
     const ALLOWED_FIREBASE_UIDS = new sst.Secret("ALLOWED_FIREBASE_UIDS");
     const ALLOWED_CHAT_IDS = new sst.Secret("ALLOWED_CHAT_IDS");
+    // Llave de cifrado de las API keys de los usuarios (64 hex = 32 bytes). Sin valor por defecto: si falta,
+    // los handlers no arrancan. Se linkea explícitamente a los cuatro handlers que cifran o descifran.
+    const ENCRYPTION_KEY = new sst.Secret("ENCRYPTION_KEY");
 
     // 1. API Gateway para el Webhook de Telegram
     const webhookApi = new sst.aws.ApiGatewayV2("TelegramWebhook");
     webhookApi.route("POST /webhook", {
       handler: "src/telegram/webhook.handler",
-      link: [...ALL_SECRETS, TELEGRAM_WEBHOOK_SECRET, ALLOWED_CHAT_IDS],
+      link: [...ALL_SECRETS, TELEGRAM_WEBHOOK_SECRET, ALLOWED_CHAT_IDS, ENCRYPTION_KEY],
       timeout: "30 seconds" // Máximo que soporta API Gateway HTTP; un timeout ya no reejecuta (dedupe por update_id)
     });
 
@@ -39,7 +42,7 @@ export default $config({
     const appApi = new sst.aws.ApiGatewayV2("AppApi");
     appApi.route("$default", {
       handler: "src/api/server.handler",
-      link: [...ALL_SECRETS, ALLOWED_FIREBASE_UIDS]
+      link: [...ALL_SECRETS, ALLOWED_FIREBASE_UIDS, ENCRYPTION_KEY]
     });
 
     // 3. Cron Jobs para el análisis del mercado
@@ -49,7 +52,7 @@ export default $config({
       job: {
         handler: "src/cron/analyze.handler15m",
         timeout: "120 seconds", // Le damos tiempo para descargar las 100 velas
-        link: ALL_SECRETS
+        link: [...ALL_SECRETS, ENCRYPTION_KEY]
       }
     });
 
@@ -59,7 +62,7 @@ export default $config({
       job: {
         handler: "src/cron/report.handler",
         timeout: "60 seconds",
-        link: ALL_SECRETS
+        link: [...ALL_SECRETS, ENCRYPTION_KEY]
       }
     });
 

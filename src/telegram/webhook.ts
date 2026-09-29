@@ -1,12 +1,13 @@
 import { Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
 import { db } from "../db/index.js";
-import { userConfig, signalHistory } from "../db/schema.js";
-import { eq } from "drizzle-orm";
+import { userConfig, signalHistory, telegramUpdates } from "../db/schema.js";
+import { eq, lt } from "drizzle-orm";
 import ccxt from "ccxt";
 import { Resource } from "sst";
 import { Trader } from "../bot/trader.js";
 import { decrypt } from "../api/core/utils/encryption.js";
+import { getSecretHeader, isValidWebhookSecret } from "./verifyWebhook.js";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
@@ -327,13 +328,72 @@ bot.on(message("text"), async (ctx) => {
   }
 });
 
-export async function handler(event: any) {
+// Si el secret no está disponible (no linkeado o sin setear) devuelve undefined y el handler rechaza todo.
+function getWebhookSecret(): string | undefined {
   try {
-    const body = JSON.parse(event.body || "{}");
-    await bot.handleUpdate(body);
-    return { statusCode: 200, body: "OK" };
-  } catch (error) {
-    console.error(error);
-    return { statusCode: 500, body: "Error" };
+    return process.env.TELEGRAM_WEBHOOK_SECRET || (Resource as any).TELEGRAM_WEBHOOK_SECRET?.value;
+  } catch {
+    return undefined;
   }
+}
+
+const UPDATES_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+
+export async function handler(event: any) {
+  // 1. Verificar el secret token ANTES de parsear el body. La respuesta no da detalles.
+  if (!isValidWebhookSecret(getSecretHeader(event?.headers), getWebhookSecret())) {
+    console.warn("[webhook] Update rechazado: secret token ausente o inválido");
+    return { statusCode: 401, body: "" };
+  }
+
+  // Desde acá siempre respondemos 200: un error de lógica no debe provocar reentregas en cadena de Telegram.
+  const ok = { statusCode: 200, body: "OK" };
+
+  let update: any;
+  try {
+    update = JSON.parse(event.body || "{}");
+  } catch (error) {
+    console.error("[webhook] El body no es JSON válido", error);
+    return ok;
+  }
+
+  // 2. Deduplicar por update_id. Falla cerrado: si no se puede reservar, no se procesa.
+  const updateId = update?.update_id;
+  if (typeof updateId !== "number") {
+    console.error("[webhook] Update sin update_id numérico, se ignora");
+    return ok;
+  }
+
+  try {
+    const claimed = await db
+      .insert(telegramUpdates)
+      .values({ updateId })
+      .onConflictDoNothing()
+      .returning({ updateId: telegramUpdates.updateId });
+    if (claimed.length === 0) {
+      console.warn(`[webhook] update_id ${updateId} ya procesado (reentrega), se ignora`);
+      return ok;
+    }
+  } catch (error) {
+    console.error(`[webhook] No se pudo reservar el update_id ${updateId}; se ignora el update (falla cerrado)`, error);
+    return ok;
+  }
+
+  // 3. Procesar
+  try {
+    await bot.handleUpdate(update);
+  } catch (error) {
+    console.error(`[webhook] Error procesando el update ${updateId}`, error);
+  }
+
+  // 4. Limpieza oportunista de reservas viejas
+  if (Math.random() < 0.02) {
+    try {
+      await db.delete(telegramUpdates).where(lt(telegramUpdates.receivedAt, new Date(Date.now() - UPDATES_RETENTION_MS)));
+    } catch (error) {
+      console.error("[webhook] No se pudo limpiar telegram_updates", error);
+    }
+  }
+
+  return ok;
 }

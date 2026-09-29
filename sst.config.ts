@@ -21,12 +21,15 @@ export default $config({
     const BINANCE_API_SECRET = new sst.Secret("BINANCE_API_SECRET");
     const FIREBASE_SERVICE_ACCOUNT_B64 = new sst.Secret("FIREBASE_SERVICE_ACCOUNT_B64");
     const ALL_SECRETS = [TELEGRAM_TOKEN, DATABASE_URL, BINANCE_API_KEY, BINANCE_API_SECRET, FIREBASE_SERVICE_ACCOUNT_B64];
+    // Secret token del webhook de Telegram: NO va en ALL_SECRETS, solo lo lee el handler del webhook
+    const TELEGRAM_WEBHOOK_SECRET = new sst.Secret("TELEGRAM_WEBHOOK_SECRET");
 
     // 1. API Gateway para el Webhook de Telegram
     const webhookApi = new sst.aws.ApiGatewayV2("TelegramWebhook");
     webhookApi.route("POST /webhook", {
       handler: "src/telegram/webhook.handler",
-      link: ALL_SECRETS
+      link: [...ALL_SECRETS, TELEGRAM_WEBHOOK_SECRET],
+      timeout: "30 seconds" // Máximo que soporta API Gateway HTTP; un timeout ya no reejecuta (dedupe por update_id)
     });
 
     // 2. API Gateway para el Frontend SaaS (Flutter) - Framework Hono

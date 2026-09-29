@@ -30,6 +30,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "TELEGRAM_WEBHOOK_SECRET": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "TelegramWebhook": {
       "type": "sst.aws.ApiGatewayV2"
       "url": string

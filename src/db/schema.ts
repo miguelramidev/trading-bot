@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, serial, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, serial, integer, bigint } from "drizzle-orm/pg-core";
 
 // Guardamos la configuración de cada chat
 export const userConfig = pgTable("user_config", {
@@ -84,4 +84,10 @@ export const dailyReports = pgTable("daily_reports", {
   tradesTaken: integer("trades_taken").default(0), // Operaciones tomadas ese día
   wins: integer("wins").default(0),
   losses: integer("losses").default(0),
+});
+
+// Updates de Telegram ya recibidos: deduplica las reentregas del webhook por update_id
+export const telegramUpdates = pgTable("telegram_updates", {
+  updateId: bigint("update_id", { mode: "number" }).primaryKey(),
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
 });

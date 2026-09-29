@@ -45,13 +45,15 @@ npx tsx <archivo>.ts   # ⚠️ scripts de prueba ad-hoc: pueden operar contra B
 
 En producción los secretos son **SST Secrets**, no variables de entorno. Todo handler debe estar `link`eado a `ALL_SECRETS` en `sst.config.ts` o no podrá leerlos. El código los lee con el patrón dual `process.env.X || (Resource as any).X.value`: la variable de entorno gana en local, el Resource de SST en Lambda.
 
+Excepción: `TELEGRAM_WEBHOOK_SECRET` **no** está en `ALL_SECRETS`; solo se linkea al handler del webhook. Ese handler rechaza con 401 todo update sin el header `X-Telegram-Bot-Api-Secret-Token` correcto (verificación en `telegram/verifyWebhook.ts`, antes de parsear el body), deduplica por `update_id` (tabla `telegram_updates`) y siempre responde 200 al resto. El secret se setea a mano con `sst secret set` y se registra en Telegram con `setWebhook`.
+
 **Estructura del backend (`src/`):**
 - `cron/analyze.ts` — el corazón del sistema (~660 líneas): monitorea trades abiertos por SL/TP y luego corre todo el pipeline de estrategias. Empezar acá para la lógica de señales.
 - `bot/data.ts` — `DataFetcher`: datos de mercado de solo lectura vía CCXT (OHLCV, funding rate, open interest, universo por volumen, balance).
 - `bot/trader.ts` — `Trader`: ejecución autenticada vía CCXT. `executeTrade()` implementa el algoritmo de escalado de apalancamiento de `RULES.md` Regla 1 (parte de `leverageMin`, sube hasta `leverageMax` para cumplir el `minNotional` de Binance; si no, rechaza — nunca un fallback con `Math.min`). `cleanOrphanOrders()` cancela órdenes SL/TP huérfanas cuya posición ya cerró.
 - `telegram/webhook.ts` — bot Telegraf: `/start`, `/pause`, `/resume`, `/leverage` y el callback `[✅ Ejecutar Sniper]` que dispara la ejecución real.
 - `api/` — API Hono. `server.ts` monta los routers de módulos bajo `/api/*`. Los módulos en `api/modules/{signals,users,dashboard,market,history}` siguen de forma laxa las capas domain/application/infrastructure (solo `users` está completamente desarrollado; el resto son controllers sueltos). Los imports requieren extensión `.js` (ESM NodeNext).
-- `db/` — Drizzle ORM sobre **Postgres serverless de Neon**. `schema.ts` es la única fuente de verdad (`userConfig`, `signalHistory`, `dailyReports`). Precios/PnL se guardan como **text**, no numeric, para preservar la precisión decimal: parsear con `parseFloat` y nunca hacer cálculos del lado de la DB.
+- `db/` — Drizzle ORM sobre **Postgres serverless de Neon**. `schema.ts` es la única fuente de verdad (`userConfig`, `signalHistory`, `dailyReports`, `telegramUpdates`). Precios/PnL se guardan como **text**, no numeric, para preservar la precisión decimal: parsear con `parseFloat` y nunca hacer cálculos del lado de la DB.
 - `firebase.ts` — Firebase Admin para push FCM (la service account va en base64 en `FIREBASE_SERVICE_ACCOUNT_B64`). Si no está seteada, degrada a no-op.
 - `api/core/utils/encryption.ts` — AES-256-GCM para las API keys de Binance de cada usuario (`iv:authTag:ciphertext`).
 

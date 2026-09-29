@@ -126,3 +126,23 @@
     - [ ] Hacer que `executeTrade` exponga el apalancamiento aplicado y guardarlo en `signalHistory` al ejecutar (desde `SignalController` y `webhook.ts`).
     - [ ] `HistoryController` deja de devolver `leverage: null` y lee la columna; Flutter ya muestra "—" cuando el valor es `null`.
 
+---
+
+## 15. Auditoría de Seguridad de Puntos de Entrada
+**Tanda 1 (hecha en código, falta desplegar):**
+* [x] **C2:** borrada la ruta `GET /api/users` (devolvía todas las filas de `userConfig`, con los cifrados de las llaves de Binance). Nadie la usaba.
+* [x] **C4:** el webhook de Telegram verifica `X-Telegram-Bot-Api-Secret-Token` en tiempo constante antes de parsear, deduplica por `update_id` (`telegram_updates`, falla cerrado) y siempre responde 200 tras autenticar. Timeout de 30 s.
+* [ ] **Despliegue de la tanda 1 (manual, en este orden):** `pnpm db:push` → `sst secret set TELEGRAM_WEBHOOK_SECRET --stage prod` → `setWebhook` con `secret_token` (el código viejo ignora el header) → `pnpm run deploy`.
+
+**Pendientes (por gravedad):**
+* [ ] **C1 (crítica):** la autenticación toma el `Bearer` como `firebaseUid` sin verificarlo. Agregar un middleware con `verifyIdToken`; Flutter debe mandar `getIdToken()` en vez de `user.uid`.
+* [ ] **C3 (crítica):** `ENCRYPTION_KEY` tiene un valor por defecto en el código y no está declarada como Secret de SST. Moverla a un Secret sin fallback, rotarla, re-encriptar y pedir a los usuarios rotar sus API keys de Binance. Considerar la llave actual comprometida.
+* [ ] **A1 (alta):** doble ejecución posible (check-then-act no atómico). Reservar la señal con un UPDATE atómico antes de operar y revisar posiciones abiertas del símbolo. La dedupe por `update_id` solo cubre reentregas de Telegram, no un doble toque.
+* [ ] **A2 (alta):** la API web ejecuta señales viejas sin límite de edad (Telegram: 15 min). Función compartida "señal ejecutable" (edad, deriva de precio, SL/TP del lado correcto).
+* [ ] **A3 (alta):** `signalHistory` no tiene dueño y `decision` es global: un usuario que actúa bloquea la señal para todos, y cualquiera puede ejecutar cualquier id. Tabla de decisiones por usuario.
+* [ ] **A4 (alta):** `POST /api/signals/:id/discard` solo exige el prefijo `Bearer ` y no valida usuario.
+* [ ] **A5 (alta):** `/positions` y `/report_*` de Telegram responden a cualquier chat con datos de la cuenta del dueño; `/start` registra a cualquiera. Allowlist de chats admin.
+* [ ] **A6 (alta):** en `executeTrade`, si falla la colocación del SL/TP solo se loguea y se informa "✅ TRADE EJECUTADO" (posición sin protección). Requiere tests antes de tocarlo.
+* [ ] **M1–M7 (media):** `PATCH /api/users/:chatId/pause` sin auth (no se usa: borrarla); `POST /api/users/sync` sin auth; `e.message` en las respuestas 500; CORS `*` y sin rate limiting; Regla 3 sin aplicar del lado servidor; validación débil de la config (`leverageMin > leverageMax` viola la Regla 1); `/api/history/:id` sin ownership.
+* [ ] **L1–L6 (baja):** `GET /api/signals` anónimo y sin tope de `limit`; `market/klines` sin validar parámetros; alta de token FCM no atómica; `reason` de señales editable desde Telegram sin ownership; `decrypt()` devuelve texto plano si el formato no coincide; el dashboard no filtra trades activos por usuario.
+

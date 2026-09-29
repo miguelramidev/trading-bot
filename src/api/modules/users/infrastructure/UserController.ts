@@ -35,12 +35,6 @@ usersRouter.post(
   }
 );
 
-// GET /api/users
-usersRouter.get("/", async (c) => {
-    const users = await db.query.userConfig.findMany();
-    return c.json({ data: users });
-});
-
 // PATCH /api/users/:chatId/pause
 usersRouter.patch(
   "/:chatId/pause",

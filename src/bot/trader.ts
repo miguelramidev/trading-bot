@@ -11,6 +11,13 @@ export interface TradeResult {
 const EXIT_ORDER_MAX_ATTEMPTS = 3; // 1 intento + 2 reintentos
 const EXIT_ORDER_RETRY_DELAY_MS = 800;
 
+// ROADMAP.md hallazgo A10: el Stop Loss se calcula como 1×ATR(15m) desde el precio de la
+// señal, sin piso mínimo — para activos de precio alto (BTC) o momentáneamente poco
+// volátiles (TRX) puede quedar a una fracción de % del precio, más ajustado que la propia
+// comisión de entrada+salida. 0.5% ≈ 5x la comisión taker ida y vuelta estimada (0.05% x2 =
+// 0.10%), para que el SL no salte con ruido normal de mercado sin margen real de protección.
+const MIN_SL_DISTANCE_PCT = 0.005;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -25,6 +32,19 @@ function isDuplicateClientOrderId(error: any): boolean {
 
 function buildClientOrderId(prefix: "sl" | "tp", symbol: string, ts: number): string {
   return `${prefix}_${symbol.replace(/[^A-Za-z0-9]/g, "")}_${ts.toString(36)}`;
+}
+
+// Los errores de ccxt para Binance traen el código y el texto embebidos en el mensaje
+// (ej. `binance {"code":-4046,"msg":"No need to change margin type."}`). Se extraen para
+// mostrarle al usuario un mensaje legible sin depender del formato crudo de ccxt; si no
+// matchea (error de red, error que no vino de Binance, etc.), cae en el mensaje completo tal cual.
+// Texto plano, sin escapar: `mensaje` lo consumen tanto Telegram (HTML) como la API de Flutter
+// (texto plano) — quien necesite HTML seguro lo escapa en su propia capa de entrega, nunca acá
+// (si escapáramos acá, Flutter mostraría "&lt;" literal en vez del texto real).
+function extractBinanceError(e: any): { code: string; msg: string } {
+  const raw = typeof e?.message === "string" ? e.message : String(e);
+  const match = raw.match(/"code":(-?\d+).*?"msg":"([^"]*)"/);
+  return match ? { code: match[1], msg: match[2] } : { code: "desconocido", msg: raw };
 }
 
 export class Trader {
@@ -44,6 +64,15 @@ export class Trader {
         defaultType: 'future',
         fetchOpenOrders: {
           warnWithoutSymbol: false
+        },
+        // A8: por default, ccxt 4.5.76 RELANZA la excepción MarginModeAlreadySet en vez de
+        // tragarla (node_modules/ccxt/.../binance.js: 'setMarginMode': { throwMarginModeAlreadySet: true }
+        // en las opciones base) — a pesar de que el propio código de ccxt comenta "not an error".
+        // Esto restaura el comportamiento que el resto del código siempre asumió: si el par ya
+        // está en isolated, no es un fallo real. El catch de setMarginMode más abajo además
+        // confirma el modo real contra Binance antes de rechazar, por si esto no alcanza.
+        setMarginMode: {
+          throwMarginModeAlreadySet: false
         }
       },
     });
@@ -167,20 +196,49 @@ export class Trader {
       }
 
       // 5. Configurar el Apalancamiento en Binance. Si falla, abortamos: no tiene sentido colocar
-      // la orden con el leverage que sea que ya tuviera la cuenta (A7 — nunca confirmado).
+      // la orden con el leverage que sea que ya tuviera la cuenta (A7). A diferencia de A8, acá
+      // sí se revisó con rigor el código de ccxt 4.5.76: setLeverage() no tiene ninguna opción
+      // tipo "ya seteado, no relanzar" (no existe un equivalente a throwMarginModeAlreadySet para
+      // leverage) — Binance simplemente no rechaza `POST /fapi/v1/leverage` cuando el valor ya es
+      // el mismo, así que cualquier excepción acá es un fallo real, sin necesidad de confirmación
+      // adicional como en A8.
       try {
         await this.exchange.setLeverage(leverage, symbol);
       } catch (e: any) {
         return { status: "rechazado", mensaje: `❌ No se pudo confirmar el apalancamiento (x${leverage}) en Binance. No se colocó ninguna orden. Detalle: ${e.message}` };
       }
 
-      // 6. Configurar modo Isolated (aislado). ccxt ya resuelve en silencio el caso "ya estaba en
-      // isolated" (Binance -4046), así que cualquier error que llegue acá es real (A8 — nunca
-      // confirmado, no arriesgamos quedar en margen cruzado).
+      // 6. Configurar modo Isolated (aislado). A8, confirmado con un caso real (ZEC): ccxt puede
+      // relanzar MarginModeAlreadySet incluso con la opción throwMarginModeAlreadySet:false seteada
+      // en el constructor (por ejemplo si Binance devuelve el error en un formato que ccxt no
+      // reconoce como "ya estaba aislado"), así que no asumimos que cualquier fallo acá signifique
+      // que el par está en cruzado: confirmamos el modo real antes de rechazar una operación válida.
       try {
         await this.exchange.setMarginMode('isolated', symbol);
       } catch (e: any) {
-        return { status: "rechazado", mensaje: `❌ No se pudo confirmar el modo de margen aislado en Binance. No se colocó ninguna orden. Detalle: ${e.message}` };
+        const { code, msg } = extractBinanceError(e);
+        console.error(`[executeTrade] setMarginMode('isolated', ${symbol}) falló (código ${code}: ${msg}). Confirmando el modo real antes de decidir.`, e);
+
+        let marginModeInfo: any;
+        try {
+          marginModeInfo = await this.exchange.fetchMarginMode(symbol);
+        } catch (confirmError: any) {
+          console.error(`[executeTrade] No se pudo confirmar el modo de margen real de ${symbol}:`, confirmError);
+          return {
+            status: "rechazado",
+            mensaje: `❌ No se pudo confirmar el modo de margen aislado en Binance (código ${code}: ${msg}), y tampoco se pudo verificar el modo real de la cuenta (${confirmError.message}). No se colocó ninguna orden.`,
+          };
+        }
+
+        if (marginModeInfo?.marginMode !== "isolated") {
+          return {
+            status: "rechazado",
+            mensaje: `❌ El par está en modo "${marginModeInfo?.marginMode ?? "desconocido"}" en Binance, no aislado (código ${code}: ${msg}). No se colocó ninguna orden.`,
+          };
+        }
+
+        // Confirmado aislado por otra vía (ej. ya lo estaba): el fallo de setMarginMode no bloquea la operación.
+        console.error(`[executeTrade] setMarginMode falló pero se confirmó modo isolated para ${symbol}; se continúa con la operación.`);
       }
 
       // 7. Calcular Amount en Tokens
@@ -191,6 +249,17 @@ export class Trader {
       amount = parseFloat(this.exchange.amountToPrecision(symbol, amount));
 
       if (amount <= 0) return { status: "rechazado", mensaje: "❌ Cantidad calculada de tokens es 0 (precisión del exchange)." };
+
+      // 7.5 Validar distancia mínima del SL contra el precio actual (A10 en ROADMAP.md).
+      // Antes de abrir ninguna posición: si el SL está demasiado ajustado, la comisión de
+      // entrada+salida ya se come el margen de protección sin que haya pasado nada real.
+      const slDistancePct = Math.abs(currentPrice - stopLossPrice) / currentPrice;
+      if (slDistancePct < MIN_SL_DISTANCE_PCT) {
+        return {
+          status: "rechazado",
+          mensaje: `❌ Stop Loss demasiado ajustado: está a ${(slDistancePct * 100).toFixed(3)}% del precio actual, por debajo del mínimo permitido (${(MIN_SL_DISTANCE_PCT * 100).toFixed(2)}%). No se coloca ninguna orden.`,
+        };
+      }
 
       // 8. EJECUTAR ORDEN PRINCIPAL A MERCADO
       const side = direction === "LONG" ? "buy" : "sell";
@@ -212,12 +281,12 @@ export class Trader {
         if (closed) {
           return {
             status: "advertencia",
-            mensaje: `⚠️ <b>POSICIÓN CERRADA POR FALLA DE PROTECCIÓN</b>\nNo se pudo colocar el Stop Loss tras varios intentos, así que la posición se cerró a mercado por seguridad. No queda exposición abierta, pero hay que revisar por qué falló el Stop Loss.\n${resumen}`,
+            mensaje: `⚠️ POSICIÓN CERRADA POR FALLA DE PROTECCIÓN\nNo se pudo colocar el Stop Loss tras varios intentos, así que la posición se cerró a mercado por seguridad. No queda exposición abierta, pero hay que revisar por qué falló el Stop Loss.\n${resumen}`,
           };
         }
         return {
           status: "critico",
-          mensaje: `🚨 <b>POSICIÓN ABIERTA SIN PROTECCIÓN — ACCIÓN MANUAL URGENTE</b>\nNo se pudo colocar el Stop Loss ni cerrar la posición a mercado. Hay ${amount} de ${symbol} abierto sin ningún stop. Cerrala manualmente en Binance ahora mismo.\n${resumen}`,
+          mensaje: `🚨 POSICIÓN ABIERTA SIN PROTECCIÓN — ACCIÓN MANUAL URGENTE\nNo se pudo colocar el Stop Loss ni cerrar la posición a mercado. Hay ${amount} de ${symbol} abierto sin ningún stop. Cerrala manualmente en Binance ahora mismo.\n${resumen}`,
         };
       }
 
@@ -228,11 +297,11 @@ export class Trader {
       if (!tpResult.ok) {
         return {
           status: "advertencia",
-          mensaje: `⚠️ <b>TRADE EJECUTADO SIN TAKE PROFIT</b>\nEl Take Profit no se pudo colocar tras varios intentos. La posición sigue protegida por el Stop Loss. Hay que colocar el TP manualmente.\n${resumen}`,
+          mensaje: `⚠️ TRADE EJECUTADO SIN TAKE PROFIT\nEl Take Profit no se pudo colocar tras varios intentos. La posición sigue protegida por el Stop Loss. Hay que colocar el TP manualmente.\n${resumen}`,
         };
       }
 
-      return { status: "ejecutado", mensaje: `✅ <b>TRADE EJECUTADO EN BINANCE</b>\n${resumen}` };
+      return { status: "ejecutado", mensaje: `✅ TRADE EJECUTADO EN BINANCE\n${resumen}` };
 
     } catch (error: any) {
       console.error("Execute Trade Error:", error);

@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
     fetchBalance = vi.fn().mockResolvedValue({ free: { USDT: "100" } });
     setLeverage = vi.fn().mockResolvedValue(undefined);
     setMarginMode = vi.fn().mockResolvedValue(undefined);
+    fetchMarginMode = vi.fn().mockRejectedValue(new Error("fetchMarginMode no mockeado en este test"));
     fetchTicker = vi.fn().mockResolvedValue({ last: 100 });
     fetchOpenOrders = vi.fn().mockResolvedValue([]);
     cancelOrder = vi.fn().mockResolvedValue(undefined);
@@ -199,6 +200,59 @@ describe("executeTrade — Regla 2 (validación de balance)", () => {
     expect(result.mensaje).toContain("Balance insuficiente");
     expect(exchange.setLeverage).not.toHaveBeenCalled();
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+});
+
+// [A10] El SL se calcula como 1×ATR(15m) desde el precio de la señal sin piso mínimo; para
+// activos caros (BTC) o momentáneamente poco volátiles puede quedar más ajustado que la
+// propia comisión de entrada+salida. Ver ROADMAP.md hallazgo A10.
+describe("executeTrade — A10 (piso de distancia mínima del Stop Loss)", () => {
+  it("SL a menos del mínimo permitido (0.5%): rechaza sin abrir posición ni colocar órdenes", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 100 });
+
+    // SL a 0.3% del precio actual (100 - 99.7 = 0.3), por debajo del piso de 0.5%.
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 99.7, 110, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Stop Loss demasiado ajustado");
+    expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+    expect(exchange.createOrder).not.toHaveBeenCalled();
+  });
+
+  it("mismo caso en SHORT (SL por encima del precio): rechaza igual", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 100 });
+
+    // SL a 0.3% del precio actual (100.3 - 100 = 0.3), por debajo del piso de 0.5%.
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 100.3, 90, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Stop Loss demasiado ajustado");
+    expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+
+  it("SL justo en el mínimo permitido (0.5%): no rechaza, sigue el flujo normal", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 100 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 99.5, 110, 25, 1, 2);
+
+    expect(result.status).toBe("ejecutado");
+    expect(exchange.createMarketOrder).toHaveBeenCalled();
+  });
+
+  it("SL cómodamente lejos del mínimo: sigue el flujo normal (no hay regresión)", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 100 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
+
+    expect(result.status).toBe("ejecutado");
   });
 });
 
@@ -459,16 +513,81 @@ describe("executeTrade — errores de red/exchange en cada paso", () => {
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
   });
 
-  // Hallazgo A8 (ROADMAP.md), ya arreglado.
-  it("[A8] si falla setMarginMode, aborta antes de colocar la orden", async () => {
+  // Hallazgo A8 (ROADMAP.md): sin confirmación del modo real, este caso quedaba mal
+  // clasificado como "rechazado" aunque fetchMarginMode nunca se llega a consultar acá
+  // (mock por defecto rechaza "no mockeado"), así que sigue abortando como antes.
+  it("[A8] si falla setMarginMode y no se puede confirmar el modo real, aborta antes de colocar la orden", async () => {
     const { trader, exchange } = makeTrader();
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
-    exchange.setMarginMode.mockRejectedValue(new Error("Binance rechazó el cambio de margin mode"));
+    exchange.setMarginMode.mockRejectedValue(new Error('binance {"code":-4046,"msg":"No need to change margin type."}'));
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
 
     expect(result.status).toBe("rechazado");
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+});
+
+// Caso real (ZEC, 2026-09-30): la cuenta ya estaba en isolated, pero `setMarginMode` igual
+// lanzó `MarginModeAlreadySet` y el bot rechazó una operación válida. Causa raíz: ccxt 4.5.76
+// relanza esa excepción por default (`throwMarginModeAlreadySet: true` en las opciones base de
+// binance.js), pese a que el propio comentario de ccxt dice "not an error". El fix de la opción
+// en el constructor de Trader cubre el caso común; estos tests cubren la confirmación de
+// respaldo para cuando igual llega a fallar.
+describe("executeTrade — A8 (confirmación del modo real de margen tras un fallo de setMarginMode)", () => {
+  it("el par ya está aislado (setMarginMode falla igual): confirma y ejecuta la operación", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+    exchange.setMarginMode.mockRejectedValue(new Error('binance {"code":-4046,"msg":"No need to change margin type."}'));
+    exchange.fetchMarginMode.mockResolvedValue({ marginMode: "isolated" });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+
+    expect(result.status).toBe("ejecutado");
+    expect(exchange.createMarketOrder).toHaveBeenCalled();
+  });
+
+  it("el par está en cruzado (confirmado): aborta sin colocar ninguna orden", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+    exchange.setMarginMode.mockRejectedValue(new Error('binance {"code":-4048,"msg":"Margin type cannot be changed if there exists position."}'));
+    exchange.fetchMarginMode.mockResolvedValue({ marginMode: "cross" });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("cross");
+    expect(result.mensaje).toContain("-4048");
+    expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+
+  it("la consulta del modo real también falla: aborta sin colocar ninguna orden", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+    exchange.setMarginMode.mockRejectedValue(new Error('binance {"code":-4046,"msg":"No need to change margin type."}'));
+    exchange.fetchMarginMode.mockRejectedValue(new Error("timeout de red"));
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("tampoco se pudo verificar");
+    expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+
+  it("el mensaje de rechazo incluye el código y el texto del error de Binance", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+    exchange.setMarginMode.mockRejectedValue(new Error('binance {"code":-4048,"msg":"Margin type cannot be changed if there exists position."}'));
+    exchange.fetchMarginMode.mockResolvedValue({ marginMode: "cross" });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+
+    expect(result.mensaje).toContain("-4048");
+    expect(result.mensaje).toContain("Margin type cannot be changed if there exists position.");
   });
 });

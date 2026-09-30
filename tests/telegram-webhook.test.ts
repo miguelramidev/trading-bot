@@ -5,16 +5,22 @@ const mocks = vi.hoisted(() => ({
   secret: "secreto-de-prueba",
   handleUpdate: vi.fn(),
   use: vi.fn(),
+  action: vi.fn(),
   returning: vi.fn(),
   deleteWhere: vi.fn(),
   resource: { TELEGRAM_TOKEN: { value: "token-falso" }, TELEGRAM_WEBHOOK_SECRET: { value: "secreto-de-prueba" } } as any,
+  signalFindFirst: vi.fn(),
+  userFindFirst: vi.fn(),
+  updateWhere: vi.fn(),
+  executeTrade: vi.fn(),
+  sendCriticalAlert: vi.fn(),
 }));
 
 vi.mock("sst", () => ({ Resource: mocks.resource }));
 vi.mock("telegraf", () => ({
   Telegraf: class {
     command = vi.fn();
-    action = vi.fn();
+    action = mocks.action;
     on = vi.fn();
     use = mocks.use;
     handleUpdate = mocks.handleUpdate;
@@ -22,10 +28,21 @@ vi.mock("telegraf", () => ({
 }));
 vi.mock("telegraf/filters", () => ({ message: vi.fn() }));
 vi.mock("ccxt", () => ({ default: {} }));
-vi.mock("../src/bot/trader.js", () => ({ Trader: class {} }));
+vi.mock("../src/bot/trader.js", () => ({
+  Trader: class {
+    executeTrade = mocks.executeTrade;
+  },
+}));
+vi.mock("../src/bot/criticalAlert.js", () => ({ sendCriticalAlert: mocks.sendCriticalAlert }));
+vi.mock("../src/api/core/utils/encryption.js", () => ({ decrypt: (v: string) => v }));
 vi.mock("../src/db/index.js", () => ({
   db: {
+    query: {
+      signalHistory: { findFirst: mocks.signalFindFirst },
+      userConfig: { findFirst: mocks.userFindFirst },
+    },
     insert: () => ({ values: () => ({ onConflictDoNothing: () => ({ returning: mocks.returning }) }) }),
+    update: () => ({ set: () => ({ where: mocks.updateWhere }) }),
     delete: () => ({ where: mocks.deleteWhere }),
   },
 }));
@@ -39,6 +56,11 @@ const { isAllowedChat } = await import("../src/telegram/allowlist.js");
 
 // Middleware de lista de permitidos que webhook.ts registra con bot.use() al cargarse.
 const chatGuard = mocks.use.mock.calls[0][0] as (ctx: any, next: () => Promise<void>) => Promise<void>;
+
+// Callback "✅ Ejecutar Sniper" que webhook.ts registra con bot.action(/^paper_accept_(\d+)$/, ...).
+const acceptHandler = mocks.action.mock.calls.find((call: any[]) =>
+  (call[0] as RegExp).source.includes("paper_accept")
+)![1] as (ctx: any) => Promise<void>;
 
 const HEADER = "x-telegram-bot-api-secret-token";
 const update = { update_id: 1001, message: { text: "/status" } };
@@ -227,5 +249,85 @@ describe("guard de chats permitidos (bot.use)", () => {
     const next = vi.fn();
     await chatGuard({ chat: { id: 12345 } }, next);
     expect(next).not.toHaveBeenCalled();
+  });
+});
+
+// Callback "✅ Ejecutar Sniper" — robustez del mensaje de resultado (ver webhook.ts:288 y
+// ROADMAP.md A8). El foco de estos tests no es RULES.md ni el escalado de apalancamiento
+// (eso ya lo cubre tests/trader.test.ts con Trader real): acá Trader.executeTrade está
+// mockeado y lo que se prueba es qué hace webhook.ts con el resultado.
+describe("acción paper_accept_ — entrega del resultado en Telegram", () => {
+  function makeCtx(overrides: Partial<any> = {}) {
+    return {
+      match: ["paper_accept_1", "1"],
+      chat: { id: 12345 },
+      answerCbQuery: vi.fn().mockResolvedValue(undefined),
+      callbackQuery: { message: { text: "🚨 NUEVA SEÑAL ENCONTRADA (Sniper)" } },
+      editMessageText: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    mocks.signalFindFirst.mockResolvedValue({
+      id: 1,
+      symbol: "BTC/USDT:USDT",
+      direction: "LONG",
+      gridSL: "49000",
+      gridTP: "51000",
+      decision: null,
+      evaluatedAt: new Date(), // recién evaluada: nunca expira en estos tests
+    });
+    mocks.userFindFirst.mockResolvedValue({
+      chatId: "12345",
+      binanceApiKey: "clave-cifrada-falsa",
+      binanceApiSecret: "secreto-cifrado-falso",
+      montoOperacion: 25,
+      leverageMin: 1,
+      leverageMax: 2,
+      fcmTokens: [],
+    });
+    mocks.updateWhere.mockResolvedValue(undefined);
+    mocks.executeTrade.mockReset();
+    mocks.sendCriticalAlert.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("si editMessageText falla, manda el resultado como mensaje nuevo con ctx.reply", async () => {
+    mocks.executeTrade.mockResolvedValue({ status: "ejecutado", mensaje: "TRADE EJECUTADO EN BINANCE" });
+    const ctx = makeCtx({ editMessageText: vi.fn().mockRejectedValue(new Error("message to edit not found")) });
+
+    await acceptHandler(ctx);
+
+    expect(ctx.editMessageText).toHaveBeenCalledTimes(1);
+    expect(ctx.reply).toHaveBeenCalledTimes(1);
+    expect(ctx.reply.mock.calls[0][0]).toContain("TRADE EJECUTADO EN BINANCE");
+  });
+
+  it('con status "critico", sendCriticalAlert se llama aunque falle la edición del mensaje', async () => {
+    mocks.executeTrade.mockResolvedValue({
+      status: "critico",
+      mensaje: "POSICIÓN ABIERTA SIN PROTECCIÓN — ACCIÓN MANUAL URGENTE",
+    });
+    const ctx = makeCtx({ editMessageText: vi.fn().mockRejectedValue(new Error("message to edit not found")) });
+
+    await acceptHandler(ctx);
+
+    expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
+    expect(mocks.sendCriticalAlert).toHaveBeenCalledWith(
+      "12345",
+      [],
+      "POSICIÓN ABIERTA SIN PROTECCIÓN — ACCIÓN MANUAL URGENTE"
+    );
+  });
+
+  it('con status "critico" y la edición OK, sendCriticalAlert igual se llama (no depende de la entrega del mensaje)', async () => {
+    mocks.executeTrade.mockResolvedValue({ status: "critico", mensaje: "acción manual urgente" });
+    const ctx = makeCtx();
+
+    await acceptHandler(ctx);
+
+    expect(ctx.editMessageText).toHaveBeenCalledTimes(1);
+    expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
   });
 });

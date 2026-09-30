@@ -14,6 +14,13 @@ import { isAllowedChat } from "./allowlist.js";
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
 
+// Trader.executeTrade() devuelve texto plano a propósito (el mismo mensaje lo consume la API
+// para la app de Flutter, que no interpreta HTML) — quien necesite mostrarlo en un mensaje
+// HTML de Telegram es responsable de escaparlo acá, no en el origen.
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // Si el secret no está disponible (no linkeado o sin setear) devuelve undefined y se ignora todo.
 function getAllowedChatIds(): string | undefined {
   try {
@@ -283,9 +290,25 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
     critico: "🚨 <b>ATENCIÓN: REQUIERE ACCIÓN MANUAL</b>",
   };
 
+  // La edición puede fallar por motivos ajenos al contenido (mensaje demasiado viejo, rate
+  // limit, etc.) — que falle acá no puede tirar abajo el aviso de "crítico" de más abajo, que
+  // es el que de verdad importa que llegue. Si falla, mandamos el resultado como mensaje nuevo
+  // en vez de dejar al usuario mirando el "⏳ Ejecutando orden..." para siempre.
+  const resultText = `${STATUS_HEADER[executionResult.status]}\n\n${escapeHtml(executionResult.mensaje)}`;
   const originalMsg = ctx.callbackQuery.message;
-  if (originalMsg && 'text' in originalMsg) {
-     await ctx.editMessageText(originalMsg.text + `\n\n${STATUS_HEADER[executionResult.status]}\n\n${executionResult.mensaje}`, { parse_mode: "HTML" });
+  try {
+    if (originalMsg && 'text' in originalMsg) {
+      await ctx.editMessageText(originalMsg.text + `\n\n${resultText}`, { parse_mode: "HTML" });
+    } else {
+      await ctx.reply(resultText, { parse_mode: "HTML" });
+    }
+  } catch (e: any) {
+    console.error("Error mostrando el resultado de la ejecución en Telegram:", e.message);
+    try {
+      await ctx.reply(resultText, { parse_mode: "HTML" });
+    } catch (replyError: any) {
+      console.error("Tampoco se pudo enviar el resultado como mensaje nuevo:", replyError.message);
+    }
   }
 
   if (executionResult.status === "critico") {

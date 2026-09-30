@@ -6,6 +6,7 @@ import { eq, lt } from "drizzle-orm";
 import ccxt from "ccxt";
 import { Resource } from "sst";
 import { Trader } from "../bot/trader.js";
+import { sendCriticalAlert } from "../bot/criticalAlert.js";
 import { decrypt } from "../api/core/utils/encryption.js";
 import { getSecretHeader, isValidWebhookSecret } from "./verifyWebhook.js";
 import { isAllowedChat } from "./allowlist.js";
@@ -267,22 +268,28 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
      user.leverageMax ?? 2
   );
 
-  let finalDecision = "Tomada";
-  let reasonText = "Ejecutado en Binance: OCO Sniper";
-
-  if (executionResult.includes("❌")) {
-      finalDecision = "Descartada";
-      reasonText = executionResult.substring(0, 100); // Guardamos el error de rechazo
-  }
+  // "rechazado" es el único caso sin posición real abierta en Binance.
+  const finalDecision = executionResult.status === "rechazado" ? "Descartada" : "Tomada";
+  const reasonText = executionResult.mensaje.substring(0, 100);
 
   await db.update(signalHistory)
     .set({ decision: finalDecision, reason: reasonText, isActiveTrade: true })
     .where(eq(signalHistory.id, signalId));
-  
+
+  const STATUS_HEADER: Record<typeof executionResult.status, string> = {
+    ejecutado: "✅ <b>TRADE EJECUTADO REAL (Sniper)</b>",
+    rechazado: "❌ <b>TRADE RECHAZADO POR BINANCE</b>",
+    advertencia: "⚠️ <b>TRADE EJECUTADO CON ADVERTENCIA</b>",
+    critico: "🚨 <b>ATENCIÓN: REQUIERE ACCIÓN MANUAL</b>",
+  };
+
   const originalMsg = ctx.callbackQuery.message;
   if (originalMsg && 'text' in originalMsg) {
-     const statusHeader = finalDecision === "Tomada" ? "✅ <b>TRADE EJECUTADO REAL (Sniper)</b>" : "❌ <b>TRADE RECHAZADO POR BINANCE</b>";
-     await ctx.editMessageText(originalMsg.text + `\n\n${statusHeader}\n\n${executionResult}`, { parse_mode: "HTML" });
+     await ctx.editMessageText(originalMsg.text + `\n\n${STATUS_HEADER[executionResult.status]}\n\n${executionResult.mensaje}`, { parse_mode: "HTML" });
+  }
+
+  if (executionResult.status === "critico") {
+    await sendCriticalAlert(user.chatId, user.fcmTokens, executionResult.mensaje);
   }
 });
 

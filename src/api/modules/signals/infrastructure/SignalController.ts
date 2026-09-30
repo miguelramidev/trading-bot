@@ -6,6 +6,7 @@ import { signalHistory, userConfig } from "../../../../db/schema.js";
 import { eq } from "drizzle-orm";
 import { decrypt } from "../../../core/utils/encryption.js";
 import { Trader } from "../../../../bot/trader.js";
+import { sendCriticalAlert } from "../../../../bot/criticalAlert.js";
 import { internalError, newErrorId } from "../../../core/utils/errors.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
 
@@ -46,13 +47,9 @@ signalsRouter.post(
         user.leverageMax ?? 2
       );
 
-      let finalDecision = "Tomada";
-      let reasonText = "Ejecutado vía Web Dashboard";
-
-      if (executionResult.includes("❌")) {
-          finalDecision = "Descartada";
-          reasonText = executionResult.substring(0, 100);
-      }
+      // "rechazado" es el único caso sin posición real abierta en Binance.
+      const finalDecision = executionResult.status === "rechazado" ? "Descartada" : "Tomada";
+      const reasonText = executionResult.mensaje.substring(0, 100);
 
       await db.update(signalHistory)
         .set({ decision: finalDecision, reason: reasonText, isActiveTrade: true })
@@ -60,14 +57,24 @@ signalsRouter.post(
 
       // Los rechazos de negocio (saldo, capital) se muestran tal cual; el detalle de un error fatal
       // (texto de Binance/ccxt) queda solo en el log, con una referencia para el cliente.
-      let clientMessage = executionResult;
-      if (executionResult.startsWith("❌ Error Fatal")) {
+      let clientMessage = executionResult.mensaje;
+      if (executionResult.mensaje.startsWith("❌ Error Fatal")) {
         const errorId = newErrorId();
-        console.error(`[${errorId}] executeTrade falló para la señal ${id}: ${executionResult}`);
+        console.error(`[${errorId}] executeTrade falló para la señal ${id}: ${executionResult.mensaje}`);
         clientMessage = `❌ Error al ejecutar la orden (ref ${errorId}). Revisa tu posición en Binance antes de reintentar.`;
       }
 
-      return c.json({ status: finalDecision === "Tomada" ? "success" : "error", message: clientMessage });
+      if (executionResult.status === "critico") {
+        await sendCriticalAlert(user.chatId, user.fcmTokens, executionResult.mensaje);
+      }
+
+      // Compatibilidad: la app Flutter actual solo entiende "success"/"error" en `status`.
+      // `resultado` lleva los 4 estados nuevos para cuando el front-end se actualice (paso aparte).
+      return c.json({
+        status: executionResult.status === "rechazado" ? "error" : "success",
+        message: clientMessage,
+        resultado: executionResult.status,
+      });
 
     } catch (e: any) {
       return internalError(c, e, `signals/${id}/execute`);

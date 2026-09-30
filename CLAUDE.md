@@ -27,7 +27,7 @@ Backend (TypeScript, desde la raíz; el gestor de paquetes es **pnpm**):
 pnpm dev              # sst dev — desarrollo local con Lambda en vivo
 pnpm run deploy       # tsc --noEmit (typecheck) Y LUEGO sst deploy --stage prod  ⚠️ solo si lo pido
 pnpm run remove       # destruye el stack de SST  ⚠️ solo si lo pido
-pnpm test             # vitest run (tests en tests/**/*.test.ts)
+pnpm test             # vitest run (tests en tests/**/*.test.ts) — seguro por defecto, ver tests/setup.ts
 pnpm backtest         # tsx src/scripts/backtest.ts
 pnpm db:push          # drizzle-kit push — aplica schema.ts a Neon  ⚠️ solo si lo pido
 npx vitest run tests/sanity.test.ts   # correr un solo archivo de test
@@ -63,6 +63,7 @@ Tampoco están en `ALL_SECRETS` las listas de permitidos, que se leen con el mis
 - `db/` — Drizzle ORM sobre **Postgres serverless de Neon**. `schema.ts` es la única fuente de verdad (`userConfig`, `signalHistory`, `dailyReports`, `telegramUpdates`). Precios/PnL se guardan como **text**, no numeric, para preservar la precisión decimal: parsear con `parseFloat` y nunca hacer cálculos del lado de la DB.
 - `firebase.ts` — Firebase Admin para push FCM (la service account va en base64 en `FIREBASE_SERVICE_ACCOUNT_B64`). Si no está seteada, degrada a no-op.
 - `api/core/utils/encryption.ts` — AES-256-GCM para las API keys de Binance de cada usuario (`iv:authTag:ciphertext`). `decrypt()` lanza ante cualquier valor que no tenga ese formato (nunca lo devuelve tal cual) y `encrypt()` lanza con un valor vacío. Los tests (`tests/encryption.test.ts`) arman la llave falsa en runtime con `"ab".repeat(32)`: no escribir un hex de 64 caracteres en el código.
+- `tests/setup.ts` — setupFiles global de Vitest: pone variables falsas para todo lo que se lee al importar (patrón dual `process.env.X || (Resource as any).X.value`: `ENCRYPTION_KEY`, `DATABASE_URL`, `TELEGRAM_TOKEN`, `FIREBASE_SERVICE_ACCOUNT_B64`, etc.) y bloquea `fetch` global. Por esto `pnpm test` a secas ya es seguro por defecto — no depende de `sst dev` ni de credenciales reales del `.env` — y ningún test toca la red real aunque a algún mock le falte un método.
 
 ## Convenciones y trampas
 

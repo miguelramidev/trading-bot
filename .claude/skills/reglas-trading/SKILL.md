@@ -32,18 +32,22 @@ la única fuente de verdad y copiarlo la volvería obsoleta).
    falla contra el código viejo y pasa contra el nuevo. No es aceptable
    modificar esta lógica solo con prueba manual.
 
-3. **¿Lo corriste con el entorno neutralizado?**
+3. **¿Lo corriste con `pnpm test`?**
    Nada de `test-*.ts` / `check-*.ts` de la raíz (pegan contra Binance real),
    nada de `pnpm db:push` contra Neon de producción. Para los tests de
-   vitest, corré:
+   vitest alcanza con:
    ```
-   env -i PATH="$PATH" pnpm test
+   pnpm test
    ```
-   Esto limpia el shell de cualquier credencial real exportada a mano
-   (Binance, Telegram, Firebase, connection string de Neon) y deja pasar
-   solo `PATH`, para que `pnpm`/`node` sigan resolviendo binarios. Si algún
-   test necesita una variable puntual, usá `vi.stubEnv()` dentro del test
-   (ver patrón en `tests/sanity.test.ts`), nunca variables reales del `.env`.
+   `tests/setup.ts` (setupFiles global de Vitest) ya pone variables falsas
+   para todo lo que se lee al importar (`ENCRYPTION_KEY`, `DATABASE_URL`,
+   `TELEGRAM_TOKEN`, `FIREBASE_SERVICE_ACCOUNT_B64`, etc.) y bloquea `fetch`
+   global, así que `pnpm test` a secas ya es seguro por defecto: no hace
+   falta `env -i` ni exportar nada a mano, y ningún test toca la red real
+   aunque a algún mock le falte un método. Si un test necesita una variable
+   puntual distinta, usá `vi.stubEnv()` dentro del test (no la agregues a
+   `.env`); si importa un módulo nuevo que lee otra variable al cargarse,
+   agregala a `tests/setup.ts`.
 
 4. **¿Cómo se revierte si falla en producción?**
    El cambio tiene que ser reversible con un solo `git revert` o rollback de

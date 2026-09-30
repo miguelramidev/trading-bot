@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Caracterización de Trader.executeTrade (RULES.md Regla 1 y Regla 2).
-// Ninguna llamada de red posible: ccxt y sst están mockeados, y fetch global
-// lanza si algo se escapa del mock.
+// Caracterización de Trader.executeTrade (RULES.md Regla 1 y Regla 2, más A6/A7/A8/M6 del ROADMAP).
+// Ninguna llamada de red posible: ccxt, sst y el helper de alerta crítica están mockeados, y fetch
+// global lanza si algo se escapa del mock (esto además de lo que ya bloquea tests/setup.ts).
 vi.stubGlobal(
   "fetch",
   vi.fn(() => {
@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => {
     markets: Record<string, any> = {};
     calls: { method: string; args: any[] }[] = [];
     apiKey?: string;
+    // Configurable por test: symbol -> posición real que devuelve fetchPositions.
+    positions: Record<string, { symbol: string; contracts: number }> = {};
 
     constructor(opts: any) {
       this.apiKey = opts?.apiKey;
@@ -25,10 +27,20 @@ const mocks = vi.hoisted(() => {
     setLeverage = vi.fn().mockResolvedValue(undefined);
     setMarginMode = vi.fn().mockResolvedValue(undefined);
     fetchTicker = vi.fn().mockResolvedValue({ last: 100 });
-    fetchPositions = vi.fn().mockResolvedValue([]);
     fetchOpenOrders = vi.fn().mockResolvedValue([]);
     cancelOrder = vi.fn().mockResolvedValue(undefined);
     fetchMyTrades = vi.fn().mockResolvedValue([]);
+
+    fetchPositions = vi.fn(async (symbols?: string[]) => {
+      const wanted = symbols?.[0];
+      const pos = wanted ? this.positions[wanted] : undefined;
+      return pos ? [pos] : Object.values(this.positions);
+    });
+
+    cancelAllOrders = vi.fn(async (...args: any[]) => {
+      this.calls.push({ method: "cancelAllOrders", args });
+      return {};
+    });
 
     // Redondeo real por precisión del mercado, no un mock ciego: así los tests
     // que quieren decimales realistas no tienen que reimplementar amountToPrecision.
@@ -94,6 +106,14 @@ function makeTrader() {
   return { trader, exchange };
 }
 
+function duplicateClientOrderIdError() {
+  return new Error('binance {"code":-20132,"msg":"The client algo id is duplicated."}');
+}
+
+function genericExchangeError(msg = "Binance rechazó la orden") {
+  return new Error(`binance {"code":-1001,"msg":"${msg}"}`);
+}
+
 beforeEach(() => {
   mocks.instances.length = 0;
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -108,8 +128,9 @@ describe("executeTrade — Regla 1 (escalado de apalancamiento)", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 2, 5);
 
-    expect(result).toContain("TRADE EJECUTADO");
-    expect(result).toContain("x2");
+    expect(result.status).toBe("ejecutado");
+    expect(result.mensaje).toContain("TRADE EJECUTADO");
+    expect(result.mensaje).toContain("x2");
     expect(exchange.setLeverage).toHaveBeenCalledWith(2, "BTC/USDT");
   });
 
@@ -120,8 +141,9 @@ describe("executeTrade — Regla 1 (escalado de apalancamiento)", () => {
 
     const result = await trader.executeTrade("DOGE/USDT", "LONG", 0.09, 0.11, 3, 2, 5);
 
-    expect(result).toContain("x4");
-    expect(result).toContain("Posición Total: $12.00");
+    expect(result.status).toBe("ejecutado");
+    expect(result.mensaje).toContain("x4");
+    expect(result.mensaje).toContain("Posición Total: $12.00");
     expect(exchange.setLeverage).toHaveBeenCalledWith(4, "DOGE/USDT");
   });
 
@@ -131,27 +153,27 @@ describe("executeTrade — Regla 1 (escalado de apalancamiento)", () => {
 
     const result = await trader.executeTrade("DOGE/USDT", "LONG", 0.09, 0.11, 3, 2, 5);
 
-    expect(result).toContain("❌");
-    expect(result).toContain("Capital insuficiente");
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Capital insuficiente");
     expect(exchange.setLeverage).not.toHaveBeenCalled();
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
     expect(exchange.createOrder).not.toHaveBeenCalled();
   });
 
-  // Hallazgo M6 (ROADMAP.md): comportamiento CORRECTO esperado (rechazar), documentado
-  // con it.fails porque hoy el bot hace lo contrario: ejecuta con leverage = leverageMin
-  // aunque esté por encima de leverageMax, violando la invariante de RULES.md. Cuando
-  // se arregle M6, este test va a empezar a pasar y Vitest exige sacarle el .fails.
-  it.fails("[M6] leverageMin > leverageMax: debe rechazar, nunca ejecutar por encima de leverageMax", async () => {
+  // Hallazgo M6 (ROADMAP.md), ya arreglado: rechaza sin tocar el exchange en vez de
+  // ejecutar con leverage = leverageMin por encima de leverageMax.
+  it("[M6] leverageMin > leverageMax: rechaza sin tocar el exchange", async () => {
     const { trader, exchange } = makeTrader();
     exchange.markets["BTC/USDT"] = makeMarket({ limits: { cost: { min: 10 } } });
-    exchange.fetchTicker.mockResolvedValue({ last: 100 });
 
-    // leverageMin=10 > leverageMax=2, y el notional con leverageMin ya alcanza el mínimo.
     const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 10, 2);
 
-    expect(result).toContain("❌");
-    expect(exchange.setLeverage).not.toHaveBeenCalledWith(10, "BTC/USDT");
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Configuración inválida");
+    expect(result.mensaje).toContain("x10");
+    expect(result.mensaje).toContain("x2");
+    expect(exchange.loadMarkets).not.toHaveBeenCalled();
+    expect(exchange.setLeverage).not.toHaveBeenCalled();
   });
 });
 
@@ -163,7 +185,7 @@ describe("executeTrade — Regla 2 (validación de balance)", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
 
-    expect(result).toContain("TRADE EJECUTADO");
+    expect(result.status).toBe("ejecutado");
   });
 
   it("saldo insuficiente: rechaza antes de evaluar leverage y sin colocar órdenes", async () => {
@@ -173,7 +195,8 @@ describe("executeTrade — Regla 2 (validación de balance)", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
 
-    expect(result).toContain("❌ Balance insuficiente");
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Balance insuficiente");
     expect(exchange.setLeverage).not.toHaveBeenCalled();
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
   });
@@ -186,7 +209,8 @@ describe("executeTrade — mercado no encontrado", () => {
 
     const result = await trader.executeTrade("XXX/USDT", "LONG", 90, 110, 25, 1, 2);
 
-    expect(result).toContain("no encontrado");
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("no encontrado");
     expect(exchange.fetchBalance).not.toHaveBeenCalled();
   });
 });
@@ -197,8 +221,9 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
 
-    await trader.executeTrade("BTC/USDT", "SHORT", 51000, 49000, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 51000, 49000, 25, 1, 2);
 
+    expect(result.status).toBe("ejecutado");
     expect(exchange.calls.map((c) => c.method)).toEqual(["createMarketOrder", "createOrder", "createOrder"]);
 
     const [marketCall, slCall, tpCall] = exchange.calls;
@@ -206,22 +231,33 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
     expect(marketCall.args[1]).toBe("sell"); // SHORT → sell
     const amount = marketCall.args[2];
 
-    expect(slCall.args).toEqual([
-      "BTC/USDT",
-      "STOP_MARKET",
-      "buy", // oppositeSide de sell
-      amount,
-      undefined,
-      { stopPrice: 51000, closePosition: true, timeInForce: "GTC" },
-    ]);
-    expect(tpCall.args).toEqual([
-      "BTC/USDT",
-      "TAKE_PROFIT_MARKET",
-      "buy",
-      amount,
-      undefined,
-      { stopPrice: 49000, closePosition: true, timeInForce: "GTC" },
-    ]);
+    expect(slCall.args[0]).toBe("BTC/USDT");
+    expect(slCall.args[1]).toBe("STOP_MARKET");
+    expect(slCall.args[2]).toBe("buy"); // oppositeSide de sell
+    expect(slCall.args[3]).toBe(amount);
+    expect(slCall.args[4]).toBeUndefined();
+    expect(slCall.args[5]).toMatchObject({ stopPrice: 51000, closePosition: true, timeInForce: "GTC" });
+    expect(slCall.args[5].clientOrderId).toMatch(/^sl_/);
+
+    expect(tpCall.args[1]).toBe("TAKE_PROFIT_MARKET");
+    expect(tpCall.args[2]).toBe("buy");
+    expect(tpCall.args[5]).toMatchObject({ stopPrice: 49000, closePosition: true, timeInForce: "GTC" });
+    expect(tpCall.args[5].clientOrderId).toMatch(/^tp_/);
+  });
+
+  it("el clientOrderId de SL y TP respeta el charset y largo que exige Binance (<=36, [.A-Za-z0-9-_])", async () => {
+    const { trader, exchange } = makeTrader();
+    // Símbolo largo, caso realista de un contrato con nombre largo.
+    exchange.markets["1000SHIB/USDT"] = makeMarket({ symbol: "1000SHIB/USDT:USDT" });
+    exchange.fetchTicker.mockResolvedValue({ last: 0.001 });
+
+    await trader.executeTrade("1000SHIB/USDT", "LONG", 0.0009, 0.0011, 25, 1, 2);
+
+    const ids = exchange.calls.filter((c) => c.method === "createOrder").map((c) => c.args[5].clientOrderId);
+    for (const id of ids) {
+      expect(id.length).toBeLessThanOrEqual(36);
+      expect(id).toMatch(/^[.\w-]+$/);
+    }
   });
 
   it("mapea LONG → buy y calcula el amount con decimales realistas según la precisión del market", async () => {
@@ -234,7 +270,7 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
     const result = await trader.executeTrade("BTC/USDT", "LONG", 60000, 66000, 25, 2, 2);
 
     expect(exchange.createMarketOrder).toHaveBeenCalledWith("BTC/USDT", "buy", 0.001);
-    expect(result).toContain("Cantidad: 0.001 tokens");
+    expect(result.mensaje).toContain("Cantidad: 0.001 tokens");
   });
 
   it("amount calculado da 0 tras la precisión del exchange: rechaza sin colocar ninguna orden", async () => {
@@ -246,58 +282,123 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 60000, 66000, 10, 1, 1);
 
-    expect(result).toContain("Cantidad calculada de tokens es 0");
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Cantidad calculada de tokens es 0");
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
   });
 });
 
-describe("executeTrade — A6: fallas al colocar SL/TP (ROADMAP A6)", () => {
-  // Documentan el comportamiento CORRECTO esperado (no reportar éxito sin protección).
-  // Hoy el código informa "✅ TRADE EJECUTADO" igual, así que fallan a propósito.
-  // Cuando se arregle A6 van a empezar a pasar y hay que sacarles el .fails.
-  it.fails("[A6] si falla el SL, no debe reportar éxito llano", async () => {
+describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", () => {
+  it("si el SL falla una vez pero el reintento sale bien, ejecuta normal", async () => {
     const { trader, exchange } = makeTrader();
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
-    exchange.createOrder.mockImplementationOnce(async () => {
-      throw new Error("Binance rechazó el SL");
-    });
+    exchange.createOrder.mockRejectedValueOnce(genericExchangeError());
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
 
-    expect(result).not.toContain("TRADE EJECUTADO");
+    expect(result.status).toBe("ejecutado");
+    // exchange.calls (el tracker propio) solo registra los intentos que resuelven: para contar
+    // TODOS los intentos (incluido el que rechaza) hace falta mock.calls, que vitest llena siempre.
+    const slAttempts = exchange.createOrder.mock.calls.filter((args: any[]) => args[1] === "STOP_MARKET");
+    expect(slAttempts).toHaveLength(2);
+    // Mismo clientOrderId en el intento y en el reintento: no duplica la orden en Binance.
+    expect(slAttempts[0][5].clientOrderId).toBe(slAttempts[1][5].clientOrderId);
   });
 
-  it.fails("[A6] si falla el TP, no debe reportar éxito llano", async () => {
+  it("si el SL falla y el reintento choca con -20132 (duplicado), lo toma como éxito y no reintenta una tercera vez", async () => {
     const { trader, exchange } = makeTrader();
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+    // El primer intento "se pierde" por timeout (rechazo genérico); Binance ya lo había
+    // recibido, así que el reintento con el mismo id choca con -20132.
     exchange.createOrder
-      .mockImplementationOnce(async (...args: any[]) => {
+      .mockRejectedValueOnce(genericExchangeError("timeout"))
+      .mockRejectedValueOnce(duplicateClientOrderIdError());
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+
+    expect(result.status).toBe("ejecutado");
+    const slAttempts = exchange.createOrder.mock.calls.filter((args: any[]) => args[1] === "STOP_MARKET");
+    expect(slAttempts).toHaveLength(2); // no hace un tercer intento tras el -20132
+  });
+
+  it(
+    "si el SL agota los 3 intentos, cierra la posición a mercado con el tamaño real (fetchPositions) y reporta advertencia",
+    async () => {
+      const { trader, exchange } = makeTrader();
+      exchange.markets["BTC/USDT"] = makeMarket();
+      exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+      exchange.createOrder.mockImplementation(async (...args: any[]) => {
+        if (args[1] === "STOP_MARKET") throw genericExchangeError();
         exchange.calls.push({ method: "createOrder", args });
-        return { id: "sl-1" };
-      })
-      .mockImplementationOnce(async () => {
-        throw new Error("Binance rechazó el TP");
+        return { id: "order-1" };
+      });
+      // La posición real (0.501) puede diferir levemente del amount calculado por slippage.
+      exchange.positions["BTC/USDT"] = { symbol: "BTC/USDT", contracts: 0.501 };
+
+      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+
+      expect(result.status).toBe("advertencia");
+      expect(result.mensaje).toContain("CERRADA POR FALLA DE PROTECCIÓN");
+
+      const closeCall = exchange.calls.find(
+        (c) => c.method === "createMarketOrder" && c.args[1] === "sell" && c.args[2] === 0.501
+      );
+      expect(closeCall).toBeDefined();
+      expect(closeCall!.args[3]).toMatchObject({ reduceOnly: true });
+
+      // Nunca intenta el TP si el SL no se pudo confirmar.
+      expect(exchange.calls.some((c) => c.method === "createOrder" && c.args[1] === "TAKE_PROFIT_MARKET")).toBe(false);
+
+      // Barrido de limpieza: regulares Y algo orders.
+      expect(exchange.cancelAllOrders).toHaveBeenCalledWith("BTC/USDT");
+      expect(exchange.cancelAllOrders).toHaveBeenCalledWith("BTC/USDT", { trigger: true });
+    },
+    5000
+  );
+
+  it(
+    "si el SL agota los intentos y el cierre de emergencia también falla, reporta crítico",
+    async () => {
+      const { trader, exchange } = makeTrader();
+      exchange.markets["BTC/USDT"] = makeMarket();
+      exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+      exchange.createOrder.mockRejectedValue(genericExchangeError());
+      exchange.fetchPositions.mockRejectedValue(new Error("timeout de red"));
+
+      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+
+      expect(result.status).toBe("critico");
+      expect(result.mensaje).toContain("ACCIÓN MANUAL URGENTE");
+      // Igual intenta barrer las órdenes que hayan quedado, aunque el cierre haya fallado.
+      expect(exchange.cancelAllOrders).toHaveBeenCalledWith("BTC/USDT");
+      expect(exchange.cancelAllOrders).toHaveBeenCalledWith("BTC/USDT", { trigger: true });
+    },
+    5000
+  );
+
+  it(
+    "si solo el TP agota los intentos (el SL sí se colocó), no cierra la posición y reporta advertencia",
+    async () => {
+      const { trader, exchange } = makeTrader();
+      exchange.markets["BTC/USDT"] = makeMarket();
+      exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+      exchange.createOrder.mockImplementation(async (...args: any[]) => {
+        if (args[1] === "TAKE_PROFIT_MARKET") throw genericExchangeError();
+        exchange.calls.push({ method: "createOrder", args });
+        return { id: "order-1" };
       });
 
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
 
-    expect(result).not.toContain("TRADE EJECUTADO");
-  });
-
-  it.fails("[A6] si fallan SL y TP, no debe reportar éxito llano (posición totalmente desprotegida)", async () => {
-    const { trader, exchange } = makeTrader();
-    exchange.markets["BTC/USDT"] = makeMarket();
-    exchange.fetchTicker.mockResolvedValue({ last: 50000 });
-    exchange.createOrder.mockImplementation(async () => {
-      throw new Error("Binance rechazó la orden de salida");
-    });
-
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
-
-    expect(result).not.toContain("TRADE EJECUTADO");
-  });
+      expect(result.status).toBe("advertencia");
+      expect(result.mensaje).toContain("SIN TAKE PROFIT");
+      expect(exchange.fetchPositions).not.toHaveBeenCalled();
+      expect(exchange.cancelAllOrders).not.toHaveBeenCalled();
+    },
+    5000
+  );
 });
 
 describe("executeTrade — errores de red/exchange en cada paso", () => {
@@ -307,7 +408,8 @@ describe("executeTrade — errores de red/exchange en cada paso", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
 
-    expect(result).toContain("❌ Error Fatal");
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("❌ Error Fatal");
   });
 
   it("fetchBalance lanza: cae al catch general", async () => {
@@ -317,7 +419,8 @@ describe("executeTrade — errores de red/exchange en cada paso", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
 
-    expect(result).toContain("❌ Error Fatal");
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("❌ Error Fatal");
   });
 
   it("fetchTicker lanza: cae al catch general, sin colocar ninguna orden", async () => {
@@ -327,7 +430,7 @@ describe("executeTrade — errores de red/exchange en cada paso", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
 
-    expect(result).toContain("❌ Error Fatal");
+    expect(result.status).toBe("rechazado");
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
   });
 
@@ -339,35 +442,33 @@ describe("executeTrade — errores de red/exchange en cada paso", () => {
 
     const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
 
-    expect(result).toContain("❌ Error Fatal");
+    expect(result.status).toBe("rechazado");
     expect(exchange.createOrder).not.toHaveBeenCalled();
   });
 
-  // Hallazgo A7 (ROADMAP.md): comportamiento CORRECTO esperado. Hoy setLeverage
-  // que falla solo genera un console.warn y la orden sale igual con el
-  // apalancamiento que ya tuviera la cuenta en Binance, no el de la Regla 1.
-  it.fails("[A7] si falla setLeverage, no debe colocar la orden con un apalancamiento sin confirmar", async () => {
+  // Hallazgo A7 (ROADMAP.md), ya arreglado.
+  it("[A7] si falla setLeverage, aborta antes de colocar la orden", async () => {
     const { trader, exchange } = makeTrader();
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
     exchange.setLeverage.mockRejectedValue(new Error("Binance rechazó el cambio de leverage"));
 
-    await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
 
+    expect(result.status).toBe("rechazado");
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
   });
 
-  // Hallazgo A8 (ROADMAP.md): comportamiento CORRECTO esperado. Hoy setMarginMode
-  // que falla se ignora en silencio y la orden sale igual, pudiendo quedar en
-  // margen cruzado en vez de aislado.
-  it.fails("[A8] si falla setMarginMode, no debe colocar la orden sin confirmar modo aislado", async () => {
+  // Hallazgo A8 (ROADMAP.md), ya arreglado.
+  it("[A8] si falla setMarginMode, aborta antes de colocar la orden", async () => {
     const { trader, exchange } = makeTrader();
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
     exchange.setMarginMode.mockRejectedValue(new Error("Binance rechazó el cambio de margin mode"));
 
-    await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
 
+    expect(result.status).toBe("rechazado");
     expect(exchange.createMarketOrder).not.toHaveBeenCalled();
   });
 });

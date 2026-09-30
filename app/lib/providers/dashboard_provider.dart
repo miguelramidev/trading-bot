@@ -127,9 +127,9 @@ class DashboardProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Descarta una señal pendiente (`POST /api/signals/:id/discard`) y refresca.
-  Future<bool> discardSignal(int id) async {
+  Future<bool> discardSignal(int id, {String? reason}) async {
     try {
-      final response = await ApiClient.post('/api/signals/$id/discard');
+      final response = await ApiClient.post('/api/signals/$id/discard', body: {'reason': reason ?? ''});
       if (response.statusCode == 200) {
         await fetchDashboardData(forceRefresh: true);
         return true;

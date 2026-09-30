@@ -55,7 +55,9 @@ Widget buildSignalCard(BuildContext context, DashboardProvider provider, dynamic
     onDiscard: id == null
         ? null
         : () async {
-            await provider.discardSignal(id is int ? id : int.tryParse(id.toString()) ?? -1);
+            final result = await showDiscardConfirmDialog(context, symbol: fmtSymbol(s['symbol']));
+            if (!result.confirmed) return;
+            await provider.discardSignal(id is int ? id : int.tryParse(id.toString()) ?? -1, reason: result.reason);
           },
     onTrade: id == null ? null : () => context.push('/dashboard/signal/$id', extra: s),
   );

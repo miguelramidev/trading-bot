@@ -1,18 +1,17 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
-import 'package:k_chart/k_chart_widget.dart';
-import 'package:k_chart/flutter_k_chart.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../../core/network/api_client.dart';
-import '../../core/utils/price_formatter.dart';
-
-import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_theme.dart';
-import '../../core/utils/app_toast.dart';
-import '../../core/utils/execute_result.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/ds_colors.dart';
+import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_spacing.dart';
 import '../../core/utils/symbol_formatter.dart';
 import '../../core/utils/text_sanitizer.dart';
+import '../../providers/dashboard_provider.dart';
+import '../../widgets/widgets.dart';
+import 'signal_chart_view.dart';
+import 'signal_detail_actions.dart';
+import 'signal_detail_controller.dart';
+import 'signal_detail_sections.dart';
 
 class DesktopSignalDetail extends StatefulWidget {
   final Map<String, dynamic> signal;
@@ -24,114 +23,135 @@ class DesktopSignalDetail extends StatefulWidget {
 }
 
 class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
-  List<KLineEntity> candles = [];
-  List<KLineEntity> macro4hCandles = [];
-  List<KLineEntity> macro1dCandles = [];
-  List<KLineEntity> btc1dCandles = [];
-  bool themeIsDark = true;
-  bool isLoading = true;
+  late final SignalDetailController _controller;
 
   @override
   void initState() {
     super.initState();
-    _fetchCandles();
+    _controller = SignalDetailController(widget.signal)..addListener(_onControllerChanged);
   }
 
-  Future<void> _fetchCandles() async {
-    try {
-      final symbol = (widget.signal['symbol'] ?? 'SOLUSDT').replaceAll('/', '');
-      
-      final responses = await Future.wait([
-        ApiClient.get('/api/market/klines?symbol=$symbol&interval=15m&limit=100'),
-        ApiClient.get('/api/market/klines?symbol=$symbol&interval=4h&limit=100'),
-        ApiClient.get('/api/market/klines?symbol=$symbol&interval=1d&limit=100'),
-        ApiClient.get('/api/market/klines?symbol=BTCUSDT&interval=1d&limit=100'),
-      ]);
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
 
-      if (responses[0].statusCode == 200) {
-        setState(() {
-          candles = (jsonDecode(responses[0].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          macro4hCandles = (jsonDecode(responses[1].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          macro1dCandles = (jsonDecode(responses[2].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          btc1dCandles = (jsonDecode(responses[3].body) as List).map((e) => KLineEntity.fromCustom(time: e[0], open: double.parse(e[1]), high: double.parse(e[2]), low: double.parse(e[3]), close: double.parse(e[4]), vol: double.parse(e[5]))).toList();
-          
-          DataUtil.calculate(candles);
-          DataUtil.calculate(macro4hCandles);
-          DataUtil.calculate(macro1dCandles);
-          DataUtil.calculate(btc1dCandles);
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-    }
+  @override
+  void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _formatTime(DateTime? t) {
+    if (t == null) return '—';
+    return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final marginWarning = context.watch<DashboardProvider>().marginWarning;
+    final insufficientMargin = marginWarning?['insufficient'] == true;
+    final canOperate = _controller.canOperate && !insufficientMargin;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        title: Text('${fmtSymbol(widget.signal['symbol'])} - Terminal Cuantitativa', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 16)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
-          onPressed: () { if (context.canPop()) context.pop(); else context.go('/dashboard'); },
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Row(
+      backgroundColor: DsColors.background,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.huger, AppSpacing.xxl, AppSpacing.huger, AppSpacing.huger),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // LEFT COLUMN: Chart + Matriz
-            Expanded(
-              flex: 7,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                      clipBehavior: Clip.hardEdge,
-                      child: isLoading 
-                        ? const Center(child: CircularProgressIndicator(color: AppColors.winGreen))
-                        : KChartWidget(
-                              candles,
-                              ChartStyle(),
-                              ChartColors()..bgColor = [AppColors.surface, AppColors.surface]
-                                           ..upColor = AppColors.winGreen
-                                           ..dnColor = AppColors.lossRed,
-                              isLine: false,
-                              isTrendLine: false,
-                              mainState: MainState.MA,
-                              secondaryState: SecondaryState.MACD,
-                            ),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/dashboard');
+                    }
+                  },
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(fmtSymbol(_controller.symbol), style: AppTextStyles.title.copyWith(color: DsColors.textPrimary)),
+                        const SizedBox(width: AppSpacing.sm),
+                        DirectionTag(isLong: _controller.isLong),
+                        const SizedBox(width: AppSpacing.sm),
+                        buildStatusPill(_controller),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Señal ${widget.signal['strategy'] ?? widget.signal['regime'] ?? '—'} · generada ${_formatTime(_controller.evaluatedAt)}${_controller.priceUpdatedAt != null ? ' · datos de las ${_formatTime(_controller.priceUpdatedAt)}' : ''}',
+                      style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 420,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _buildCandleMiniChart('${fmtSymbol(widget.signal['symbol'] ?? 'SOL')} (4H)', macro4hCandles)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildCandleMiniChart('${fmtSymbol(widget.signal['symbol'] ?? 'SOL')} (1D)', macro1dCandles)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildCandleMiniChart('BTC/USDT (1D)', btc1dCandles)),
+                      buildPriceSection(_controller),
+                      const SizedBox(height: AppSpacing.lg),
+                      buildTradeNowSection(_controller),
+                      const SizedBox(height: AppSpacing.lg),
+                      buildContextSection(widget.signal),
+                      if (insufficientMargin) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        buildMarginWarningSection(marginWarning)!,
+                      ],
+                      if (_controller.canOperate) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 140,
+                              child: SecondaryButton(
+                                label: 'Descartar',
+                                onPressed: _controller.isExecuting ? null : () => performDiscard(context, _controller),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: PrimaryButton(
+                                label: 'Operar ${_controller.isLong ? 'LONG' : 'SHORT'} en ${fmtSymbol(_controller.symbol)}',
+                                onPressed: (_controller.isExecuting || !canOperate) ? null : () => performTrade(context, _controller),
+                                disabledReason: insufficientMargin ? 'Sin margen disponible' : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildReasonCard(),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 24),
-            // RIGHT COLUMN: Info
-            Expanded(
-              flex: 3,
-              child: SingleChildScrollView(
-                child: _buildInfoPanel(),
-              ),
+                ),
+                const SizedBox(width: AppSpacing.xl),
+                Expanded(
+                  child: AppCard(
+                    child: SignalChartView(
+                      symbol: _controller.symbol,
+                      entry: _controller.entry,
+                      stop: _controller.stop,
+                      target: _controller.target,
+                      onPriceLoaded: _controller.setCurrentPrice,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -139,279 +159,20 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
     );
   }
 
-  Widget _buildHeader() {
-    final dir = widget.signal['direction'] ?? 'LONG';
-    final isLong = dir.toUpperCase() == 'LONG';
-    return Row(
-      children: [
-        Text(fmtSymbol(widget.signal['symbol'] ?? 'SOL/USDT'), style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold)),
-        const SizedBox(width: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: (isLong ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: (isLong ? AppColors.winGreen : AppColors.lossRed))),
-          child: Text('SEÑAL $dir', style: AppTheme.monoStyle.copyWith(color: isLong ? AppColors.winGreen : AppColors.lossRed, fontWeight: FontWeight.bold)),
-        ),
-        const Spacer(),
-        Text('${fmtPrice(widget.signal['entry'])} USDT', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
-
-  Widget _buildCandleMiniChart(String title, List<KLineEntity> data) {
-    return Container(
-      height: 350, // Maxima visibilidad
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+  Widget _buildReasonCard() {
+    final reason = widget.signal['reason'];
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 8, top: 4, bottom: 8),
-            child: Text(title, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            child: data.isEmpty 
-              ? const Center(child: CircularProgressIndicator())
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: KChartWidget(
-                    data,
-                    ChartStyle(),
-                    ChartColors()..bgColor = [AppColors.surface, AppColors.surface]
-                                 ..upColor = AppColors.winGreen
-                                 ..dnColor = AppColors.lossRed,
-                    isLine: false,
-                    isTrendLine: false,
-                    mainState: MainState.NONE,
-                    secondaryState: SecondaryState.NONE,
-                  ),
-                ),
+          Text('Razón de la señal', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            reason != null ? stripHtml(reason.toString()) : 'Sin detalle adicional.',
+            style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary, height: 1.5),
           ),
         ],
       ),
     );
   }
-
-  String _getSignalStatus() {
-    final decision = widget.signal['decision'];
-    final isActive = widget.signal['isActiveTrade'] ?? false;
-    
-    if (decision == 'Tomada') {
-      return isActive ? 'YA SE OPERÓ (ACTIVA)' : 'YA TERMINÓ';
-    } else if (decision == 'Descartada') {
-      return 'DESCARTADA';
-    } else {
-      if (widget.signal['evaluatedAt'] != null) {
-        final evalTime = DateTime.parse(widget.signal['evaluatedAt']);
-        if (DateTime.now().toUtc().difference(evalTime).inMinutes > 60) {
-          return 'EXPIRADA';
-        }
-      }
-      return 'PENDIENTE DE DECISIÓN';
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    if (status.contains('ACTIVA')) return AppColors.winGreen;
-    if (status.contains('TERMINÓ')) return Colors.blue;
-    if (status == 'DESCARTADA') return AppColors.lossRed;
-    if (status == 'EXPIRADA') return Colors.grey;
-    return Colors.orange; // PENDIENTE
-  }
-
-  bool _isExecuting = false;
-
-  Future<void> _executeTrade(BuildContext context) async {
-    if (_isExecuting) return;
-    setState(() => _isExecuting = true);
-    try {
-      final res = await ApiClient.post('/api/signals/${widget.signal['id']}/execute');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final result = parseExecuteResult(data);
-        await showExecuteResult(context, result, messageForExecuteResult(result, data));
-        if (!mounted) return;
-        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
-      } else {
-        AppToast.showError(context, 'Error al ejecutar');
-      }
-    } catch (e) {
-      // Timeout, error de red o respuesta no parseable: no sabemos si la orden llegó a Binance.
-      showUnconfirmedExecuteWarning(context);
-    } finally {
-      if (mounted) setState(() => _isExecuting = false);
-    }
-  }
-
-  Future<void> _executeDiscard(BuildContext context, String reason) async {
-    if (_isExecuting) return;
-    setState(() => _isExecuting = true);
-    try {
-      final res = await ApiClient.post('/api/signals/${widget.signal['id']}/discard', body: {'reason': reason});
-      if (res.statusCode == 200) {
-        AppToast.showInfo(context, 'Trade descartado');
-        if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
-      } else {
-        AppToast.showError(context, 'Error al descartar');
-      }
-    } catch (e) {
-      AppToast.showError(context, 'Error de conexión');
-    } finally {
-      if (mounted) setState(() => _isExecuting = false);
-    }
-  }
-
-  Widget _buildInfoPanel() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Resumen Cuantitativo', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
-              _infoRow('Estrategia', widget.signal['strategy'] ?? widget.signal['regime'] ?? 'Motor Cuántico'),
-              const SizedBox(height: 16),
-              _infoRow('Correlación BTC', widget.signal['btcCorrelation'] ?? 'N/A', valueColor: AppColors.winGreen),
-              const SizedBox(height: 16),
-              _infoRow('Alineación Macro', widget.signal['bias4h'] == 'UP' ? 'ALCISTA' : (widget.signal['bias4h'] == 'DOWN' ? 'BAJISTA' : 'NEUTRAL'), valueColor: widget.signal['bias4h'] == 'UP' ? AppColors.winGreen : (widget.signal['bias4h'] == 'DOWN' ? AppColors.lossRed : AppColors.textSecondary)),
-              const SizedBox(height: 16),
-              _infoRow('Funding Rate', widget.signal['fundingRate'] ?? 'N/A'),
-              const SizedBox(height: 16),
-              _infoRow('Open Interest', widget.signal['openInterest'] ?? 'N/A'),
-              const Divider(color: AppColors.border, height: 32),
-              _infoRow('Stop Loss', "${fmtPrice(widget.signal['stopLoss'])} USDT", valueColor: AppColors.lossRed),
-              const SizedBox(height: 16),
-              _infoRow('Take Profit', "${fmtPrice(widget.signal['takeProfit'])} USDT", valueColor: AppColors.winGreen),
-              if (widget.signal['executedEntryPrice'] != null || widget.signal['entry'] != null) ...[
-                const SizedBox(height: 16),
-                _infoRow('Punto de Entrada', "${fmtPrice(widget.signal['executedEntryPrice'] ?? widget.signal['entry'])} USDT", valueColor: Colors.blue),
-              ],
-              const Divider(color: AppColors.border, height: 32),
-              const Text('RAZÓN / DETALLES DE LA SEÑAL', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
-              const SizedBox(height: 8),
-              Text(widget.signal['reason'] != null ? stripHtml(widget.signal['reason']) : 'Operación algorítmica detectada bajo parámetros institucionales (Tendencia de BTC: ${widget.signal['btcRegime'] ?? 'N/A'}).', style: const TextStyle(color: AppColors.textSecondary, height: 1.5)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Builder(builder: (context) {
-          final status = _getSignalStatus();
-          final statusColor = _getStatusColor(status);
-          final isPending = status == 'PENDIENTE DE DECISIÓN';
-          
-          return Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor),
-                ),
-                child: Center(
-                  child: Text(
-                    'ESTADO: $status',
-                    style: AppTheme.monoStyle.copyWith(color: statusColor, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              if (isPending) ...[
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: OutlinedButton(
-                    onPressed: _isExecuting ? null : () {
-                      final reasonController = TextEditingController();
-                      showDialog(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          backgroundColor: AppColors.surface,
-                          title: const Text('Descartar Trade', style: TextStyle(color: AppColors.textPrimary)),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('¿Por qué estás descartando esta señal? (Opcional)', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: reasonController,
-                                style: const TextStyle(color: AppColors.textPrimary),
-                                maxLines: 3,
-                                decoration: InputDecoration(
-                                  hintText: 'Ej: No me gusta la vela, mucha volatilidad, etc.',
-                                  hintStyle: const TextStyle(color: AppColors.textSecondary),
-                                  filled: true,
-                                  fillColor: AppColors.background,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                ),
-                              ),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () async {
-                                Navigator.pop(dialogContext);
-                                _executeDiscard(context, '');
-                              },
-                              child: const Text('Omitir', style: TextStyle(color: AppColors.textSecondary)),
-                            ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                Navigator.pop(dialogContext);
-                                _executeDiscard(context, reasonController.text);
-                              },
-                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.lossRed),
-                              child: const Text('Descartar', style: TextStyle(color: Colors.white)),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: _isExecuting 
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.textSecondary, strokeWidth: 2))
-                      : const Text('Descartar Señal', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: _isExecuting ? null : () => _executeTrade(context),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.winGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    icon: _isExecuting 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                      : const Icon(Icons.flash_on, color: Colors.black),
-                    label: Text(_isExecuting ? 'EJECUTANDO...' : 'Operar Ahora', style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ]
-            ],
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _infoRow(String label, String value, {Color valueColor = AppColors.textPrimary}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-        Text(value, style: AppTheme.monoStyle.copyWith(color: valueColor, fontWeight: FontWeight.bold, fontSize: 14)),
-      ],
-    );
-  }
 }
-
-
-
-
-
-

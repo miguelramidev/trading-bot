@@ -8,6 +8,7 @@ export 'app_card.dart';
 export 'app_filter_chip.dart';
 export 'app_switch.dart';
 export 'callout.dart';
+export 'confirm_dialog.dart';
 export 'data_timestamp.dart';
 export 'direction_tag.dart';
 export 'empty_error_state.dart';

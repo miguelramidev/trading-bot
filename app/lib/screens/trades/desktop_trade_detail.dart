@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_formatter.dart';
+import '../../core/utils/symbol_formatter.dart';
 import 'package:go_router/go_router.dart';
 
 class DesktopTradeDetail extends StatelessWidget {
@@ -13,12 +14,15 @@ class DesktopTradeDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
     final pnl = double.tryParse(trade['unrealizedPnl']?.toString() ?? '') ?? double.tryParse(trade['pnl']?.toString() ?? '') ?? 0.0;
-    final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '') ?? 0.0;
-    // El apalancamiento puede venir null (trades del historial): en ese caso el nocional se muestra como "—".
+    final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '');
+    // El apalancamiento puede venir null (trades del historial, que tampoco guardan tamaño de
+    // posición): en ese caso margen y nocional se muestran como "—". El campo `margin` del
+    // historial viene de `accountBalance`, que está roto (ver ROADMAP.md) — no es confiable,
+    // por eso se prioriza `initialMargin` (real, de Binance) y si no está, se calcula.
     final leverage = double.tryParse(trade['leverage']?.toString() ?? '');
-    // margin comes from accountBalance stored at trade creation time, or from initialMargin if available
-    final margin = double.tryParse(trade['margin']?.toString() ?? '') ?? double.tryParse(trade['initialMargin']?.toString() ?? '') ?? 0.0;
-    final double? notional = leverage != null ? margin * leverage : null;
+    final double? margin = double.tryParse(trade['initialMargin']?.toString() ?? '') ??
+        (leverage != null ? (double.tryParse(trade['entryPrice']?.toString() ?? '') ?? 1.0) * (double.tryParse(trade['size']?.toString() ?? '') ?? 1.0) / leverage : null);
+    final double? notional = (margin != null && leverage != null) ? margin * leverage : null;
     final isPositive = pnl >= 0;
 
     return Scaffold(
@@ -26,7 +30,7 @@ class DesktopTradeDetail extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         elevation: 0,
-        title: Text('${trade['symbol'] ?? 'UNK'} - Inspector de Posición', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        title: Text('${fmtSymbol(trade['symbol'])} - Inspector de Posición', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { final currentUrl = GoRouterState.of(context).uri.toString(); if (currentUrl.contains('history')) { context.go('/history'); } else { context.go('/dashboard'); } } },
@@ -64,13 +68,6 @@ class DesktopTradeDetail extends StatelessWidget {
                   const SizedBox() // Removed CERRAR button
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const SizedBox(width: 20),
-                  Text('0.38ms • ZÚRICH CLUSTER L2 • STREAMING L1 / #ORD-MQ-8841-ETH', style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 9)),
-                ],
-              ),
               const SizedBox(height: 32),
               // Body
               Row(
@@ -86,7 +83,7 @@ class DesktopTradeDetail extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                (trade['symbol'] ?? 'UNK').toString().replaceFirst(':USDT', ''),
+                                fmtSymbol(trade['symbol']),
                                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -138,30 +135,8 @@ class DesktopTradeDetail extends StatelessWidget {
                             border: Border.all(color: (isPositive ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.3)),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text('${isPositive ? "+" : ""}${roi.toStringAsFixed(2)}% ROI (RETORNO S/ MARGEN)', style: TextStyle(color: isPositive ? AppColors.winGreen : AppColors.lossRed, fontSize: 14, fontWeight: FontWeight.bold)),
+                          child: Text(roi != null ? '${roi >= 0 ? "+" : ""}${roi.toStringAsFixed(2)}% ROI (RETORNO S/ MARGEN)' : '— ROI (RETORNO S/ MARGEN)', style: TextStyle(color: isPositive ? AppColors.winGreen : AppColors.lossRed, fontSize: 14, fontWeight: FontWeight.bold)),
                         ),
-                        const SizedBox(height: 48),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(Icons.shield_outlined, color: AppColors.winGreen, size: 20),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Garantía de Ejecución L2', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 4),
-                                    Text('Posición respaldada por Binance Futures API. Slippage mitigado.', style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.8), fontSize: 12)),
-                                  ],
-                                ),
-                              )
-                            ],
-                          ),
-                        )
                       ],
                     ),
                   ),
@@ -184,7 +159,7 @@ class DesktopTradeDetail extends StatelessWidget {
                         const SizedBox(height: 32),
                         _buildRightRow('ESTRATEGIA ALGORÍTMICA', trade['strategy'] ?? '-', isClosed ? (trade['status'] ?? 'CERRADA') : 'EN CURSO', AppColors.textPrimary, isClosed ? AppColors.textSecondary : AppColors.winGreen),
                         _buildRightDivider(),
-                        _buildRightRow('VALOR NOCIONAL & MARGEN', 'Apalancamiento ${trade['leverage'] != null ? "x${trade['leverage']}" : "—"} Cross', notional != null ? '\$${notional.toStringAsFixed(2)} USDT' : '—', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen: \$${margin.toStringAsFixed(2)} USDT'),
+                        _buildRightRow('VALOR NOCIONAL & MARGEN', 'Apalancamiento ${trade['leverage'] != null ? "x${trade['leverage']}" : "—"} ${trade['marginMode']?.toString().toUpperCase() ?? "—"}', notional != null ? '\$${notional.toStringAsFixed(2)} USDT' : '—', AppColors.textSecondary, AppColors.textPrimary, subVal: 'Margen: ${margin != null ? '\$${margin.toStringAsFixed(2)} USDT' : '—'}'),
                         _buildRightDivider(),
                         _buildRightRow('ENTRADA VS PRECIO SALIDA', isClosed ? 'Precio ejecutado' : 'Diferencial en vivo', '\$${fmtPrice(trade['entryPrice'])} → \$${fmtPrice(trade['exitPrice'] ?? trade['markPrice'])}', AppColors.textSecondary, AppColors.textPrimary),
                         _buildRightDivider(),
@@ -195,34 +170,7 @@ class DesktopTradeDetail extends StatelessWidget {
                         _buildRightRow('FUNDING RATE', 'Tasa de permuta perp 8h', '+${trade['fundingRate'] ?? "0.0000"}%', AppColors.textSecondary, AppColors.winGreen),
                         _buildRightDivider(),
                         _buildRightRow('LIQUIDACIÓN', 'Riesgo de margen', '\$${trade['liquidationPrice'] ?? "-"} USDT', AppColors.textSecondary, AppColors.lossRed),
-                        
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            const Icon(Icons.api, color: AppColors.textSecondary, size: 12),
-                            const SizedBox(width: 6),
-                            const Text('ORÁCULO DESCENTRALIZADO: PYTH / CHAINLINK CONSENSUS 100%', style: TextStyle(color: AppColors.textSecondary, fontSize: 9, letterSpacing: 0.5)),
-                            const Spacer(),
-                            const Text('DRIFT: 0.00018s', style: TextStyle(color: AppColors.textSecondary, fontSize: 9)),
-                          ],
-                        )
                       ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-              // Bottom Buttons
-              if (!isClosed) Row(
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.block, size: 14),
-                    label: const Text('Cerrar Posición Manualmente', style: TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.lossRed, 
-                      side: BorderSide(color: AppColors.lossRed.withValues(alpha: 0.3)), 
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24)
                     ),
                   ),
                 ],

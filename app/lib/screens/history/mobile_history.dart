@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/symbol_formatter.dart';
 import 'package:intl/intl.dart';
 
 class MobileHistory extends StatefulWidget {
@@ -36,16 +37,6 @@ class _MobileHistoryState extends State<MobileHistory> {
              child: const Text('SETTLED', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
            )
         ],
-        bottom: PreferredSize(
-           preferredSize: const Size.fromHeight(20),
-           child: Padding(
-             padding: const EdgeInsets.only(bottom: 8, left: 16),
-             child: Align(
-               alignment: Alignment.centerLeft,
-               child: Text('• AUDITORÍA ALADDIN / FIX PROTOCOL V4.4', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
-             ),
-           ),
-        ),
       ),
       body: CustomScrollView(
         slivers: [
@@ -167,7 +158,7 @@ class _MobileHistoryState extends State<MobileHistory> {
     if (trade['status'] == 'SL HIT') statusColor = AppColors.lossRed;
 
     final pnlVal = (trade['pnl'] as num?)?.toDouble() ?? 0.0;
-    final roiVal = (trade['roi'] as num?)?.toDouble() ?? 0.0;
+    final roiVal = (trade['roi'] as num?)?.toDouble();
     
     final pnlStr = pnlVal > 0 ? '+\$${pnlVal.toStringAsFixed(2)}' : (pnlVal < 0 ? '-\$${pnlVal.abs().toStringAsFixed(2)}' : '\$0.00');
     final pnlColor = isShadow ? AppColors.textSecondary : (pnlVal > 0 ? AppColors.winGreen : AppColors.lossRed);
@@ -194,7 +185,7 @@ class _MobileHistoryState extends State<MobileHistory> {
               Expanded(
                 child: Row(
                   children: [
-                    Flexible(child: Text(trade['symbol'], style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text(fmtSymbol(trade['symbol']), style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -228,7 +219,7 @@ class _MobileHistoryState extends State<MobileHistory> {
                   Text(dateStr, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                 ],
               ),
-              if (!isShadow) Text('ROI ${roiVal > 0 ? '+' : ''}${roiVal.toStringAsFixed(2)}%', style: TextStyle(color: pnlColor, fontSize: 12, fontWeight: FontWeight.bold)),
+              if (!isShadow) Text(roiVal != null ? 'ROI ${roiVal > 0 ? '+' : ''}${roiVal.toStringAsFixed(2)}%' : 'ROI —', style: TextStyle(color: pnlColor, fontSize: 12, fontWeight: FontWeight.bold)),
             ],
           ),
           const Padding(

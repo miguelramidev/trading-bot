@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide DataColumn, DataRow, DataCell;
 import 'package:material_ui/material_ui.dart' as mui;
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/symbol_formatter.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:data_table_2/data_table_2.dart';
@@ -49,20 +50,21 @@ class _DesktopHistoryState extends State<DesktopHistory> {
   // Header removido al global MainScreen
 
   Widget _buildStatsRow() {
+    final totalPnl = double.tryParse(widget.stats?['totalPnl']?.toString() ?? '') ?? 0.0;
     return Row(
       children: [
-        Expanded(child: _buildStatCard('TOTAL TRADES', '${widget.stats?['totalTrades'] ?? 0}', 'FIX L2', '• 100% Conciliado')),
+        Expanded(child: _buildStatCard('TOTAL TRADES', '${widget.stats?['totalTrades'] ?? 0}', null)),
         const SizedBox(width: 16),
-        Expanded(child: _buildStatCard('WIN RATE', '${widget.stats?['winRate'] ?? '0.0'}%', 'ASIMÉTRICO', '${widget.stats?['winningTrades'] ?? 0} Ganadoras / ${widget.stats?['losingTrades'] ?? 0} Salidas SL')),
+        Expanded(child: _buildStatCard('WIN RATE', '${widget.stats?['winRate'] ?? '0.0'}%', '${widget.stats?['winningTrades'] ?? 0} Ganadoras / ${widget.stats?['losingTrades'] ?? 0} Salidas SL')),
         const SizedBox(width: 16),
-        Expanded(flex: 2, child: _buildStatCard('BENEFICIO NETO (PNL REALIZADO)', '+\$${widget.stats?['totalPnl'] ?? '0.00'}', 'USDT', '+14.82% BPS Alpha  Base Auditada', isPnl: true)),
+        Expanded(flex: 2, child: _buildStatCard('BENEFICIO NETO (PNL REALIZADO)', '${totalPnl >= 0 ? "+" : ""}\$${totalPnl.toStringAsFixed(2)}', null, badge1: 'USDT', isPnl: true)),
         const SizedBox(width: 16),
-        Expanded(child: _buildStatCard('PROFIT FACTOR', '${widget.stats?['profitFactor'] ?? '0.0'}', 'ÓPTIMO', 'Gross: \$${widget.stats?['grossProfit'] ?? 0} / Pérdida: \$${widget.stats?['grossLoss'] ?? 0}')),
+        Expanded(child: _buildStatCard('PROFIT FACTOR', '${widget.stats?['profitFactor'] ?? '0.0'}', 'Gross: \$${widget.stats?['grossProfit'] ?? 0} / Pérdida: \$${widget.stats?['grossLoss'] ?? 0}')),
       ],
     );
   }
 
-  Widget _buildStatCard(String title, String value, String badge1, String badge2, {bool isPnl = false}) {
+  Widget _buildStatCard(String title, String value, String? badge2, {String? badge1, bool isPnl = false}) {
     final double pnlVal = isPnl ? double.tryParse(value.replaceAll('\$', '').replaceAll('+', '')) ?? 0 : 0;
     final color = isPnl ? (pnlVal >= 0 ? AppColors.winGreen : AppColors.lossRed) : AppColors.textPrimary;
 
@@ -80,17 +82,20 @@ class _DesktopHistoryState extends State<DesktopHistory> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                child: Text(badge1, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-              )
+              if (badge1 != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                  child: Text(badge1, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                )
             ],
           ),
           const SizedBox(height: 16),
           Text(value, style: TextStyle(color: color, fontSize: 28, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(badge2, style: TextStyle(color: isPnl ? AppColors.winGreen : AppColors.textSecondary, fontSize: 11)),
+          if (badge2 != null) ...[
+            const SizedBox(height: 8),
+            Text(badge2, style: TextStyle(color: isPnl ? AppColors.winGreen : AppColors.textSecondary, fontSize: 11)),
+          ],
         ],
       ),
     );
@@ -133,7 +138,7 @@ class _DesktopHistoryState extends State<DesktopHistory> {
           if (trade['status'] == 'SL HIT') statusColor = AppColors.lossRed;
 
           final pnlVal = (trade['pnl'] as num?)?.toDouble() ?? 0.0;
-          final roiVal = (trade['roi'] as num?)?.toDouble() ?? 0.0;
+          final roiVal = (trade['roi'] as num?)?.toDouble();
           final pnlStr = pnlVal > 0 ? '+\$${pnlVal.toStringAsFixed(2)}' : (pnlVal < 0 ? '-\$${pnlVal.abs().toStringAsFixed(2)}' : '\$0.00');
           final pnlColor = isShadow ? AppColors.textSecondary : (pnlVal > 0 ? AppColors.winGreen : AppColors.lossRed);
 
@@ -152,7 +157,7 @@ class _DesktopHistoryState extends State<DesktopHistory> {
                 children: [
                   Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
-                  Text(trade['symbol'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(fmtSymbol(trade['symbol']), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
               )),
               mui.DataCell(Container(
@@ -164,7 +169,7 @@ class _DesktopHistoryState extends State<DesktopHistory> {
               mui.DataCell(Text(trade['strategy'], style: const TextStyle(color: AppColors.textSecondary))),
               mui.DataCell(Text('\$${trade['entryPrice']}')),
               mui.DataCell(Text('\$${trade['exitPrice']}')),
-              mui.DataCell(Text('${roiVal > 0 ? '+' : ''}${roiVal.toStringAsFixed(1)}%', style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold))),
+              mui.DataCell(Text(roiVal != null ? '${roiVal > 0 ? '+' : ''}${roiVal.toStringAsFixed(1)}%' : '—', style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold))),
               mui.DataCell(Text(pnlStr, style: TextStyle(color: pnlColor, fontWeight: FontWeight.bold))),
               mui.DataCell(Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

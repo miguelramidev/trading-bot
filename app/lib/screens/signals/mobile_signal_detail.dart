@@ -11,7 +11,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_toast.dart';
 import '../../core/utils/execute_result.dart';
-import 'package:fl_chart/fl_chart.dart';
+import '../../core/utils/symbol_formatter.dart';
+import '../../core/utils/text_sanitizer.dart';
 
 class MobileSignalDetail extends StatefulWidget {
   final Map<String, dynamic> signal;
@@ -105,19 +106,6 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                         ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildMiniChart('15m MACD', '+0.42', Colors.teal),
-                      const SizedBox(width: 12),
-                      _buildMiniChart('4H RSI', '68.2', Colors.blue),
-                      const SizedBox(width: 12),
-                      _buildMiniChart('1D Corr.', '+0.89', Colors.purple),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -131,9 +119,9 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildCandleMiniChart('${widget.signal['symbol'] ?? 'SOL'} (4H)', macro4hCandles),
+                _buildCandleMiniChart('${fmtSymbol(widget.signal['symbol'] ?? 'SOL')} (4H)', macro4hCandles),
                 const SizedBox(height: 16),
-                _buildCandleMiniChart('${widget.signal['symbol'] ?? 'SOL'} (1D)', macro1dCandles),
+                _buildCandleMiniChart('${fmtSymbol(widget.signal['symbol'] ?? 'SOL')} (1D)', macro1dCandles),
                 const SizedBox(height: 16),
                 _buildCandleMiniChart('BTC/USDT (1D)', btc1dCandles),
                 const SizedBox(height: 24),
@@ -240,7 +228,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.signal['symbol'] ?? 'SOL/USDT', style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold)),
+            Text(fmtSymbol(widget.signal['symbol'] ?? 'SOL/USDT'), style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text('${fmtPrice(widget.signal['entry'])} USDT', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 18)),
           ],
@@ -289,47 +277,6 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
     );
   }
 
-  Widget _buildMiniChart(String title, String value, Color color) {
-    return Container(
-      width: 140,
-      height: 100,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-              Text(value, style: AppTheme.monoStyle.copyWith(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const Spacer(),
-          SizedBox(
-            height: 30,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(show: false),
-                titlesData: FlTitlesData(show: false),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: const [FlSpot(0, 1), FlSpot(1, 1.5), FlSpot(2, 1.4), FlSpot(3, 2), FlSpot(4, 2.2)],
-                    isCurved: true,
-                    color: color,
-                    barWidth: 2,
-                    dotData: FlDotData(show: false),
-                    belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   String _getSignalStatus() {
     final decision = widget.signal['decision'];
@@ -391,7 +338,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           const Divider(color: AppColors.border, height: 24),
           const Text('RAZÓN / DETALLES DE LA SEÑAL', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 8),
-          Text(widget.signal['reason'] ?? 'Operación algorítmica detectada bajo parámetros institucionales (Tendencia de BTC: ${widget.signal['btcRegime'] ?? 'N/A'}).', style: const TextStyle(color: AppColors.textSecondary, height: 1.5, fontSize: 12)),
+          Text(widget.signal['reason'] != null ? stripHtml(widget.signal['reason']) : 'Operación algorítmica detectada bajo parámetros institucionales (Tendencia de BTC: ${widget.signal['btcRegime'] ?? 'N/A'}).', style: const TextStyle(color: AppColors.textSecondary, height: 1.5, fontSize: 12)),
         ],
       ),
     );

@@ -8,12 +8,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/network/api_client.dart';
 import '../../core/utils/price_formatter.dart';
+import '../../core/utils/symbol_formatter.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
-import '../login_screen.dart';
 
 class MobileDashboard extends StatefulWidget {
   const MobileDashboard({super.key});
@@ -140,7 +140,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
             _buildBalanceCard(context),
             _buildPerformanceChart(),
             const SizedBox(height: 24),
-            _buildSectionHeader('OPERACIONES ABIERTAS', '$_openTradesCount activas', 'Gestionar >'),
+            _buildSectionHeader('OPERACIONES ABIERTAS', '$_openTradesCount activas'),
             const SizedBox(height: 12),
             if (_isLoading)
               const Center(child: Padding(padding: EdgeInsets.all(24.0), child: CircularProgressIndicator(color: AppColors.winGreen)))
@@ -152,8 +152,8 @@ class _MobileDashboardState extends State<MobileDashboard> {
               ..._positions.map((p) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _buildTradeCard(
-                  p['symbol'] ?? 'UNKNOWN',
-                  "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] ?? 1}x",
+                  fmtSymbol(p['symbol'] ?? 'UNKNOWN'),
+                  "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] != null ? '${p['leverage']}x' : '—'}",
                   "\$${fmtPrice(p['entryPrice'])}",
                   p['size'].toString(),
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
@@ -162,7 +162,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                 ),
               )),
             const SizedBox(height: 32),
-            _buildSectionHeader('ÚLTIMAS SEÑALES CUANTITATIVAS', null, 'Ver todas >'),
+            _buildSectionHeader('ÚLTIMAS SEÑALES CUANTITATIVAS', null),
             const SizedBox(height: 12),
             if (_isLoading)
               const Center(child: Padding(padding: EdgeInsets.all(24.0), child: CircularProgressIndicator(color: AppColors.winGreen)))
@@ -177,7 +177,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
                 final shortSymbol = symbol.length >= 3 ? symbol.substring(0, 3) : symbol;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildSignalCard(shortSymbol, symbol, timeAgo, 'Algoritmo Quant', s['direction'] ?? '', true, onTap: () async { await context.push('/dashboard/signal/${s['id']}', extra: s); _fetchDashboardData(); }),
+                  child: _buildSignalCard(shortSymbol, fmtSymbol(symbol), timeAgo, 'Algoritmo Quant', s['direction'] ?? '', _getSignalStatusColor(s), onTap: () async { await context.push('/dashboard/signal/${s['id']}', extra: s); _fetchDashboardData(); }),
                 );
               }),
             const SizedBox(height: 24),
@@ -195,19 +195,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
       elevation: 0,
       titleSpacing: 0,
       leading: const Icon(Icons.shield_outlined, color: AppColors.winGreen),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('MacroQuant', style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 18)),
-          Row(
-            children: [
-              Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-              const SizedBox(width: 4),
-              Text('ZÚRICH CLUSTER L2 • 0.38 MS', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 0.5)),
-            ],
-          )
-        ],
-      ),
+      title: Text('MacroQuant', style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 18)),
       actions: [
         IconButton(icon: const Icon(Icons.help_outline, color: AppColors.textSecondary, size: 20), onPressed: () {}),
         GestureDetector(
@@ -369,7 +357,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
     );
   }
 
-  Widget _buildSectionHeader(String title, String? tag, String action) {
+  Widget _buildSectionHeader(String title, String? tag) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -386,7 +374,6 @@ class _MobileDashboardState extends State<MobileDashboard> {
             ]
           ],
         ),
-        Text(action, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11)),
       ],
     );
   }
@@ -458,8 +445,26 @@ class _MobileDashboardState extends State<MobileDashboard> {
     );
   }
 
-  Widget _buildSignalCard(String avatarTxt, String title, String time, String desc, String status, bool isSuccess, {VoidCallback? onTap}) {
-    final color = isSuccess ? AppColors.winGreen : AppColors.textSecondary;
+  Color _getSignalStatusColor(Map<String, dynamic> signal) {
+    final decision = signal['decision'];
+    final isActive = signal['isActiveTrade'] ?? false;
+
+    if (decision == 'Tomada') {
+      return isActive ? AppColors.winGreen : Colors.blue;
+    } else if (decision == 'Descartada') {
+      return AppColors.lossRed;
+    } else {
+      if (signal['evaluatedAt'] != null) {
+        final evalTime = DateTime.parse(signal['evaluatedAt']);
+        if (DateTime.now().toUtc().difference(evalTime).inMinutes > 60) {
+          return Colors.grey;
+        }
+      }
+      return Colors.orange; // Pendiente
+    }
+  }
+
+  Widget _buildSignalCard(String avatarTxt, String title, String time, String desc, String status, Color color, {VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -516,22 +521,10 @@ class _MobileDashboardState extends State<MobileDashboard> {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.lock_outline, color: AppColors.winGreen, size: 16),
-              const SizedBox(width: 8),
-              Text('RIESGO VAR 99% 1D: ', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-              Text('0.84%', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          Row(
-            children: [
-              Text('USO MARGEN ', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-              Text('${_balance > 0 ? ((_usedBalance / _balance) * 100).toStringAsFixed(1) : 0}%', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold)),
-            ],
-          )
+          Text('USO MARGEN ', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
+          Text('${_balance > 0 ? ((_usedBalance / _balance) * 100).toStringAsFixed(1) : 0}%', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -560,7 +553,7 @@ class _MobileDashboardState extends State<MobileDashboard> {
   Future<void> _logout(BuildContext context) async {
     await AuthService().signOut();
     if (context.mounted) {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
+      context.go('/');
     }
   }
 }

@@ -34,10 +34,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   String? _rsaPrivateKey;
 
   bool _isBotActive = true;
-  bool _isMacdActive = true;
-  bool _isFakeoutActive = false;
-  bool _isMacroActive = true;
-  bool _isFundingActive = false;
   bool _notificationsWeb = true;
   bool _notificationsMobile = true;
   bool _notificationsTelegram = true;
@@ -231,8 +227,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                           children: [
                             Expanded(child: _buildRiskColumn()),
                             const SizedBox(width: 24),
-                            Expanded(child: _buildModulesColumn()),
-                            const SizedBox(width: 24),
                             Expanded(child: _buildSystemColumn()),
                           ],
                         ),
@@ -240,12 +234,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            TextButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.restore, color: AppColors.textSecondary),
-                              label: const Text('Restablecer a Valores Seguros', style: TextStyle(color: AppColors.textSecondary)),
-                            ),
-                            const SizedBox(width: 24),
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.winGreen,
@@ -293,7 +281,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                 const SizedBox(height: 12),
                 Text('Estado del Motor Algorítmico (Master Switch Bot ON/OFF)', style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 20)),
                 const SizedBox(height: 8),
-                const Text('El bot está actualmente analizando flujos L2 y ejecutando señales aprobadas de forma autónoma con enrutamiento dark pool. La desactivación cancelará órdenes contingentes activas en menos de 5ms.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                const Text('Si lo desactivás, el bot deja de generarte señales nuevas. No afecta las operaciones que ya tengas abiertas.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
               ],
             ),
           ),
@@ -364,35 +352,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _inputField('Stop Loss Global de Emergencia', '3.5% Drawdown Diario', isDanger: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModulesColumn() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.memory, color: AppColors.textSecondary, size: 20)),
-              const SizedBox(width: 12),
-              const Expanded(child: Text('Módulos Algorítmicos', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold))),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _switchRow('MACD Zero-Cross', 'Divergencias y cruces de momentum en 15m y 1h', _isMacdActive, (v) => setState(() => _isMacdActive = v)),
-          const Divider(color: AppColors.border, height: 16),
-          _switchRow('Liquidity Sweep (Fakeouts)', 'Detección de absorción institucional y caza de liquidez en soporte/resistencia', _isFakeoutActive, (v) => setState(() => _isFakeoutActive = v)),
-          const Divider(color: AppColors.border, height: 16),
-          _switchRow('Macro Inversion Filter', 'Filtro de alineación con régimen de volatilidad y tendencia diaria de BTC/ETH', _isMacroActive, (v) => setState(() => _isMacroActive = v)),
-          const Divider(color: AppColors.border, height: 16),
-          _switchRow('Funding Rate Shield', 'Descarte automático de posiciones con coste de acarreo o arbitraje negativo >0.01%', _isFundingActive, (v) => setState(() => _isFundingActive = v)),
         ],
       ),
     );
@@ -513,26 +472,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: isDanger ? AppColors.lossRed : AppColors.winGreen), borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _inputField(String label, String value, {bool isDanger = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isDanger ? AppColors.lossRed.withOpacity(0.5) : AppColors.border),
-          ),
-          child: Text(value, style: AppTheme.monoStyle.copyWith(color: isDanger ? AppColors.lossRed : AppColors.textPrimary)),
         ),
       ],
     );

@@ -89,15 +89,14 @@ class _LoginScreenState extends State<LoginScreen> {
               // Fondo (matriz de puntos para web, degradado sutil para mobile)
               if (isWeb) _buildWebBackground() else _buildMobileBackground(),
 
-              // Barra superior
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: SafeArea(
-                  child: isWeb ? _buildWebTopBar() : _buildMobileTopBar(),
+              // Barra superior (solo web: título)
+              if (isWeb)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(child: _buildWebTopBar()),
                 ),
-              ),
 
               // Tarjeta Central
               Center(
@@ -148,59 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --- Top Bars ---
-  Widget _buildMobileTopBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceHighlight.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.shield_outlined, color: AppColors.winGreen, size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    'SEGURIDAD NIVEL 4',
-                    style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: AppColors.winGreen,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'ALGORITMO SINCRONIZADO',
-                    style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.winGreen),
-                  ),
-                  const SizedBox(width: 12),
-                  const Icon(Icons.help_outline, color: AppColors.textSecondary, size: 18),
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
+  // --- Top Bar (solo web) ---
   Widget _buildWebTopBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 20.0),
@@ -214,19 +161,6 @@ class _LoginScreenState extends State<LoginScreen> {
               Text('MacroQuant', style: AppTheme.monoStyle.copyWith(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
             ],
           ),
-          Row(
-            children: [
-              Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              Text('Mercados Abiertos', style: AppTheme.monoStyle.copyWith(fontSize: 12, color: AppColors.textPrimary)),
-              const SizedBox(width: 24),
-              Text('ZURICH L2: 0.38 ms', style: AppTheme.monoStyle.copyWith(fontSize: 12, color: AppColors.textSecondary)),
-              const SizedBox(width: 24),
-              Text('FEED FIX/ITCH: SINCRONIZADO', style: AppTheme.monoStyle.copyWith(fontSize: 12, color: AppColors.textSecondary)),
-              const SizedBox(width: 24),
-              const Icon(Icons.help_outline, color: AppColors.textSecondary, size: 20),
-            ],
-          )
         ],
       ),
     );
@@ -286,46 +220,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('MOTOR DE EJECUCIÓN', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-                          const SizedBox(width: 6),
-                          Text('CLUSTER ZÚRICH-01', style: AppTheme.monoStyle.copyWith(fontSize: 12, color: AppColors.textPrimary)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('LATENCIA MKT', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-                      const SizedBox(height: 4),
-                      Text('0.42 ms', style: AppTheme.monoStyle.copyWith(fontSize: 12, color: AppColors.winGreen)),
-                    ],
-                  )
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
           if (widget.existingUser == null)
             _buildGoogleButton(isDark: true)
           else ...[
@@ -361,24 +255,6 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Text('Cambiar de cuenta', style: TextStyle(color: AppColors.textSecondary)),
             ),
           ],
-          const SizedBox(height: 32),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.lock_outline, color: AppColors.winGreen, size: 14),
-                    const SizedBox(width: 4),
-                    Text('FIPS 140-3 HSM VALIDADO', style: AppTheme.monoStyle.copyWith(fontSize: 9, color: AppColors.textSecondary)),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                Text('ID: MQ-8891-EU', style: AppTheme.monoStyle.copyWith(fontSize: 9, color: AppColors.textSecondary)),
-              ],
-            ),
-          )
         ],
       ),
     );
@@ -403,27 +279,9 @@ class _LoginScreenState extends State<LoginScreen> {
             style: AppTheme.monoStyle.copyWith(fontSize: 20, color: AppColors.textPrimary, letterSpacing: 2.0),
           ),
           const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              Text(
-                'Terminal Cuantitativa v4.2 • Zurich Cluster',
-                style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
           Text(
             'Bienvenido a tu terminal',
             style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 24),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Autenticación de grado criptográfico para fondos\nde cobertura y allocators institucionales.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 40),
           if (widget.existingUser == null)
@@ -466,20 +324,6 @@ class _LoginScreenState extends State<LoginScreen> {
               Text('Plataforma exclusiva para trading institucional', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
             ],
           ),
-          const SizedBox(height: 32),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(width: 4, height: 4, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-                  const SizedBox(width: 6),
-                  Text('SHA-384 HANDSHAKE', style: AppTheme.monoStyle.copyWith(fontSize: 9, color: AppColors.textSecondary)),
-                ],
-              ),
-              Text('ID DE SESIÓN: #MQ-9481-EXT', style: AppTheme.monoStyle.copyWith(fontSize: 9, color: AppColors.textSecondary)),
-            ],
-          )
         ],
       ),
     );
@@ -547,12 +391,6 @@ class _LoginScreenState extends State<LoginScreen> {
       padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 32.0),
       child: Column(
         children: [
-          Text(
-            'Cifrado AES-256 • Conexión Bloomberg & Refinitiv',
-            textAlign: TextAlign.center,
-            style: AppTheme.monoStyle.copyWith(fontSize: 9, color: AppColors.textSecondary, height: 1.5),
-          ),
-          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -578,26 +416,12 @@ class _LoginScreenState extends State<LoginScreen> {
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Icon(Icons.lock_outline, color: AppColors.winGreen, size: 12),
-              const SizedBox(width: 6),
-              Text('Cifrado FIPS 140-3 Nivel 4', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textPrimary)),
-              const SizedBox(width: 16),
-              Text('•', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-              const SizedBox(width: 16),
-              Text('Conexión directa FIX / ITCH', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-              const SizedBox(width: 16),
-              Text('•', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-              const SizedBox(width: 16),
               Text('Términos Institucionales', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
               const SizedBox(width: 16),
               Text('•', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
               const SizedBox(width: 16),
               Text('Privacidad Cuantitativa', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
             ],
-          ),
-          Text(
-            'MacroQuant Financial Technologies AG © 2024',
-            style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary),
           ),
         ],
       ),

@@ -32,10 +32,6 @@ class _MobileSettingsState extends State<MobileSettings> {
   String? _rsaPrivateKey;
 
   bool _isBotActive = true;
-  bool _isMacdActive = true;
-  bool _isFakeoutActive = false;
-  bool _isMacroActive = true;
-  bool _isFundingActive = false;
   bool _notificationsWeb = true;
   bool _notificationsMobile = true;
   bool _notificationsTelegram = true;
@@ -61,6 +57,7 @@ class _MobileSettingsState extends State<MobileSettings> {
             _leverageMaxController.text = data['leverageMax']?.toString() ?? '2';
             _notificationsWeb = data['notificationsWeb'] ?? true;
             _notificationsMobile = data['notificationsMobile'] ?? true;
+            _isBotActive = !(data['isPaused'] ?? false);
             _rsaPublicKey = data['rsaPublicKey'];
           });
         }
@@ -228,13 +225,13 @@ class _MobileSettingsState extends State<MobileSettings> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Interruptor Principal (Bot ON/OFF)', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-                            SizedBox(height: 4),
-                            Text('SISTEMA ACTIVO / EN LÍNEA', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                            const Text('Interruptor Principal (Bot ON/OFF)', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text(_isBotActive ? 'ACTIVO' : 'PAUSADO', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                           ],
                         ),
                       ),
@@ -250,7 +247,7 @@ class _MobileSettingsState extends State<MobileSettings> {
                     children: [
                       Icon(Icons.shield_outlined, color: AppColors.winGreen, size: 16),
                       SizedBox(width: 8),
-                      Expanded(child: Text('Ejecución automatizada de señales verificadas bajo protocolo FIX v4.4', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
+                      Expanded(child: Text('Si lo desactivás, el bot deja de generarte señales nuevas. No afecta las operaciones que ya tengas abiertas.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
                     ],
                   )
                 ],
@@ -280,24 +277,6 @@ class _MobileSettingsState extends State<MobileSettings> {
                   ),
                   const SizedBox(height: 8),
                   const Text('El bot operará con el mínimo y escalará hasta el máximo si Binance exige mayor Notional.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-            _buildSectionHeader(Icons.memory, 'MÓDULOS ALGORÍTMICOS ACTIVOS'),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-              child: Column(
-                children: [
-                  _switchRow('Estrategia MACD', 'Divergencias y cruces de momentum en 15m/1h', _isMacdActive, (v) => setState(() => _isMacdActive = v)),
-                  const Divider(color: AppColors.border, height: 24),
-                  _switchRow('Estrategia de Rupturas Falsas', 'Absorción de liquidez institucional en roturas', _isFakeoutActive, (v) => setState(() => _isFakeoutActive = v)),
-                  const Divider(color: AppColors.border, height: 24),
-                  _switchRow('Filtro Inversión Macro', 'Sincronización con tendencia macro 1D BTC', _isMacroActive, (v) => setState(() => _isMacroActive = v)),
-                  const Divider(color: AppColors.border, height: 24),
-                  _switchRow('Escudo Tasa de Financiación', 'Descarte de Operaciones con arbitraje negativo >0.01%', _isFundingActive, (v) => setState(() => _isFundingActive = v)),
                 ],
               ),
             ),

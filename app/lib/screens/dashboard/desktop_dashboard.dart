@@ -9,11 +9,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/network/api_client.dart';
 import '../../core/utils/price_formatter.dart';
+import '../../core/utils/symbol_formatter.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
-import '../login_screen.dart';
 
 class DesktopDashboard extends StatefulWidget {
   const DesktopDashboard({super.key});
@@ -226,8 +226,6 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
                   const Icon(Icons.verified, color: AppColors.winGreen, size: 20),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text('Protocolo Institucional Multi-Estrategia • Cuadro de Mando en Tiempo Real', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
               const SizedBox(height: 32),
               Row(
                 children: [
@@ -363,20 +361,14 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Text('Operaciones Abiertas', style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(12)),
-                    child: Text('$_openTradesCount activas', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-                  ),
-                ],
+              Text('Operaciones Abiertas', style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(12)),
+                child: Text('$_openTradesCount activas', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
               ),
-              Text('Ver detalles ->', style: TextStyle(color: AppColors.winGreen)),
             ],
           ),
           const SizedBox(height: 24),
@@ -390,8 +382,8 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
             ..._positions.map((p) => Column(
               children: [
                 _tradeRow(
-                  p['symbol'] ?? 'UNKNOWN',
-                  "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] ?? 1}x",
+                  fmtSymbol(p['symbol'] ?? 'UNKNOWN'),
+                  "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] != null ? '${p['leverage']}x' : '—'}",
                   "\$${fmtPrice(p['entryPrice'])}",
                   "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
                   "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",
@@ -460,7 +452,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
               final dir = s['direction'] ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _signalRow('Señal $dir en ${s['symbol']}', 'Algoritmo Quant', timeAgo, _getSignalStatusColor(s), onTap: () async { await context.push('/dashboard/signal/${s['id']}', extra: s); _fetchDashboardData(); }),
+                child: _signalRow('Señal $dir en ${fmtSymbol(s['symbol'])}', 'Algoritmo Quant', timeAgo, _getSignalStatusColor(s), onTap: () async { await context.push('/dashboard/signal/${s['id']}', extra: s); _fetchDashboardData(); }),
               );
             }),
         ],
@@ -518,7 +510,7 @@ class _DesktopDashboardState extends State<DesktopDashboard> {
   Future<void> _logout(BuildContext context) async {
     await AuthService().signOut();
     if (context.mounted) {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
+      context.go('/');
     }
   }
 }

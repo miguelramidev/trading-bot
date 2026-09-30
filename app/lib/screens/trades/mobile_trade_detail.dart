@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_formatter.dart';
+import '../../core/utils/symbol_formatter.dart';
 import 'package:go_router/go_router.dart';
 
 class MobileTradeDetail extends StatelessWidget {
@@ -13,7 +14,7 @@ class MobileTradeDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLong = (trade['side'] ?? trade['direction'])?.toString().toUpperCase() == 'LONG';
     final pnl = double.tryParse(trade['unrealizedPnl']?.toString() ?? '') ?? double.tryParse(trade['pnl']?.toString() ?? '') ?? 0.0;
-    final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '') ?? 0.0;
+    final roi = double.tryParse(trade['percentage']?.toString() ?? '') ?? double.tryParse(trade['roi']?.toString() ?? '');
     // El apalancamiento puede venir null (trades del historial): en ese caso margen y monto se muestran como "—".
     final leverage = double.tryParse(trade['leverage']?.toString() ?? '');
     final double? margin = double.tryParse(trade['initialMargin']?.toString() ?? '') ??
@@ -30,26 +31,7 @@ class MobileTradeDetail extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
-        title: Column(
-          children: [
-            const Text('Detalle de Posición', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-            Text('MQ-TERMINAL L2', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
-          ],
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              children: [
-                Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-                const SizedBox(width: 4),
-                const Text('0.38ms • ZÚRICH', style: TextStyle(color: AppColors.textSecondary, fontSize: 9, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          )
-        ],
+        title: const Text('Detalle de Posición', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -62,19 +44,9 @@ class MobileTradeDetail extends StatelessWidget {
                 Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(child: Text(trade['symbol'] ?? 'UNK', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                          child: const Text('L2', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                        )
-                      ],
-                    ),
+                    Text(fmtSymbol(trade['symbol']), style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    Text('Perpetuo Cuantitativo • Orden #MQ-8841', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    const Text('Perpetuo Cuantitativo', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   ],
                 )),
                 Container(
@@ -124,7 +96,7 @@ class MobileTradeDetail extends StatelessWidget {
                       border: Border.all(color: (isPositive ? AppColors.winGreen : AppColors.lossRed).withValues(alpha: 0.3)),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Text('${isPositive ? "+" : ""}${roi.toStringAsFixed(2)}% ROI • RETORNO S/ MARGEN', style: TextStyle(color: isPositive ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                    child: Text(roi != null ? '${roi >= 0 ? "+" : ""}${roi.toStringAsFixed(2)}% ROI • RETORNO S/ MARGEN' : '— ROI • RETORNO S/ MARGEN', style: TextStyle(color: isPositive ? AppColors.winGreen : AppColors.lossRed, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -143,23 +115,23 @@ class MobileTradeDetail extends StatelessWidget {
               children: [
                 Expanded(child: _buildInfoCard('MONTO INVERTIDO', notional != null ? '\$${notional.toStringAsFixed(2)} USDT' : '—', 'Margen: ${margin != null ? '\$${margin.toStringAsFixed(2)}' : '—'}')),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('APALANCAMIENTO', '${trade['leverage'] != null ? "${trade['leverage']}x" : "—"} ${trade['marginMode']?.toString().toUpperCase() ?? 'CROSS'}', 'Modo Cobertura Activo', isGreenSub: true)),
+                Expanded(child: _buildInfoCard('APALANCAMIENTO', '${trade['leverage'] != null ? "${trade['leverage']}x" : "—"} ${trade['marginMode']?.toString().toUpperCase() ?? '—'}', '')),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _buildInfoCard('PRECIO ENTRADA', '\$${fmtPrice(trade['entryPrice'])}', 'Base Ejecución L2')),
+                Expanded(child: _buildInfoCard('PRECIO ENTRADA', '\$${fmtPrice(trade['entryPrice'])}', '')),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('MARK PRICE', '\$${fmtPrice(trade['markPrice'] ?? trade['exitPrice'])}', 'Delta: \$0.00', showDot: true)),
+                Expanded(child: _buildInfoCard('MARK PRICE', '\$${fmtPrice(trade['markPrice'] ?? trade['exitPrice'])}', '', showDot: true)),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _buildInfoCard('STOP LOSS', '\$${fmtPrice(trade['stopLoss'])}', 'Garantía Dinámica', topBadge: '-2.9%', isRed: true)),
+                Expanded(child: _buildInfoCard('STOP LOSS', '\$${fmtPrice(trade['stopLoss'])}', 'Garantía Dinámica', isRed: true)),
                 const SizedBox(width: 16),
-                Expanded(child: _buildInfoCard('TAKE PROFIT', '\$${fmtPrice(trade['takeProfit'])}', 'Objetivo Algorítmico', topBadge: '+5.8%', isGreenSub: true)),
+                Expanded(child: _buildInfoCard('TAKE PROFIT', '\$${fmtPrice(trade['takeProfit'])}', 'Objetivo Algorítmico', isGreenSub: true)),
               ],
             ),
             const SizedBox(height: 24),
@@ -188,32 +160,6 @@ class MobileTradeDetail extends StatelessWidget {
                   ],
                 ),
                 Text('\$${trade['liquidationPrice'] ?? '-'} USDT', style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 32),
-            if (!isClosed) SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.block, color: AppColors.lossRed, size: 18),
-                label: const Text('Cerrar Posición Manualmente', style: TextStyle(color: AppColors.lossRed, fontSize: 14, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.lossRed.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(color: AppColors.lossRed.withValues(alpha: 0.3)),
-                  )
-                ),
-              ),
-            ),
-            if (!isClosed) const SizedBox(height: 12),
-            if (!isClosed) Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.lock_outline, color: AppColors.textSecondary, size: 12),
-                const SizedBox(width: 6),
-                const Text('Ejecución inmediata a precio de mercado L2 con protección slippage', style: TextStyle(color: AppColors.textSecondary, fontSize: 9)),
               ],
             ),
             const SizedBox(height: 32),
@@ -249,13 +195,15 @@ class MobileTradeDetail extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(val, style: TextStyle(color: isRed ? AppColors.lossRed : AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              if (isGreenSub) Container(width: 4, height: 4, margin: const EdgeInsets.only(right: 4), decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-              Text(sub, style: TextStyle(color: isGreenSub ? AppColors.winGreen : AppColors.textSecondary, fontSize: 10)),
-            ],
-          )
+          if (sub.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (isGreenSub) Container(width: 4, height: 4, margin: const EdgeInsets.only(right: 4), decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
+                Text(sub, style: TextStyle(color: isGreenSub ? AppColors.winGreen : AppColors.textSecondary, fontSize: 10)),
+              ],
+            ),
+          ],
         ],
       ),
     );

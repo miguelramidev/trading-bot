@@ -11,7 +11,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_toast.dart';
 import '../../core/utils/execute_result.dart';
-import 'package:fl_chart/fl_chart.dart';
+import '../../core/utils/symbol_formatter.dart';
+import '../../core/utils/text_sanitizer.dart';
 
 class DesktopSignalDetail extends StatefulWidget {
   final Map<String, dynamic> signal;
@@ -73,7 +74,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         elevation: 0,
-        title: Text('${widget.signal['symbol']} - Terminal Cuantitativa L2', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 16)),
+        title: Text('${fmtSymbol(widget.signal['symbol'])} - Terminal Cuantitativa', style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 16)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
           onPressed: () { if (context.canPop()) context.pop(); else context.go('/dashboard'); },
@@ -114,9 +115,9 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _buildCandleMiniChart('${widget.signal['symbol'] ?? 'SOL'} (4H)', macro4hCandles)),
+                      Expanded(child: _buildCandleMiniChart('${fmtSymbol(widget.signal['symbol'] ?? 'SOL')} (4H)', macro4hCandles)),
                       const SizedBox(width: 16),
-                      Expanded(child: _buildCandleMiniChart('${widget.signal['symbol'] ?? 'SOL'} (1D)', macro1dCandles)),
+                      Expanded(child: _buildCandleMiniChart('${fmtSymbol(widget.signal['symbol'] ?? 'SOL')} (1D)', macro1dCandles)),
                       const SizedBox(width: 16),
                       Expanded(child: _buildCandleMiniChart('BTC/USDT (1D)', btc1dCandles)),
                     ],
@@ -143,7 +144,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
     final isLong = dir.toUpperCase() == 'LONG';
     return Row(
       children: [
-        Text(widget.signal['symbol'] ?? 'SOL/USDT', style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold)),
+        Text(fmtSymbol(widget.signal['symbol'] ?? 'SOL/USDT'), style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold)),
         const SizedBox(width: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -185,47 +186,6 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                     secondaryState: SecondaryState.NONE,
                   ),
                 ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniChart(String title, String value, Color color) {
-    return Container(
-      height: 120,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-              Text(value, style: AppTheme.monoStyle.copyWith(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const Spacer(),
-          SizedBox(
-            height: 40,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(show: false),
-                titlesData: FlTitlesData(show: false),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: const [FlSpot(0, 1), FlSpot(1, 1.5), FlSpot(2, 1.4), FlSpot(3, 2), FlSpot(4, 2.2)],
-                    isCurved: true,
-                    color: color,
-                    barWidth: 2,
-                    dotData: FlDotData(show: false),
-                    belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
-                  ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
@@ -333,7 +293,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
               const Divider(color: AppColors.border, height: 32),
               const Text('RAZÓN / DETALLES DE LA SEÑAL', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 1)),
               const SizedBox(height: 8),
-              Text(widget.signal['reason'] ?? 'Operación algorítmica detectada bajo parámetros institucionales (Tendencia de BTC: ${widget.signal['btcRegime'] ?? 'N/A'}).', style: const TextStyle(color: AppColors.textSecondary, height: 1.5)),
+              Text(widget.signal['reason'] != null ? stripHtml(widget.signal['reason']) : 'Operación algorítmica detectada bajo parámetros institucionales (Tendencia de BTC: ${widget.signal['btcRegime'] ?? 'N/A'}).', style: const TextStyle(color: AppColors.textSecondary, height: 1.5)),
             ],
           ),
         ),

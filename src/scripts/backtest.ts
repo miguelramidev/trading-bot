@@ -63,6 +63,13 @@ const exchange = new (ccxt as any).binance({
 const TAKER_FEE = 0.0005;
 const ROUND_TRIP_FEE = TAKER_FEE * 2;
 
+// Guardrail contra datos corruptos: si el precio de entrada simulado difiere más de este
+// % del precio original de la señal, se descarta en vez de simularse. Encontrado con la
+// señal 99 (AIN/USDT): un ticker relistado en Binance a otra escala de precio hace que
+// los klines públicos de "hoy" no correspondan al activo que generó la señal en su momento
+// (82.9% de diferencia, imposible en una sola vela de 15m).
+const ENTRY_MISMATCH_GUARDRAIL_PCT = 20;
+
 function parseTimeframeMs(tf: string): number {
   const m = tf.match(/^(\d+)([mhd])$/);
   if (!m) throw new Error(`Timeframe no soportado: ${tf}`);
@@ -79,13 +86,17 @@ interface SignalRow {
   timeframe: string;
   evaluated_at: string;
   direction: "LONG" | "SHORT";
+  entry: string | null;
   stopLoss: string | null;
   takeProfit: string | null;
   grid_sl: string | null;
   grid_tp: string | null;
   decision: string | null;
   realized_pnl: string | null;
+  executed_entry_price: string | null;
 }
+
+type EntryMethod = "next_open" | "executed_price";
 
 interface BacktestResult {
   signal_id: number;
@@ -94,7 +105,7 @@ interface BacktestResult {
   entry_price: number;
   sl_used: number;
   tp_used: number;
-  first_touch: "SL" | "TP" | "NONE" | "NO_DATA";
+  first_touch: "SL" | "TP" | "NONE" | "NO_DATA" | "ENTRY_MISMATCH";
   ambiguous: boolean; // SL y TP tocados en la misma vela
   time_to_close_minutes: number | null;
   candles_scanned: number;
@@ -106,6 +117,7 @@ interface BacktestResult {
   real_first_touch: "SL" | "TP" | null;
   real_realized_pnl: number | null;
   match: boolean | null; // solo en modo validate
+  entry_method: EntryMethod;
 }
 
 function extractRealFirstTouch(decision: string | null): "SL" | "TP" | null {
@@ -120,7 +132,7 @@ async function fetchCandles(symbol: string, timeframe: string, sinceMs: number, 
   return exchange.fetchOHLCV(symbol, timeframe, sinceMs, limit);
 }
 
-async function simulateSignal(row: SignalRow, horizonMs: number): Promise<BacktestResult> {
+async function simulateSignal(row: SignalRow, horizonMs: number, entryMethod: EntryMethod): Promise<BacktestResult> {
   const direction = row.direction;
   const sl = parseFloat(row.grid_sl || row.stopLoss || "0");
   const tp = parseFloat(row.grid_tp || row.takeProfit || "0");
@@ -138,6 +150,7 @@ async function simulateSignal(row: SignalRow, horizonMs: number): Promise<Backte
     real_first_touch: extractRealFirstTouch(row.decision),
     real_realized_pnl: row.realized_pnl ? parseFloat(row.realized_pnl) : null,
     match: null,
+    entry_method: entryMethod,
   };
 
   let candles: number[][];
@@ -149,14 +162,42 @@ async function simulateSignal(row: SignalRow, horizonMs: number): Promise<Backte
   }
 
   // Sin look-ahead: la primera vela ELEGIBLE es la que abre estrictamente
-  // después de evaluated_at. La entrada se simula al open de esa vela.
+  // después de evaluated_at.
   const forward = candles.filter((c) => c[0] > evaluatedAtMs);
   if (forward.length === 0) {
     return { ...base, first_touch: "NO_DATA", entry_price: NaN, candles_scanned: 0, ambiguous: false, time_to_close_minutes: null, mfe_pct: null, mae_pct: null, gross_return_pct: null, net_return_pct_est: null };
   }
 
-  const entryCandle = forward[0];
-  const entryPrice = entryCandle[1]; // open
+  let entryIdx = 0;
+  let entryPrice: number;
+
+  if (entryMethod === "executed_price" && row.executed_entry_price) {
+    // Estima la hora real de entrada: primera vela donde el rango [low, high]
+    // contiene executed_entry_price (el precio real de fill en Binance).
+    const target = parseFloat(row.executed_entry_price);
+    const idx = forward.findIndex((c) => c[3] <= target && target <= c[2]); // low <= target <= high
+    if (idx === -1) {
+      // El precio de fill real no aparece en ninguna vela pública del rango
+      // (o el horizonte quedó corto): no se puede estimar, se descarta.
+      return { ...base, first_touch: "NO_DATA", entry_price: NaN, candles_scanned: 0, ambiguous: false, time_to_close_minutes: null, mfe_pct: null, mae_pct: null, gross_return_pct: null, net_return_pct_est: null };
+    }
+    entryIdx = idx;
+    entryPrice = target; // anclado al fill real, no al open de la vela
+  } else {
+    entryPrice = forward[0][1]; // open de la vela siguiente a evaluated_at
+  }
+
+  // Guardrail: descarta señales donde la entrada simulada implica un salto de precio
+  // imposible respecto al precio original de la señal (colisión de ticker / dato corrupto).
+  const signalEntry = row.entry ? parseFloat(row.entry) : NaN;
+  if (isFinite(signalEntry) && signalEntry > 0) {
+    const mismatchPct = (Math.abs(entryPrice - signalEntry) / signalEntry) * 100;
+    if (mismatchPct > ENTRY_MISMATCH_GUARDRAIL_PCT) {
+      return { ...base, first_touch: "ENTRY_MISMATCH", entry_price: entryPrice, candles_scanned: 0, ambiguous: false, time_to_close_minutes: null, mfe_pct: null, mae_pct: null, gross_return_pct: null, net_return_pct_est: null };
+    }
+  }
+
+  const entryCandle = forward[entryIdx];
   const entryTimeMs = entryCandle[0];
 
   let maxHigh = -Infinity;
@@ -165,7 +206,7 @@ async function simulateSignal(row: SignalRow, horizonMs: number): Promise<Backte
   let ambiguous = false;
   let closeCandleIdx = -1;
 
-  for (let i = 0; i < forward.length; i++) {
+  for (let i = entryIdx; i < forward.length; i++) {
     const [ts, , high, low] = forward[i];
     if (ts - entryTimeMs > horizonMs) break;
     maxHigh = Math.max(maxHigh, high);
@@ -197,7 +238,10 @@ async function simulateSignal(row: SignalRow, horizonMs: number): Promise<Backte
     }
   }
 
-  const scannedCount = closeCandleIdx >= 0 ? closeCandleIdx + 1 : forward.filter((c) => c[0] - entryTimeMs <= horizonMs).length;
+  const scannedCount =
+    closeCandleIdx >= 0
+      ? closeCandleIdx - entryIdx + 1
+      : forward.slice(entryIdx).filter((c) => c[0] - entryTimeMs <= horizonMs).length;
 
   let timeToCloseMinutes: number | null = null;
   let exitPrice: number | null = null;
@@ -241,16 +285,21 @@ async function main() {
   const mode = (args.find((a) => a.startsWith("--mode="))?.split("=")[1] || "validate") as "validate" | "full";
   const horizonHours = parseInt(args.find((a) => a.startsWith("--horizon-hours="))?.split("=")[1] || "168", 10);
   const horizonMs = horizonHours * 60 * 60_000;
+  // "next_open": entra al open de la vela siguiente a evaluated_at (sin look-ahead, default).
+  // "executed_price": ancla la entrada a la primera vela donde el precio alcanzó
+  // executed_entry_price (el fill real en Binance) — solo tiene sentido en modo validate,
+  // porque es el único conjunto con ese dato.
+  const entryMethod = (args.find((a) => a.startsWith("--entry="))?.split("=")[1] || "next_open") as EntryMethod;
 
-  console.log(`Backtest en modo "${mode}", horizonte ${horizonHours}h. Fuente: klines públicos de Binance Futures (sin claves).`);
+  console.log(`Backtest en modo "${mode}", horizonte ${horizonHours}h, entrada "${entryMethod}". Fuente: klines públicos de Binance Futures (sin claves).`);
 
   const query =
     mode === "validate"
-      ? `SELECT id, symbol, timeframe, evaluated_at, direction, "stopLoss", "takeProfit", grid_sl, grid_tp, decision, realized_pnl
+      ? `SELECT id, symbol, timeframe, evaluated_at, direction, entry, "stopLoss", "takeProfit", grid_sl, grid_tp, decision, realized_pnl, executed_entry_price
          FROM signal_history
          WHERE decision LIKE 'Tomada%' AND realized_pnl IS NOT NULL
          ORDER BY evaluated_at ASC;`
-      : `SELECT id, symbol, timeframe, evaluated_at, direction, "stopLoss", "takeProfit", grid_sl, grid_tp, decision, realized_pnl
+      : `SELECT id, symbol, timeframe, evaluated_at, direction, entry, "stopLoss", "takeProfit", grid_sl, grid_tp, decision, realized_pnl, executed_entry_price
          FROM signal_history
          ORDER BY evaluated_at ASC;`;
 
@@ -262,7 +311,7 @@ async function main() {
   for (const row of rows) {
     i++;
     process.stdout.write(`\r  Simulando ${i}/${rows.length} (${row.symbol})...`);
-    const r = await simulateSignal(row, horizonMs);
+    const r = await simulateSignal(row, horizonMs, entryMethod);
     results.push(r);
   }
   console.log("");
@@ -273,9 +322,17 @@ async function main() {
   writeFileSync(outPath, JSON.stringify(results, null, 2));
   console.log(`Resultados guardados en ${outPath}`);
 
+  const entryMismatchCount = results.filter((r) => r.first_touch === "ENTRY_MISMATCH").length;
+  if (entryMismatchCount > 0) {
+    console.log(`\n[GUARDRAIL] ${entryMismatchCount} señal(es) excluida(s) por diferencia de entrada > ${ENTRY_MISMATCH_GUARDRAIL_PCT}% (posible colisión de ticker / dato corrupto):`);
+    for (const r of results.filter((r) => r.first_touch === "ENTRY_MISMATCH")) {
+      console.log(`  señal ${r.signal_id} (${r.symbol})`);
+    }
+  }
+
   if (mode === "validate") {
     const withRealTouch = results.filter((r) => r.real_first_touch !== null);
-    const withData = withRealTouch.filter((r) => r.first_touch !== "NO_DATA");
+    const withData = withRealTouch.filter((r) => r.first_touch !== "NO_DATA" && r.first_touch !== "ENTRY_MISMATCH");
     const noData = withRealTouch.length - withData.length;
     const matches = withData.filter((r) => r.match === true).length;
     const mismatches = withData.filter((r) => r.match === false);
@@ -284,7 +341,7 @@ async function main() {
 
     console.log("\n=== VALIDACIÓN (66 trades reales) ===");
     console.log(`Total con resultado real conocido: ${withRealTouch.length}`);
-    console.log(`Sin datos de velas (NO_DATA, excluidos de la tasa): ${noData}`);
+    console.log(`Sin datos de velas o excluidos por guardrail (NO_DATA/ENTRY_MISMATCH): ${noData}`);
     console.log(`Coincidencias (first_touch simulado == real): ${matches}/${withData.length} (${((matches / withData.length) * 100).toFixed(1)}%)`);
     console.log(`Velas ambiguas (SL y TP en la misma vela): ${ambiguousCount}`);
     console.log(`Simulación nunca tocó SL/TP dentro del horizonte: ${noneCount}`);

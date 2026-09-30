@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Detalle de señal — celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0E1116}
+a{color:#8CC2FF}a:hover{color:#B8D9FF}
+</style>
+</helmet>
+<div style="width: 390px; height: 1540px; display: flex; flex-direction: column; background: #0E1116; color: #E6EAF0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; box-sizing: border-box">
+
+<header style="flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #1E252E">
+<a href="Mobile.dc.html" aria-label="Volver a Inicio" style="width: 44px; height: 44px; border-radius: 10px; border: 1px solid #262E39; color: #E6EAF0; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+</a>
+<div style="display: flex; flex-direction: column; gap: 3px">
+<div style="display: flex; align-items: center; gap: 8px">
+<h1 style="margin: 0; font-size: 20px; font-weight: 700">ENA</h1>
+<span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px; color: #3FD089; background: rgba(63, 208, 137, 0.12)">LONG</span>
+</div>
+<span style="font-size: 12px; color: #9AA4B2">Tendencial · vence en 57 min · datos 14:32</span>
+</div>
+</header>
+
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; box-sizing: border-box">
+
+<section aria-label="Precio" style="display: flex; align-items: flex-end; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; color: #9AA4B2">Último precio</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600">0.61270</span>
+</div>
+<span style="font-size: 12px; color: #C9D1DB; text-align: right">+0.1% desde la señal<br>5% del camino</span>
+</section>
+
+<section aria-label="Si operás ahora" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700">Si operás ahora</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="padding: 12px; border-radius: 10px; background: rgba(255, 107, 97, 0.08); display: flex; flex-direction: column; gap: 3px">
+<span style="font-size: 12px; color: #FF8A80">Si toca el stop</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: #FF8A80">−$0.42</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9AA4B2">0.60537 · −1.10%</span>
+</div>
+<div style="padding: 12px; border-radius: 10px; background: rgba(63, 208, 137, 0.08); display: flex; flex-direction: column; gap: 3px">
+<span style="font-size: 12px; color: #3FD089">Si toca el objetivo</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: #3FD089">+$0.74</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9AA4B2">0.62557 · +2.20%</span>
+</div>
+</div>
+<div style="font-size: 12px; color: #9AA4B2">Margen $35.00 · x1 · nocional $35.00 · riesgo : premio 1 : 2.0 · con comisión estimada</div>
+</section>
+
+<section aria-label="Gráfico" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 12px">
+<div role="tablist" aria-label="Temporalidad" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 10px; background: #0E1116">
+<button role="tab" aria-selected="true" style="height: 36px; border-radius: 8px; border: none; background: #262E39; color: #E6EAF0; font-family: inherit; font-size: 13px; font-weight: 600">15m</button>
+<button role="tab" aria-selected="false" style="height: 36px; border-radius: 8px; border: none; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 13px">4h</button>
+<button role="tab" aria-selected="false" style="height: 36px; border-radius: 8px; border: none; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 13px">1d</button>
+<button role="tab" aria-selected="false" style="height: 36px; border-radius: 8px; border: none; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 13px">BTC</button>
+</div>
+<div style="position: relative; height: 260px; width: 100%; border-radius: 10px; background: #11151B; overflow: hidden">
+<sc-for list="{{candles}}" as="k" hint-placeholder-count="30">
+<div style="position: absolute; left: {{k.wickLeft}}px; top: {{k.wickTop}}px; width: 1px; height: {{k.wickH}}px; background: {{k.color}}"></div>
+<div style="position: absolute; left: {{k.bodyLeft}}px; top: {{k.bodyTop}}px; width: 7px; height: {{k.bodyH}}px; border-radius: 1px; background: {{k.color}}"></div>
+</sc-for>
+<div style="position: absolute; left: 0; right: 0; top: {{lines.tp}}px; border-top: 1px dashed #3FD089"></div>
+<div style="position: absolute; right: 6px; top: {{lines.tpLabel}}px; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 5px; border-radius: 4px; background: #3FD089; color: #0B1220">TP</div>
+<div style="position: absolute; left: 0; right: 0; top: {{lines.entry}}px; border-top: 1px dashed #C9D1DB"></div>
+<div style="position: absolute; right: 6px; top: {{lines.entryLabel}}px; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 5px; border-radius: 4px; background: #C9D1DB; color: #0B1220">Señal</div>
+<div style="position: absolute; left: 0; right: 0; top: {{lines.sl}}px; border-top: 1px dashed #FF8A80"></div>
+<div style="position: absolute; right: 6px; top: {{lines.slLabel}}px; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 5px; border-radius: 4px; background: #FF8A80; color: #0B1220">SL</div>
+</div>
+</section>
+
+<section aria-label="Contexto" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700">Contexto de la señal</h2>
+<sc-for list="{{context}}" as="c" hint-placeholder-count="6">
+<div style="display: flex; justify-content: space-between; font-size: 14px"><span style="color: #9AA4B2">{{c.k}}</span><span style="font-family: 'JetBrains Mono', monospace; color: {{c.color}}">{{c.v}}</span></div>
+</sc-for>
+</section>
+
+<sc-if value="{{noMargin}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; gap: 10px; padding: 12px; border-radius: 10px; background: rgba(242, 180, 65, 0.1); color: #F2B441; font-size: 13px; line-height: 1.45">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px"><path d="M12 3l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+<span>Disponible $5.16: no alcanza para el margen de $35.00.</span>
+</div>
+</sc-if>
+
+</main>
+
+<div style="flex-shrink: 0; display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; padding: 12px 16px 20px; border-top: 1px solid #1E252E; background: #11151B">
+<button style="height: 52px; border-radius: 12px; border: 1px solid #262E39; background: transparent; color: #E6EAF0; font-family: inherit; font-size: 15px; font-weight: 600">Descartar</button>
+<sc-if value="{{canTrade}}" hint-placeholder-val="{{ true }}">
+<button style="height: 52px; border-radius: 12px; border: none; background: {{accent}}; color: #0B1220; font-family: inherit; font-size: 15px; font-weight: 700">Operar LONG</button>
+</sc-if>
+<sc-if value="{{noMargin}}" hint-placeholder-val="{{ false }}">
+<button disabled style="height: 52px; border-radius: 12px; border: 1px solid #262E39; background: #1B222B; color: #7A8594; font-family: inherit; font-size: 15px; font-weight: 600">Sin margen</button>
+</sc-if>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#4C9AFF","options":["#4C9AFF","#7AA2F7","#3FD089"]},"margenOk":{"editor":"boolean","default":true},"$preview":{"width":390,"height":1540}}'>
+class Component extends DCLogic {
+  buildCandles(n, step, bodyW, H, minP, maxP) {
+    const y = (p) => Math.round(((maxP - p) / (maxP - minP)) * H);
+    const out = [];
+    let prev = 0.6068;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const close = 0.6062 + 0.0065 * t + 0.0011 * Math.sin(i * 1.3) + 0.0005 * Math.sin(i * 2.9);
+      const open = prev;
+      const pad = 0.0003 + 0.0004 * Math.abs(Math.sin(i * 1.7));
+      const high = Math.max(open, close) + pad;
+      const low = Math.min(open, close) - pad;
+      const left = 6 + i * step;
+      out.push({
+        wickLeft: left + Math.floor(bodyW / 2),
+        wickTop: y(high),
+        wickH: Math.max(1, y(low) - y(high)),
+        bodyLeft: left,
+        bodyTop: y(Math.max(open, close)),
+        bodyH: Math.max(2, y(Math.min(open, close)) - y(Math.max(open, close))),
+        color: close >= open ? '#3FD089' : '#FF6B61'
+      });
+      prev = close;
+    }
+    return { out, y };
+  }
+  renderVals() {
+    const canTrade = this.props.margenOk ?? true;
+    const minP = 0.6035, maxP = 0.6275, H = 260;
+    const { out, y } = this.buildCandles(30, 11, 7, H, minP, maxP);
+    return {
+      accent: this.props.accent ?? '#4C9AFF',
+      canTrade: canTrade,
+      noMargin: !canTrade,
+      candles: out,
+      lines: {
+        tp: y(0.62557), tpLabel: y(0.62557) - 9,
+        entry: y(0.61210), entryLabel: y(0.61210) - 9,
+        sl: y(0.60537), slLabel: y(0.60537) - 9
+      },
+      context: [
+        { k: 'Régimen de BTC', v: 'Rango', color: '#E6EAF0' },
+        { k: 'Tendencia 4h', v: 'Alcista', color: '#3FD089' },
+        { k: 'Funding', v: '+0.0042%', color: '#E6EAF0' },
+        { k: 'Correlación BTC', v: '6.2%', color: '#E6EAF0' },
+        { k: 'RSI (15m)', v: '58', color: '#E6EAF0' },
+        { k: 'ADX (15m)', v: '24', color: '#E6EAF0' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

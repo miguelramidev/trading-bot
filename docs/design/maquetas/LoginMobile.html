@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Ingreso — celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0E1116}
+a{color:#8CC2FF}a:hover{color:#B8D9FF}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; background: #0E1116; color: #E6EAF0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; box-sizing: border-box; padding: 0 24px 36px">
+
+<div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center">
+<div style="width: 64px; height: 64px; border-radius: 18px; background: #1B222B; border: 1px solid #262E39; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 22px; color: {{accent}}">MQ</div>
+<h1 style="margin: 0; font-size: 26px; font-weight: 700">MacroQuant</h1>
+<sc-if value="{{isStart}}" hint-placeholder-val="{{ true }}">
+<p style="margin: 0; font-size: 15px; line-height: 1.55; color: #9AA4B2">Tus señales, tus posiciones y tu historial de Binance Futures en un solo lugar.</p>
+</sc-if>
+<sc-if value="{{isBio}}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; font-size: 15px; line-height: 1.55; color: #9AA4B2">Hola de nuevo, Miguel.<br>Desbloqueá para ver tus posiciones.</p>
+</sc-if>
+<sc-if value="{{isDenied}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: rgba(242, 180, 65, 0.1); color: #F2B441; font-size: 14px; line-height: 1.5; text-align: left">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+<span>La cuenta miguel@ejemplo.com no tiene acceso a esta app.</span>
+</div>
+</sc-if>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<sc-if value="{{isStart}}" hint-placeholder-val="{{ true }}">
+<button style="width: 100%; height: 54px; border-radius: 14px; border: none; background: #F1F3F6; color: #0B1220; font-family: inherit; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 12px">
+<span style="width: 20px; height: 20px; border-radius: 4px; border: 1.5px dashed #7A8594; box-sizing: border-box"></span>Continuar con Google</button>
+</sc-if>
+<sc-if value="{{isBio}}" hint-placeholder-val="{{ false }}">
+<button style="width: 100%; height: 54px; border-radius: 14px; border: none; background: {{accent}}; color: #0B1220; font-family: inherit; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4a6 6 0 0 0-6 6v2"></path><path d="M18 12v-2a6 6 0 0 0-3-5.2"></path><path d="M9 12a3 3 0 0 1 6 0c0 3-1 5-2 7"></path><path d="M6 15c0 2 .5 3.5 1.5 5"></path><path d="M12 12c0 3-.5 5-1.5 7"></path></svg>Desbloquear</button>
+<button style="width: 100%; height: 48px; border-radius: 14px; border: 1px solid #262E39; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 15px">Usar otra cuenta</button>
+</sc-if>
+<sc-if value="{{isDenied}}" hint-placeholder-val="{{ false }}">
+<button style="width: 100%; height: 54px; border-radius: 14px; border: 1px solid #262E39; background: transparent; color: #E6EAF0; font-family: inherit; font-size: 16px; font-weight: 600">Usar otra cuenta de Google</button>
+</sc-if>
+<p style="margin: 4px 0 0; font-size: 12px; color: #7A8594; text-align: center">El acceso está limitado a cuentas autorizadas.</p>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"estado":{"editor":"enum","options":["inicio","biometría","sin acceso"],"default":"biometría"},"accent":{"editor":"color","default":"#4C9AFF","options":["#4C9AFF","#7AA2F7","#3FD089"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const estado = this.props.estado ?? 'biometría';
+    return {
+      accent: this.props.accent ?? '#4C9AFF',
+      isStart: estado === 'inicio',
+      isBio: estado === 'biometría',
+      isDenied: estado === 'sin acceso'
+    };
+  }
+}
+</script>
+</body>
+</html>

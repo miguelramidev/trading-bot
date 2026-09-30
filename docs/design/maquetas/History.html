@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Historial — escritorio</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0E1116}
+a{color:#8CC2FF}a:hover{color:#B8D9FF}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1120px; display: flex; background: #0E1116; color: #E6EAF0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; box-sizing: border-box">
+
+<nav aria-label="Navegación principal" style="width: 76px; flex-shrink: 0; border-right: 1px solid #1E252E; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 24px; box-sizing: border-box">
+<div style="width: 36px; height: 36px; border-radius: 10px; background: #1B222B; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 14px; color: {{accent}}">MQ</div>
+<button aria-label="Inicio" style="width: 48px; height: 48px; border-radius: 12px; border: none; background: transparent; color: #9AA4B2; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>
+</button>
+<button aria-label="Historial" style="width: 48px; height: 48px; border-radius: 12px; border: none; background: #1B222B; color: #E6EAF0; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>
+</button>
+<button aria-label="Configuración" style="width: 48px; height: 48px; border-radius: 12px; border: none; background: transparent; color: #9AA4B2; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h4"></path><path d="M12 17h8"></path><circle cx="10" cy="17" r="2"></circle></svg>
+</button>
+</nav>
+
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 24px; padding: 28px 40px 40px; box-sizing: border-box; min-width: 0">
+
+<header style="display: flex; align-items: center; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700">Historial</h1>
+<div style="font-size: 13px; color: #9AA4B2">Operaciones ejecutadas y señales descartadas</div>
+</div>
+<div role="group" aria-label="Período" style="display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: #151A21; border: 1px solid #262E39">
+<button style="height: 32px; padding: 0 12px; border-radius: 8px; border: none; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 13px">7 días</button>
+<button style="height: 32px; padding: 0 12px; border-radius: 8px; border: none; background: #262E39; color: #E6EAF0; font-family: inherit; font-size: 13px; font-weight: 600">30 días</button>
+<button style="height: 32px; padding: 0 12px; border-radius: 8px; border: none; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 13px">Todo</button>
+</div>
+</header>
+
+<section aria-label="Resumen" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #9AA4B2">Operaciones cerradas</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600">48</span>
+<span style="font-size: 12px; color: #9AA4B2">de 181 señales en el período</span>
+</div>
+<div style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #9AA4B2">Aciertos</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600">31.3%</span>
+<span style="font-size: 12px; color: #9AA4B2">15 objetivos · 33 stops</span>
+</div>
+<div style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #9AA4B2">PnL neto</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600; color: #FF8A80">−$0.32</span>
+<span style="font-size: 12px; color: #9AA4B2">con comisiones · sin funding</span>
+</div>
+<div style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #9AA4B2">Profit factor</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600; color: #F2B441">0.98</span>
+<span style="font-size: 12px; color: #9AA4B2">menor a 1: las pérdidas superan las ganancias</span>
+</div>
+</section>
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px">
+<div role="group" aria-label="Filtro por tipo" style="display: flex; gap: 8px">
+<button style="height: 38px; padding: 0 16px; border-radius: 999px; border: 1px solid #3A4553; background: #1B222B; color: #E6EAF0; font-family: inherit; font-size: 14px; font-weight: 600">Todas</button>
+<button style="height: 38px; padding: 0 16px; border-radius: 999px; border: 1px solid #262E39; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 14px">Ejecutadas</button>
+<button style="height: 38px; padding: 0 16px; border-radius: 999px; border: 1px solid #262E39; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 14px">Descartadas</button>
+</div>
+<div style="display: flex; gap: 10px">
+<label style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #262E39; background: #151A21; color: #9AA4B2; font-size: 14px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4-4"></path></svg>
+<input type="text" placeholder="Buscar activo" aria-label="Buscar activo" style="border: none; background: transparent; color: #E6EAF0; font-family: inherit; font-size: 14px; width: 150px; outline: none">
+</label>
+<button style="height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid #262E39; background: #151A21; color: #E6EAF0; font-family: inherit; font-size: 14px">Estrategia: todas</button>
+</div>
+</div>
+
+<section aria-label="Operaciones" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; overflow: hidden">
+<div style="display: grid; grid-template-columns: 120px 120px 80px 140px minmax(0, 1fr) 150px 100px 100px; gap: 16px; padding: 12px 24px; font-size: 12px; color: #9AA4B2; border-bottom: 1px solid #262E39; background: #121820">
+<span>Fecha</span><span>Activo</span><span>Lado</span><span>Estrategia</span><span>Entrada → salida</span><span>Resultado</span><span style="text-align: right">PnL</span><span style="text-align: right">% s/ margen</span>
+</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+<a href="PositionDetail.dc.html" style="display: grid; grid-template-columns: 120px 120px 80px 140px minmax(0, 1fr) 150px 100px 100px; gap: 16px; align-items: center; padding: 13px 24px; border-bottom: 1px solid #1E252E; color: #E6EAF0; text-decoration: none; font-size: 14px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9AA4B2">{{r.time}}</span>
+<span style="font-weight: 600">{{r.sym}}</span>
+<span style="font-size: 12px; font-weight: 600; color: {{r.dirColor}}">{{r.dir}}</span>
+<span style="color: #9AA4B2">{{r.strat}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">{{r.prices}}</span>
+<span style="display: flex; flex-direction: column; gap: 3px; align-items: flex-start">
+<span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: {{r.stColor}}; background: {{r.stBg}}">{{r.status}}</span>
+<span style="font-size: 11px; color: #7A8594">{{r.sim}}</span>
+</span>
+<span style="text-align: right; font-family: 'JetBrains Mono', monospace; color: {{r.resColor}}">{{r.pnl}}</span>
+<span style="text-align: right; font-family: 'JetBrains Mono', monospace; color: {{r.resColor}}">{{r.roi}}</span>
+</a>
+</sc-for>
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; font-size: 13px; color: #9AA4B2">
+<span>Mostrando 1–10 de 181</span>
+<div style="display: flex; align-items: center; gap: 8px">
+<button aria-label="Página anterior" style="width: 36px; height: 36px; border-radius: 8px; border: 1px solid #262E39; background: transparent; color: #7A8594; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></button>
+<span style="font-family: 'JetBrains Mono', monospace; color: #E6EAF0">1 / 19</span>
+<button aria-label="Página siguiente" style="width: 36px; height: 36px; border-radius: 8px; border: 1px solid #262E39; background: transparent; color: #E6EAF0; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></button>
+</div>
+</div>
+</section>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#4C9AFF","options":["#4C9AFF","#7AA2F7","#3FD089"]},"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const L = '#3FD089', S = '#FF8A80';
+    const tp = { stColor: '#3FD089', stBg: 'rgba(63, 208, 137, 0.12)', resColor: '#3FD089' };
+    const sl = { stColor: '#FF8A80', stBg: 'rgba(255, 107, 97, 0.12)', resColor: '#FF8A80' };
+    const off = { stColor: '#9AA4B2', stBg: '#1B222B', resColor: '#7A8594' };
+    return {
+      accent: this.props.accent ?? '#4C9AFF',
+      rows: [
+        { time: '29/09 22:31', sym: 'MOVR', dir: 'LONG', dirColor: L, strat: 'Tendencial', prices: '1.28130 → —', status: 'Descartada', sim: 'simulado: stop', ...off, pnl: '—', roi: '—' },
+        { time: '29/09 22:31', sym: 'CELO', dir: 'LONG', dirColor: L, strat: 'Tendencial', prices: '0.09952 → 0.09943', status: 'Stop tocado', sim: '', ...sl, pnl: '−$0.07', roi: '−0.20%' },
+        { time: '29/09 22:16', sym: 'SKY', dir: 'LONG', dirColor: L, strat: 'Tendencial', prices: '0.082300 → —', status: 'Descartada', sim: 'simulado: objetivo', ...off, pnl: '—', roi: '—' },
+        { time: '29/09 22:16', sym: 'ICP', dir: 'LONG', dirColor: L, strat: 'Tendencial', prices: '3.48600 → —', status: 'Descartada', sim: 'simulado: stop', ...off, pnl: '—', roi: '—' },
+        { time: '29/09 21:15', sym: 'LINK', dir: 'SHORT', dirColor: S, strat: 'Tendencial', prices: '14.423 → 14.533', status: 'Stop tocado', sim: '', ...sl, pnl: '−$0.30', roi: '−0.86%' },
+        { time: '29/09 21:15', sym: 'XRP', dir: 'SHORT', dirColor: S, strat: 'Tendencial', prices: '1.48650 → —', status: 'Descartada', sim: 'simulado: stop', ...off, pnl: '—', roi: '—' },
+        { time: '29/09 21:01', sym: '龙虾', dir: 'SHORT', dirColor: S, strat: 'Tendencial', prices: '0.06749 → 0.06645', status: 'Objetivo tocado', sim: '', ...tp, pnl: '+$0.50', roi: '+1.43%' },
+        { time: '29/09 19:31', sym: 'OP', dir: 'SHORT', dirColor: S, strat: 'Tendencial', prices: '0.12902 → 0.13036', status: 'Stop tocado', sim: '', ...sl, pnl: '−$0.40', roi: '−1.14%' },
+        { time: '29/09 19:31', sym: 'LTC', dir: 'LONG', dirColor: L, strat: 'Macro Breakout', prices: '66.98 → 66.95', status: 'Stop tocado', sim: '', ...sl, pnl: '−$0.05', roi: '−0.14%' },
+        { time: '29/09 15:45', sym: 'ETH', dir: 'LONG', dirColor: L, strat: 'Tendencial', prices: '2694.99 → 2682.64', status: 'Stop tocado', sim: '', ...sl, pnl: '−$0.18', roi: '−0.51%' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

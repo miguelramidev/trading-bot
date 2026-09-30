@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Inicio — escritorio</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0E1116}
+a{color:#8CC2FF}a:hover{color:#B8D9FF}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1300px; display: flex; background: #0E1116; color: #E6EAF0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; box-sizing: border-box">
+
+<nav aria-label="Navegación principal" style="width: 76px; flex-shrink: 0; border-right: 1px solid #1E252E; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 24px; box-sizing: border-box">
+<div style="width: 36px; height: 36px; border-radius: 10px; background: #1B222B; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 14px; color: {{accent}}">MQ</div>
+<button aria-label="Inicio" style="width: 48px; height: 48px; border-radius: 12px; border: none; background: #1B222B; color: #E6EAF0; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>
+</button>
+<button aria-label="Historial" style="width: 48px; height: 48px; border-radius: 12px; border: none; background: transparent; color: #9AA4B2; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>
+</button>
+<button aria-label="Configuración" style="width: 48px; height: 48px; border-radius: 12px; border: none; background: transparent; color: #9AA4B2; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h4"></path><path d="M12 17h8"></path><circle cx="10" cy="17" r="2"></circle></svg>
+</button>
+</nav>
+
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 28px; padding: 28px 40px 40px; box-sizing: border-box; min-width: 0">
+
+<header style="display: flex; align-items: center; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em">Inicio</h1>
+<div style="font-size: 13px; color: #9AA4B2">Datos de las 14:32 · se actualizan cada 60 s</div>
+</div>
+<div style="display: flex; align-items: center; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #151A21; border: 1px solid #262E39; font-size: 13px; color: #C9D1DB">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: #3FD089"></span>Binance conectado</div>
+<button style="height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #262E39; background: #151A21; color: #E6EAF0; font-family: inherit; font-size: 14px; display: flex; align-items: center; gap: 8px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 5v6h-6"></path></svg>Actualizar</button>
+<button aria-label="Cerrar sesión" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid #262E39; background: #151A21; color: #9AA4B2; display: flex; align-items: center; justify-content: center">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4"></path><path d="M10 8l-4 4 4 4"></path><path d="M6 12h10"></path></svg>
+</button>
+</div>
+</header>
+
+<section aria-label="Balance" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; align-items: end">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 13px; color: #9AA4B2">Balance total</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 40px; font-weight: 600; letter-spacing: -0.02em">$40.12</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 13px; color: #9AA4B2">Disponible</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 600">$5.16</div>
+<div style="font-size: 13px; color: #9AA4B2">12.9% del balance</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 13px; color: #9AA4B2">Margen en uso</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 600">$34.98</div>
+<div style="font-size: 13px; color: #9AA4B2">1 de 5 operaciones</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 13px; color: #9AA4B2">PnL no realizado</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 600; color: #3FD089">+$0.08</div>
+<div style="font-size: 13px; color: #3FD089">+0.24%</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="height: 8px; border-radius: 999px; background: #262E39; display: flex; overflow: hidden">
+<div style="width: 87.1%; background: #F2B441"></div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #F2B441">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+El disponible no alcanza para una operación nueva de $35.00. Las señales se van a rechazar hasta que se libere margen.</div>
+</div>
+</section>
+
+<section aria-label="Posiciones abiertas" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: baseline; justify-content: space-between">
+<div style="display: flex; align-items: baseline; gap: 10px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Posiciones abiertas</h2>
+<span style="font-size: 13px; color: #9AA4B2">1</span>
+</div>
+<a href="#" style="font-size: 14px; text-decoration: none">Ver historial</a>
+</div>
+<div style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 20px 24px; display: grid; grid-template-columns: 200px 200px minmax(0, 1fr) 150px 120px; gap: 28px; align-items: center">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 18px; font-weight: 700">ZAMA</span>
+<span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px; color: #3FD089; background: rgba(63, 208, 137, 0.12)">LONG</span>
+</div>
+<div style="font-size: 13px; color: #9AA4B2">Tendencial · x1 · aislado</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 14px">
+<div style="display: flex; justify-content: space-between"><span style="color: #9AA4B2; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px">Entrada</span><span>0.079680</span></div>
+<div style="display: flex; justify-content: space-between"><span style="color: #9AA4B2; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px">Último precio</span><span>0.079870</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="position: relative; height: 22px">
+<div style="position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 999px; background: #262E39"></div>
+<div style="position: absolute; left: 0; width: 28%; top: 8px; height: 6px; border-radius: 999px 0 0 999px; background: rgba(255, 107, 97, 0.35)"></div>
+<div style="position: absolute; left: 28%; right: 0; top: 8px; height: 6px; border-radius: 0 999px 999px 0; background: rgba(63, 208, 137, 0.3)"></div>
+<div style="position: absolute; left: 28%; top: 3px; width: 2px; height: 16px; background: #9AA4B2"></div>
+<div style="position: absolute; left: 33%; top: 3px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: #E6EAF0; border: 3px solid #151A21; box-sizing: border-box"></div>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 12px; font-family: 'JetBrains Mono', monospace">
+<span style="color: #FF8A80">SL 0.078670 · −1.50%</span>
+<span style="color: #3FD089">TP 0.082270 · +3.00%</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 600; color: #3FD089">+$0.08</div>
+<div style="font-size: 13px; color: #3FD089">+0.24% · margen $34.98</div>
+</div>
+<a href="#" style="height: 40px; border-radius: 10px; border: 1px solid #262E39; color: #E6EAF0; font-size: 14px; text-decoration: none; display: flex; align-items: center; justify-content: center">Detalle</a>
+</div>
+</section>
+
+<section aria-label="Señales pendientes" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: baseline; justify-content: space-between">
+<div style="display: flex; align-items: baseline; gap: 10px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Señales pendientes</h2>
+<span style="font-size: 13px; color: #9AA4B2">3 esperando decisión · vencen a los 60 min</span>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+<sc-for list="{{signals}}" as="s" hint-placeholder-count="3">
+<article style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: flex-start; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 20px; font-weight: 700">{{s.sym}}</span>
+<span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px; color: {{s.dirColor}}; background: {{s.dirBg}}">{{s.dir}}</span>
+</div>
+<div style="font-size: 13px; color: #9AA4B2">{{s.strat}}</div>
+</div>
+<div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: {{s.timerColor}}">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>{{s.expires}}</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 14px 0; border-top: 1px solid #222A34; border-bottom: 1px solid #222A34">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #9AA4B2">Entrada</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">{{s.entry}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #9AA4B2">Stop</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #FF8A80">{{s.sl}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #9AA4B2">Objetivo</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #3FD089">{{s.tp}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #9AA4B2">Riesgo : Premio</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">{{s.rr}}</span></div>
+</div>
+<div style="font-size: 13px; color: #9AA4B2">{{s.ctx}}</div>
+<sc-if value="{{s.late}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; gap: 10px; padding: 12px; border-radius: 10px; background: rgba(242, 180, 65, 0.1); color: #F2B441; font-size: 13px; line-height: 1.45">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px"><path d="M12 3l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+<span>{{s.driftText}}</span>
+</div>
+</sc-if>
+<sc-if value="{{s.onTime}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; gap: 10px; padding: 12px; border-radius: 10px; background: #1B222B; color: #C9D1DB; font-size: 13px; line-height: 1.45">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px"><path d="M4 12h16"></path><path d="M14 6l6 6-6 6"></path></svg>
+<span>{{s.driftText}}</span>
+</div>
+</sc-if>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: auto">
+<button style="height: 44px; border-radius: 10px; border: 1px solid #262E39; background: transparent; color: #E6EAF0; font-family: inherit; font-size: 14px; font-weight: 600">Descartar</button>
+<a href="#" style="height: 44px; border-radius: 10px; background: {{accent}}; color: #0B1220; font-size: 14px; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center">Revisar y operar</a>
+</div>
+</article>
+</sc-for>
+</div>
+</section>
+
+<section aria-label="Actividad reciente" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: baseline; justify-content: space-between">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Actividad reciente</h2>
+<a href="#" style="font-size: 14px; text-decoration: none">Ver todo</a>
+</div>
+<div style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; overflow: hidden">
+<sc-for list="{{recent}}" as="r" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 120px 180px 90px minmax(0, 1fr) 140px 110px; gap: 20px; align-items: center; padding: 14px 24px; border-bottom: 1px solid #1E252E; font-size: 14px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9AA4B2">{{r.time}}</span>
+<span style="font-weight: 600">{{r.sym}}</span>
+<span style="font-size: 12px; font-weight: 600; color: {{r.dirColor}}">{{r.dir}}</span>
+<span style="color: #9AA4B2">{{r.strat}}</span>
+<span style="justify-self: start; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; color: {{r.stColor}}; background: {{r.stBg}}">{{r.status}}</span>
+<span style="justify-self: end; font-family: 'JetBrains Mono', monospace; color: {{r.resColor}}">{{r.result}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#4C9AFF","options":["#4C9AFF","#7AA2F7","#3FD089"]},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const LONG = { dirColor: '#3FD089', dirBg: 'rgba(63, 208, 137, 0.12)' };
+    const SHORT = { dirColor: '#FF8A80', dirBg: 'rgba(255, 107, 97, 0.12)' };
+    const pill = {
+      tp: { stColor: '#3FD089', stBg: 'rgba(63, 208, 137, 0.12)' },
+      sl: { stColor: '#FF8A80', stBg: 'rgba(255, 107, 97, 0.12)' },
+      live: { stColor: '#8CC2FF', stBg: 'rgba(76, 154, 255, 0.14)' },
+      off: { stColor: '#9AA4B2', stBg: '#1B222B' }
+    };
+    return {
+      accent: this.props.accent ?? '#4C9AFF',
+      signals: [
+        { sym: 'ENA', dir: 'LONG', ...LONG, strat: 'Tendencial', expires: 'vence en 57 min', timerColor: '#9AA4B2',
+          entry: '0.61210', sl: '−1.10%', tp: '+2.20%', rr: '1 : 2.0', ctx: 'BTC en rango · tendencia 4h alcista',
+          late: false, onTime: true, driftText: 'Desde la señal: +0.1%, un 5% del camino al objetivo.' },
+        { sym: 'ZEC', dir: 'SHORT', ...SHORT, strat: 'Macro Breakout', expires: 'vence en 38 min', timerColor: '#9AA4B2',
+          entry: '412.60', sl: '+1.40%', tp: '−2.80%', rr: '1 : 2.0', ctx: 'BTC en rango · tendencia 4h bajista',
+          late: true, onTime: false, driftText: 'El precio ya recorrió el 45% hacia el objetivo. Si entrás ahora, la relación queda en 1 : 0.6.' },
+        { sym: 'TAO', dir: 'SHORT', ...SHORT, strat: 'Tendencial', expires: 'vence en 9 min', timerColor: '#F2B441',
+          entry: '318.40', sl: '+0.90%', tp: '−1.80%', rr: '1 : 2.0', ctx: 'BTC en tendencia · tendencia 4h bajista',
+          late: false, onTime: true, driftText: 'Desde la señal: −0.2%, un 11% del camino al objetivo.' }
+      ],
+      recent: [
+        { time: '29/09 22:31', sym: 'CELO', dir: 'LONG', dirColor: LONG.dirColor, strat: 'Tendencial', status: 'Stop tocado', ...pill.sl, result: '−$0.07', resColor: '#FF8A80' },
+        { time: '29/09 22:16', sym: 'SKY', dir: 'LONG', dirColor: LONG.dirColor, strat: 'Tendencial', status: 'Descartada', ...pill.off, result: '—', resColor: '#9AA4B2' },
+        { time: '29/09 21:15', sym: 'LINK', dir: 'SHORT', dirColor: SHORT.dirColor, strat: 'Tendencial', status: 'Stop tocado', ...pill.sl, result: '−$0.30', resColor: '#FF8A80' },
+        { time: '29/09 21:01', sym: '龙虾', dir: 'SHORT', dirColor: SHORT.dirColor, strat: 'Tendencial', status: 'Objetivo tocado', ...pill.tp, result: '+$0.50', resColor: '#3FD089' },
+        { time: '29/09 19:31', sym: 'LTC', dir: 'LONG', dirColor: LONG.dirColor, strat: 'Macro Breakout', status: 'Stop tocado', ...pill.sl, result: '−$0.05', resColor: '#FF8A80' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

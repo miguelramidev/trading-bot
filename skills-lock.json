@@ -7,6 +7,12 @@
       "skillPath": ".claude/skills/ccxt-typescript/SKILL.md",
       "computedHash": "41418fad1bc8e3cce52931f8356b659d3c6444b66f358531ab1d1429625c66ac"
     },
+    "flutter-build-responsive-layout": {
+      "source": "flutter/agent-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/flutter-build-responsive-layout/SKILL.md",
+      "computedHash": "f762ea2ee83d4f1f35d9093b41d2520dd024ab80c9539d4860b9ae7f2a4dc6a0"
+    },
     "vitest": {
       "source": "antfu/skills",
       "sourceType": "github",

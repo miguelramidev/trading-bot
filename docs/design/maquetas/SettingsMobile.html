@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Configuración — celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0E1116}
+a{color:#8CC2FF}a:hover{color:#B8D9FF}
+</style>
+</helmet>
+<div style="width: 390px; height: 2200px; display: flex; flex-direction: column; background: #0E1116; color: #E6EAF0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; box-sizing: border-box">
+
+<header style="height: 60px; flex-shrink: 0; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid #1E252E">
+<h1 style="margin: 0; font-size: 20px; font-weight: 700">Ajustes</h1>
+</header>
+
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; box-sizing: border-box">
+
+<section aria-label="Estado del bot" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700">Generar señales</h2>
+<button role="switch" aria-checked="true" aria-label="Generar señales" style="width: 52px; height: 30px; flex-shrink: 0; border-radius: 999px; border: none; background: {{accent}}; position: relative; padding: 0">
+<span style="position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; border-radius: 50%; background: #0B1220"></span>
+</button>
+</div>
+<span style="font-size: 13px; color: #9AA4B2; line-height: 1.5">Analiza el mercado cada 15 minutos. Pausarlo no afecta tus posiciones abiertas ni sus stops.</span>
+<span style="font-size: 13px; color: #C9D1DB; line-height: 1.5; padding: 10px 12px; border-radius: 10px; background: #1B222B">La ejecución es siempre manual, con tu confirmación.</span>
+</section>
+
+<section aria-label="Capital y riesgo" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700">Capital y riesgo</h2>
+<label style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #9AA4B2">Margen por operación
+<span style="display: flex; align-items: center; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #262E39; background: #0E1116">
+<input type="text" value="35.00" aria-label="Margen por operación" style="flex-grow: 1; border: none; background: transparent; color: #E6EAF0; font-family: 'JetBrains Mono', monospace; font-size: 16px; outline: none; min-width: 0">
+<span style="color: #7A8594">USDT</span></span>
+</label>
+<label style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #9AA4B2">Operaciones simultáneas
+<span style="display: flex; align-items: center; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #262E39; background: #0E1116">
+<input type="text" value="5" aria-label="Operaciones simultáneas" style="flex-grow: 1; border: none; background: transparent; color: #E6EAF0; font-family: 'JetBrains Mono', monospace; font-size: 16px; outline: none; min-width: 0">
+<span style="color: #7A8594">máximo</span></span>
+</label>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; color: #9AA4B2">Apalancamiento</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<label style="display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #262E39; background: #0E1116; font-size: 13px; color: #7A8594">mín. x
+<input type="text" value="1" aria-label="Apalancamiento mínimo" style="flex-grow: 1; border: none; background: transparent; color: #E6EAF0; font-family: 'JetBrains Mono', monospace; font-size: 16px; outline: none; min-width: 0"></label>
+<label style="display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #262E39; background: #0E1116; font-size: 13px; color: #7A8594">máx. x
+<input type="text" value="2" aria-label="Apalancamiento máximo" style="flex-grow: 1; border: none; background: transparent; color: #E6EAF0; font-family: 'JetBrains Mono', monospace; font-size: 16px; outline: none; min-width: 0"></label>
+</div>
+<span style="font-size: 12px; color: #9AA4B2; line-height: 1.5">Usa el mínimo y sube hasta el máximo solo si Binance lo exige. Si no alcanza, rechaza.</span>
+</div>
+<div style="display: flex; gap: 10px; padding: 12px; border-radius: 10px; background: rgba(242, 180, 65, 0.1); color: #F2B441; font-size: 13px; line-height: 1.5">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px"><path d="M12 3l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+<span>Con $40.12 de balance y $35.00 por operación, entra una sola a la vez.</span>
+</div>
+</section>
+
+<section aria-label="Conexión con Binance" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700">Binance</h2>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #3FD089"><span style="width: 8px; height: 8px; border-radius: 50%; background: #3FD089"></span>Conectada</span>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 14px"><span style="color: #9AA4B2">Clave Ed25519</span><span>cargada 30/09</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px"><span style="color: #9AA4B2">Futuros</span><span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: #3FD089; background: rgba(63, 208, 137, 0.12)">Habilitado</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px"><span style="color: #9AA4B2">Retiros</span><span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: #3FD089; background: rgba(63, 208, 137, 0.12)">Deshabilitados</span></div>
+<button style="height: 48px; border-radius: 12px; border: 1px solid #262E39; background: transparent; color: #E6EAF0; font-family: inherit; font-size: 15px; font-weight: 600">Reemplazar claves</button>
+</section>
+
+<section aria-label="Notificaciones" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 2px">
+<h2 style="margin: 0 0 6px; font-size: 15px; font-weight: 700">Notificaciones</h2>
+<sc-for list="{{notifs}}" as="n" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #222A34">
+<span style="display: flex; flex-direction: column; gap: 3px"><span style="font-size: 14px">{{n.title}}</span><span style="font-size: 12px; color: #9AA4B2">{{n.desc}}</span></span>
+<button role="switch" aria-checked="true" aria-label="{{n.title}}" style="width: 52px; height: 30px; flex-shrink: 0; border-radius: 999px; border: none; background: {{accent}}; position: relative; padding: 0">
+<span style="position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; border-radius: 50%; background: #0B1220"></span>
+</button>
+</div>
+</sc-for>
+<span style="font-size: 12px; color: #C9D1DB; line-height: 1.5; padding: 10px 12px; margin-top: 4px; border-radius: 10px; background: #1B222B">Las alertas críticas te llegan siempre, por Telegram y push.</span>
+</section>
+
+<section aria-label="Estrategias" style="background: #151A21; border: 1px solid #262E39; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 2px">
+<h2 style="margin: 0 0 2px; font-size: 15px; font-weight: 700">Estrategias</h2>
+<span style="font-size: 12px; color: #9AA4B2; margin-bottom: 6px">Informativo: se configuran en el servidor.</span>
+<sc-for list="{{strategies}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid #222A34; font-size: 14px">
+<span>{{s.name}}</span>
+<span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: {{s.color}}; background: {{s.bg}}">{{s.state}}</span>
+</div>
+</sc-for>
+</section>
+
+<button style="height: 48px; border-radius: 12px; border: 1px solid #262E39; background: transparent; color: #9AA4B2; font-family: inherit; font-size: 15px">Cerrar sesión</button>
+
+</main>
+
+<div style="flex-shrink: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px 16px; border-top: 1px solid #1E252E; background: #11151B">
+<button style="height: 48px; border-radius: 12px; border: 1px solid #262E39; background: transparent; color: #E6EAF0; font-family: inherit; font-size: 15px; font-weight: 600">Descartar</button>
+<button style="height: 48px; border-radius: 12px; border: none; background: {{accent}}; color: #0B1220; font-family: inherit; font-size: 15px; font-weight: 700">Guardar</button>
+</div>
+
+<nav aria-label="Navegación principal" style="height: 72px; flex-shrink: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #1E252E; background: #11151B">
+<a href="Mobile.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9AA4B2; text-decoration: none; font-size: 12px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Inicio</a>
+<a href="HistoryMobile.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9AA4B2; text-decoration: none; font-size: 12px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>Historial</a>
+<a href="SettingsMobile.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #E6EAF0; text-decoration: none; font-size: 12px; font-weight: 600">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h4"></path><path d="M12 17h8"></path><circle cx="10" cy="17" r="2"></circle></svg>Ajustes</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#4C9AFF","options":["#4C9AFF","#7AA2F7","#3FD089"]},"$preview":{"width":390,"height":2200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const on = { color: '#3FD089', bg: 'rgba(63, 208, 137, 0.12)' };
+    const off = { color: '#9AA4B2', bg: '#1B222B' };
+    return {
+      accent: this.props.accent ?? '#4C9AFF',
+      notifs: [
+        { title: 'Push', desc: 'Señales nuevas y operaciones ejecutadas' },
+        { title: 'Telegram', desc: 'Señales con botones para operar' },
+        { title: 'Avisos en la app', desc: 'Mientras la tenés abierta' }
+      ],
+      strategies: [
+        { name: 'Tendencial', state: 'Activa', ...on },
+        { name: 'Macro Breakout', state: 'Activa', ...on },
+        { name: 'Rango', state: 'Desactivada', ...off },
+        { name: 'Liquidity Hunter', state: 'Retirada', ...off }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

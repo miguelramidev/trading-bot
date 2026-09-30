@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'app_radius.dart';
+import 'app_spacing.dart';
 
 class AppTheme {
   static ThemeData get darkTheme {
@@ -41,9 +43,11 @@ class AppTheme {
           backgroundColor: AppColors.textPrimary,
           foregroundColor: AppColors.background, // Texto oscuro sobre blanco
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          // AppSpacing.xxl/AppSpacing.lg: mismos valores (24/16) que antes, sin cambio visual.
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl, vertical: AppSpacing.lg),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            // AppRadius.lg: mismo valor (12) que antes, sin cambio visual.
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           textStyle: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w600,
@@ -57,7 +61,8 @@ class AppTheme {
         color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          // AppRadius.xl: mismo valor (16) que antes, sin cambio visual.
+          borderRadius: BorderRadius.circular(AppRadius.xl),
           side: const BorderSide(color: AppColors.border, width: 1),
         ),
       ),

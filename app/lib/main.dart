@@ -2,7 +2,8 @@ import 'screens/history/history_screen.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:toastification/toastification.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'dev/component_catalog_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -79,6 +80,11 @@ final GoRouter _router = GoRouter(
       path: '/',
       builder: (context, state) => const AuthWrapper(),
     ),
+    if (kDebugMode)
+      GoRoute(
+        path: '/dev/componentes',
+        builder: (context, state) => const ComponentCatalogScreen(),
+      ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return MainScreen(navigationShell: navigationShell);

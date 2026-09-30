@@ -125,6 +125,34 @@
     - [ ] **Antes de tocar `executeTrade`**, escribir tests de vitest que cubran el escalado de apalancamiento de `RULES.md` Regla 1 (incluidos los invariantes: nunca por debajo de `leverageMin`, nunca por encima de `leverageMax`, rechazo si no alcanza el `minNotional`, y `leverageMin == leverageMax`).
     - [ ] Hacer que `executeTrade` exponga el apalancamiento aplicado y guardarlo en `signalHistory` al ejecutar (desde `SignalController` y `webhook.ts`).
     - [ ] `HistoryController` deja de devolver `leverage: null` y lee la columna; Flutter ya muestra "—" cuando el valor es `null`.
+* [ ] **Tabla `trade_executions` (una fila por usuario y por señal ejecutada):**
+  hoy `signal_history` es una fila global por señal, pensada para un solo
+  usuario/paper-trading, y ya no alcanza para lo multi-tenant: `decision`
+  bloquea la señal para todos (A3), no guarda apalancamiento (opción A de
+  arriba), y `account_balance`/`realized_roi` quedaron rotos por el
+  refactor multi-tenant del 2026-09-25 (commit `eff06ec`, ver la skill
+  `auditoria-trades`) porque no hay dónde poner un balance *por usuario*
+  en una fila *global*. Propuesta: `trade_executions(id, signal_id →
+  signal_history.id, user_id → user_config.id, leverage, margin_usdt,
+  quantity, entry_price, exit_price, opened_at, closed_at, close_reason,
+  realized_pnl, fee, executed_at)`. Con esto:
+  - Resuelve **A1** (la reserva atómica pasa a ser un `INSERT` único por
+    `(signal_id, user_id)` con constraint única, en vez de un `UPDATE`
+    sobre una fila compartida).
+  - Resuelve **A3** (cada usuario tiene su propia fila de ejecución;
+    `signal_history.decision` puede volver a ser solo el estado de la
+    señal en sí, no "quién la tomó").
+  - Resuelve la **opción A** (apalancamiento) sin necesidad de la columna
+    suelta en `signal_history`: queda junto al resto de los datos de la
+    ejecución real.
+  - Resuelve el **ROI**: `margin_usdt` queda fijado en el momento de la
+    ejecución, por usuario, en vez de depender de un `account_balance`
+    global en `signal_history` que dejó de tener sentido apenas hubo más
+    de un usuario.
+  No implementar sin antes migrar el histórico de `signal_history` que
+  ya tiene `realized_pnl`/`executed_entry_price`, y sin tests que cubran
+  la reserva atómica (A1) — ver la skill `reglas-trading` antes de tocar
+  esto.
 
 ---
 

@@ -10,6 +10,7 @@ import '../../core/utils/price_formatter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_toast.dart';
+import '../../core/utils/execute_result.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class DesktopSignalDetail extends StatefulWidget {
@@ -266,18 +267,17 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
     try {
       final res = await ApiClient.post('/api/signals/${widget.signal['id']}/execute');
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data['status'] == 'success') {
-           AppToast.showSuccess(context, '¡Trade ejecutado en Binance!');
-        } else {
-           AppToast.showError(context, 'Rechazado: ${data['message']}');
-        }
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final result = parseExecuteResult(data);
+        await showExecuteResult(context, result, messageForExecuteResult(result, data));
+        if (!mounted) return;
         if (context.canPop()) { context.pop(); } else { context.go('/dashboard'); }
       } else {
         AppToast.showError(context, 'Error al ejecutar');
       }
     } catch (e) {
-      AppToast.showError(context, 'Error de conexión');
+      // Timeout, error de red o respuesta no parseable: no sabemos si la orden llegó a Binance.
+      showUnconfirmedExecuteWarning(context);
     } finally {
       if (mounted) setState(() => _isExecuting = false);
     }

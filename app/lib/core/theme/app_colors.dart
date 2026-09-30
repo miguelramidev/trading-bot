@@ -13,7 +13,11 @@ class AppColors {
   // Trading PnL
   static const Color winGreen = Color(0xFF00C853);
   static const Color lossRed = Color(0xFFFF3D00);
-  
+
+  // Estados de ejecución (POST /execute: resultado)
+  static const Color warningAmber = Color(0xFFFFB300);
+  static const Color criticalRed = Color(0xFFD50000); // Distinto de lossRed: reservado para SL + cierre de emergencia fallidos
+
   // Textos
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFF8B949E); // Gris ceniza

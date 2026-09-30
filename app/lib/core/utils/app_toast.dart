@@ -33,12 +33,38 @@ class AppToast {
     );
   }
 
+  static void showWarning(BuildContext context, String message) {
+    _showToast(
+      context: context,
+      message: message,
+      type: ToastificationType.warning,
+      color: AppColors.warningAmber,
+      icon: Icons.warning_amber_outlined,
+      autoCloseDuration: const Duration(seconds: 6),
+    );
+  }
+
+  // Crítico: nunca se cierra solo, hay que tocarlo a mano para descartarlo.
+  static void showCritical(BuildContext context, String message) {
+    _showToast(
+      context: context,
+      message: message,
+      type: ToastificationType.error,
+      color: AppColors.criticalRed,
+      icon: Icons.report_gmailerrorred_outlined,
+      autoCloseDuration: null,
+      closeButtonShowType: CloseButtonShowType.always,
+    );
+  }
+
   static void _showToast({
     required BuildContext context,
     required String message,
     required ToastificationType type,
     required Color color,
     required IconData icon,
+    Duration? autoCloseDuration = const Duration(seconds: 4),
+    CloseButtonShowType closeButtonShowType = CloseButtonShowType.none,
   }) {
     // Distinción entre Web (pantallas grandes) y Mobile
     final isWeb = MediaQuery.of(context).size.width > 800;
@@ -48,7 +74,7 @@ class AppToast {
       title: Text(message, style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
       type: type,
       style: ToastificationStyle.flat,
-      autoCloseDuration: const Duration(seconds: 4),
+      autoCloseDuration: autoCloseDuration,
       alignment: isWeb ? Alignment.topRight : Alignment.bottomCenter,
       direction: isWeb ? TextDirection.ltr : TextDirection.ltr,
       animationDuration: const Duration(milliseconds: 300),
@@ -60,7 +86,7 @@ class AppToast {
       icon: Icon(icon, color: color),
       borderRadius: BorderRadius.circular(12),
       showProgressBar: false,
-      closeButtonShowType: CloseButtonShowType.none,
+      closeButtonShowType: closeButtonShowType,
     );
   }
 }

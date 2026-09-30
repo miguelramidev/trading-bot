@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'dashboard/responsive_layout.dart';
 import '../core/theme/app_colors.dart';
+import '../providers/dashboard_provider.dart';
 
 class MainScreen extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -19,6 +20,14 @@ class MainScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // El shell mantiene todas las ramas montadas (indexedStack) — avisamos
+    // al provider si Inicio (índice 0) es la pestaña visible ahora mismo,
+    // para que el polling de 60s se pause al salir de ella.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) {
+        context.read<DashboardProvider>().setActiveTab(navigationShell.currentIndex == 0);
+      }
+    });
     return ResponsiveLayout(
       mobile: Scaffold(
         backgroundColor: AppColors.background,

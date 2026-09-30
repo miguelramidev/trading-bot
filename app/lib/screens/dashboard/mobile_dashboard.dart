@@ -1,564 +1,250 @@
 import 'package:go_router/go_router.dart';
-import 'settings_screen.dart';
-import '../signals/signal_detail_screen.dart';
-import '../dashboard_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../../core/network/api_client.dart';
-import '../../core/utils/price_formatter.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/ds_colors.dart';
+import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_radius.dart';
+import '../../core/utils/result_formatter.dart';
+import '../../core/utils/dashboard_mappers.dart';
 import '../../core/utils/symbol_formatter.dart';
+import '../../providers/dashboard_provider.dart';
+import '../../widgets/widgets.dart';
+import 'dashboard_card_builders.dart';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_theme.dart';
-import '../../services/auth_service.dart';
-
-class MobileDashboard extends StatefulWidget {
+class MobileDashboard extends StatelessWidget {
   const MobileDashboard({super.key});
-
-  @override
-  State<MobileDashboard> createState() => _MobileDashboardState();
-}
-
-class _MobileDashboardState extends State<MobileDashboard> {
-  bool _isLoading = true;
-  bool _setupRequired = false;
-  double _balance = 0.0;
-  double _unrealizedPnl = 0.0;
-  double _pnlPercent = 0.0;
-  int _openTradesCount = 0;
-  List<dynamic> _positions = [];
-  String _userName = 'Fondo Alpha';
-  double _freeBalance = 0.0;
-  double _usedBalance = 0.0;
-  List<dynamic> _signals = [];
-  List<dynamic> _chartData = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchDashboardData();
-  }
-
-  Future<void> _fetchDashboardData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-
-    try {
-      final response = await ApiClient.get('/api/dashboard');
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 500) {
-        if (data['status'] == 'setup_required' || data['status'] == 'error' || response.statusCode == 500) {
-          setState(() {
-            _setupRequired = true;
-            _isLoading = false;
-          });
-          _showSetupModal(data['message'] ?? 'API Key inválida o sin configurar. Por favor, actualiza tus credenciales.');
-        } else {
-          setState(() {
-            _setupRequired = false;
-            _balance = (data['balance'] ?? 0).toDouble();
-            _unrealizedPnl = (data['unrealizedPnl'] ?? 0).toDouble();
-            _pnlPercent = (data['unrealizedPnlPercent'] ?? 0).toDouble();
-            _openTradesCount = data['openTrades'] ?? 0;
-            _positions = data['positions'] ?? [];
-            _userName = data['userName'] ?? 'Usuario';
-            _freeBalance = (data['freeBalance'] ?? 0).toDouble();
-            _usedBalance = (data['usedBalance'] ?? 0).toDouble();
-            _signals = data['signals'] ?? [];
-            _chartData = data['chartData'] ?? [];
-            _isLoading = false;
-          });
-        }
-      } else {
-        if (mounted) setState(() => _isLoading = false);
-        _showSetupModal('Error de conexión o credenciales inválidas.');
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-
-
-  void _showSetupModal(String message) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return WillPopScope(
-          onWillPop: () async => false, // Evita cerrar con el botón atrás
-          child: AlertDialog(
-            backgroundColor: const Color(0xFF1E2025), // AppColors.surface
-            title: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                const SizedBox(width: 8),
-                const Text('Credenciales Inválidas', style: TextStyle(color: Colors.white, fontSize: 18)),
-              ],
-            ),
-            content: Text(
-              message,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            actions: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF22C55E), // AppColors.winGreen
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  context.go('/settings');
-                },
-                child: const Text('Ir a Ajustes'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: _buildAppBar(context),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildBalanceCard(context),
-            _buildPerformanceChart(),
-            const SizedBox(height: 24),
-            _buildSectionHeader('OPERACIONES ABIERTAS', '$_openTradesCount activas'),
-            const SizedBox(height: 12),
-            if (_isLoading)
-              const Center(child: Padding(padding: EdgeInsets.all(24.0), child: CircularProgressIndicator(color: AppColors.winGreen)))
-            else if (_setupRequired)
-              const Center(child: Padding(padding: EdgeInsets.all(24.0), child: Text('Configura tu API Key de Binance', style: TextStyle(color: AppColors.textSecondary))))
-            else if (_positions.isEmpty)
-              const Center(child: Padding(padding: EdgeInsets.all(24.0), child: Text('No hay operaciones activas', style: TextStyle(color: AppColors.textSecondary))))
-            else
-              ..._positions.map((p) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _buildTradeCard(
-                  fmtSymbol(p['symbol'] ?? 'UNKNOWN'),
-                  "${p['side']?.toString().toUpperCase() ?? ''} ${p['leverage'] != null ? '${p['leverage']}x' : '—'}",
-                  "\$${fmtPrice(p['entryPrice'])}",
-                  p['size'].toString(),
-                  "${(p['unrealizedPnl'] ?? 0) >= 0 ? '+' : ''}\$${(p['unrealizedPnl'] ?? 0).toStringAsFixed(2)}",
-                  "${(p['percentage'] ?? 0) >= 0 ? '+' : ''}${(p['percentage'] ?? 0).toStringAsFixed(2)}%",
-                  onTap: () => context.go('/dashboard/trade/${(p["symbol"]?.toString() ?? "UNKNOWN").replaceAll("/", "-")}', extra: p),
-                ),
-              )),
-            const SizedBox(height: 32),
-            _buildSectionHeader('ÚLTIMAS SEÑALES CUANTITATIVAS', null),
-            const SizedBox(height: 12),
-            if (_isLoading)
-              const Center(child: Padding(padding: EdgeInsets.all(24.0), child: CircularProgressIndicator(color: AppColors.winGreen)))
-            else if (_signals.isEmpty)
-              const Center(child: Padding(padding: EdgeInsets.all(24.0), child: Text('No hay señales recientes', style: TextStyle(color: AppColors.textSecondary))))
-            else
-              ..._signals.map((s) {
-                final date = DateTime.parse(s['evaluatedAt']);
-                final diff = DateTime.now().difference(date);
-                final timeAgo = diff.inMinutes < 60 ? 'Hace ${diff.inMinutes} min' : 'Hace ${diff.inHours}h';
-                final symbol = (s['symbol'] ?? 'UNK').toString();
-                final shortSymbol = symbol.length >= 3 ? symbol.substring(0, 3) : symbol;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildSignalCard(shortSymbol, fmtSymbol(symbol), timeAgo, 'Algoritmo Quant', s['direction'] ?? '', _getSignalStatusColor(s), onTap: () async { await context.push('/dashboard/signal/${s['id']}', extra: s); _fetchDashboardData(); }),
-                );
-              }),
-            const SizedBox(height: 24),
-            _buildFooterInfo(),
-          ],
-        ),
-      ),
-      
-    );
-  }
-
-  AppBar _buildAppBar(BuildContext context) {
-    return AppBar(
-      backgroundColor: AppColors.background,
-      elevation: 0,
-      titleSpacing: 0,
-      leading: const Icon(Icons.shield_outlined, color: AppColors.winGreen),
-      title: Text('MacroQuant', style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 18)),
-      actions: [
-        IconButton(icon: const Icon(Icons.help_outline, color: AppColors.textSecondary, size: 20), onPressed: () {}),
-        GestureDetector(
-          onTap: () => _logout(context),
-          child: Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle),
-            child: const Text('MQ', style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
-          ),
-        ),
-      ],
-    );
-  }
-
-
-  Widget _buildPerformanceChart() {
-    return Container(
-      height: 180,
-      margin: const EdgeInsets.only(top: 24),
-      padding: const EdgeInsets.only(top: 24, right: 24, bottom: 12, left: 12),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: _chartData.isEmpty 
-        ? const Center(child: CircularProgressIndicator(color: AppColors.winGreen))
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    titlesData: FlTitlesData(
-                      show: true,
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 40,
-                          getTitlesWidget: (value, meta) {
-                            return Text('\$' + value.toInt().toString(), style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10));
-                          },
-                        ),
-                      ),
-                    ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _chartData.asMap().entries.map((e) {
-                          return FlSpot(e.key.toDouble(), (e.value['balance'] ?? 0).toDouble());
-                        }).toList(),
-                        isCurved: true,
-                        color: AppColors.winGreen,
-                        barWidth: 2,
-                        isStrokeCapRound: true,
-                        dotData: FlDotData(show: false),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: AppColors.winGreen.withValues(alpha: 0.1),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text('Progreso Diario', textAlign: TextAlign.center, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-            ],
-          ),
-    );
-  }
-
-  Widget _buildBalanceCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('BALANCE TOTAL', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.winGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                child: Row(
-                  children: [
-                    Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
-                    const SizedBox(width: 4),
-                    Text('STREAMING L1', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 10)),
-                  ],
-                ),
-              )
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('\$', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 24, color: AppColors.textSecondary)),
-              const SizedBox(width: 4),
-              Text('${(_balance).toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 32)),
-              Text('.${(_balance.toStringAsFixed(2).split('.')[1])} USD', style: AppTheme.monoStyle.copyWith(fontSize: 14, color: AppColors.textSecondary, height: 2)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: AppColors.winGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.arrow_outward, color: AppColors.winGreen, size: 14),
-                const SizedBox(width: 4),
-                Text('${_unrealizedPnl >= 0 ? '+' : ''}${_unrealizedPnl.toStringAsFixed(2)} (${_pnlPercent >= 0 ? '+' : ''}${_pnlPercent.toStringAsFixed(2)}%)', style: AppTheme.monoStyle.copyWith(color: _unrealizedPnl >= 0 ? AppColors.winGreen : AppColors.lossRed, fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 6),
-                Text('PnL Abierto hoy', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-              ],
+      backgroundColor: DsColors.background,
+      appBar: AppBar(
+        backgroundColor: DsColors.background,
+        elevation: 0,
+        title: const Text('Inicio'),
+        actions: [
+          Consumer<DashboardProvider>(
+            builder: (context, provider, _) => IconButton(
+              tooltip: 'Actualizar',
+              icon: const Icon(Icons.refresh),
+              onPressed: () => provider.fetchDashboardData(forceRefresh: true),
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('HORIZONTE', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11)),
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _isLoading = true;
-                  });
-                  _fetchDashboardData();
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.sync, color: AppColors.winGreen, size: 14),
-                      const SizedBox(width: 6),
-                      Text('Sincronizar', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 12)),
-                    ],
-                  ),
+        ],
+      ),
+      body: Consumer<DashboardProvider>(
+        builder: (context, provider, _) {
+          if (provider.setupRequired) {
+            return _SetupRequiredState(onGoToSettings: () => context.go('/settings'));
+          }
+          if (provider.isLoading && provider.lastUpdatedAt == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (provider.errorMessage != null && provider.lastUpdatedAt == null) {
+            return ErrorState(
+              message: provider.errorMessage!,
+              actionLabel: 'Reintentar',
+              onAction: () => provider.fetchDashboardData(forceRefresh: true),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () => provider.fetchDashboardData(forceRefresh: true),
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    DataTimestamp(dataTime: provider.lastUpdatedAt),
+                    _ConnectionPill(connected: provider.binanceConnected),
+                  ],
                 ),
-              )
-            ],
-          )
+                const SizedBox(height: AppSpacing.lg),
+                _BalanceSection(provider: provider),
+                const SizedBox(height: AppSpacing.xxxl),
+                if (provider.positions.isNotEmpty) ...[
+                  SectionHeader(title: 'Posiciones abiertas', count: '${provider.positions.length} de ${provider.maxTrades}', mobile: true),
+                  const SizedBox(height: AppSpacing.md),
+                  ...provider.positions.map((p) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: buildPositionCard(context, p),
+                      )),
+                  const SizedBox(height: AppSpacing.xxxl),
+                ],
+                SectionHeader(title: 'Señales pendientes', count: '${provider.pendingSignals.length}', mobile: true),
+                const SizedBox(height: AppSpacing.md),
+                if (provider.pendingSignals.isEmpty)
+                  const EmptyState(message: 'No hay señales pendientes.')
+                else
+                  ...provider.pendingSignals.map((s) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: buildSignalCard(context, provider, s),
+                      )),
+                const SizedBox(height: AppSpacing.xxxl),
+                SectionHeader(title: 'Actividad reciente', mobile: true),
+                const SizedBox(height: AppSpacing.md),
+                if (provider.recentActivity.isEmpty)
+                  const EmptyState(message: 'Todavía no hay actividad.')
+                else
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < provider.recentActivity.length; i++)
+                          _ActivityRow(item: provider.recentActivity[i], showDivider: i < provider.recentActivity.length - 1),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+}
+
+class _SetupRequiredState extends StatelessWidget {
+  final VoidCallback onGoToSettings;
+
+  const _SetupRequiredState({required this.onGoToSettings});
+
+  @override
+  Widget build(BuildContext context) {
+    return ErrorState(
+      icon: Icons.key_off_outlined,
+      message: 'Conectá tu cuenta de Binance para ver tu balance y operar.',
+      actionLabel: 'Ir a Configuración',
+      onAction: onGoToSettings,
+    );
+  }
+}
+
+class _ConnectionPill extends StatelessWidget {
+  final bool connected;
+
+  const _ConnectionPill({required this.connected});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = connected ? DsColors.positive : DsColors.negative;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
+      decoration: BoxDecoration(color: DsColors.surface, border: Border.all(color: DsColors.border), borderRadius: BorderRadius.circular(AppRadius.pill)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: AppSpacing.sm),
+          Text(connected ? 'Binance conectado' : 'Sin conexión con Binance', style: AppTextStyles.caption.copyWith(color: DsColors.textPrimary)),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSectionHeader(String title, String? tag) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Text(title, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
-            if (tag != null) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: AppColors.winGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                child: Text(tag, style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 10)),
-              )
-            ]
-          ],
-        ),
-      ],
-    );
-  }
+class _BalanceSection extends StatelessWidget {
+  final DashboardProvider provider;
 
-  Widget _buildTradeCard(String pair, String side, String entry, String size, String pnl, String pnlPct, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
+  const _BalanceSection({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final insufficient = provider.marginWarning?['insufficient'] == true;
+    final requiredUsd = (provider.marginWarning?['requiredUsd'] as num?)?.toDouble();
+    final usageFraction = provider.balance > 0 ? (provider.usedBalance / provider.balance).clamp(0.0, 1.0) : 0.0;
+    final availablePct = provider.balance > 0 ? (provider.freeBalance / provider.balance) * 100 : 0.0;
+
+    return AppCard(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.currency_bitcoin, color: Colors.orange, size: 18),
+          MetricBlock(label: 'Balance total', value: fmtUsd(provider.balance, signed: false), valueStyle: AppTextStyles.numDisplay),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(child: MetricBlock(label: 'Disponible', value: fmtUsd(provider.freeBalance, signed: false), secondaryLine: '${availablePct.toStringAsFixed(1)}% del balance')),
+              Expanded(child: MetricBlock(label: 'Margen en uso', value: fmtUsd(provider.usedBalance, signed: false), secondaryLine: '${provider.openTradesCount} de ${provider.maxTrades} operaciones')),
+            ],
           ),
-          const SizedBox(width: 12),
+          const SizedBox(height: AppSpacing.md),
+          MetricBlock(
+            label: 'PnL no realizado',
+            value: fmtUsd(provider.unrealizedPnl),
+            secondaryLine: fmtPct(provider.pnlPercent),
+            sign: provider.unrealizedPnl > 0 ? MetricSign.positive : (provider.unrealizedPnl < 0 ? MetricSign.negative : MetricSign.neutral),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: LinearProgressIndicator(
+              value: usageFraction,
+              minHeight: 8,
+              backgroundColor: DsColors.border,
+              valueColor: AlwaysStoppedAnimation(usageFraction >= 0.8 ? DsColors.warning : DsColors.accent),
+            ),
+          ),
+          if (insufficient) ...[
+            const SizedBox(height: AppSpacing.md),
+            Callout(
+              variant: CalloutVariant.warning,
+              icon: Icons.warning_amber_rounded,
+              message: 'El disponible no alcanza para una operación nueva de ${fmtUsd(requiredUsd, signed: false)}. Las señales se van a rechazar hasta que se libere margen.',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  final dynamic item;
+  final bool showDivider;
+
+  const _ActivityRow({required this.item, required this.showDivider});
+
+  @override
+  Widget build(BuildContext context) {
+    final evaluatedAt = DateTime.tryParse(item['evaluatedAt']?.toString() ?? '');
+    final timeLabel = evaluatedAt != null
+        ? '${evaluatedAt.day.toString().padLeft(2, '0')}/${evaluatedAt.month.toString().padLeft(2, '0')} ${evaluatedAt.hour.toString().padLeft(2, '0')}:${evaluatedAt.minute.toString().padLeft(2, '0')}'
+        : '—';
+    final pnl = double.tryParse(item['realizedPnl']?.toString() ?? '');
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(border: showDivider ? const Border(bottom: BorderSide(color: DsColors.divider)) : null),
+      child: Row(
+        children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(pair, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.winGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                      child: Text(side, style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold)),
-                    ),
+                    Text(fmtSymbol(item['symbol']), style: AppTextStyles.body.copyWith(color: DsColors.textPrimary, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: AppSpacing.sm),
+                    DirectionTag(isLong: isLongDirection(item['direction'])),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text('Entrada: ', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                    Text(entry, style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 12)),
-                    const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('•', style: TextStyle(color: AppColors.textSecondary))),
-                    Text('Tamaño: ', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                    Text(size, style: AppTheme.monoStyle.copyWith(color: AppColors.textPrimary, fontSize: 12)),
-                  ],
-                )
+                const SizedBox(height: AppSpacing.xs),
+                Text('$timeLabel · ${item['strategy']?.toString() ?? '—'}', style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(pnl, style: AppTheme.monoStyle.copyWith(color: pnl.contains('-') ? AppColors.lossRed : AppColors.winGreen, fontWeight: FontWeight.bold, fontSize: 14)),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(pnlPct.contains('-') ? Icons.trending_down : Icons.trending_up, color: pnlPct.contains('-') ? AppColors.lossRed : AppColors.winGreen, size: 12),
-                  const SizedBox(width: 4),
-                  Text(pnlPct, style: AppTheme.monoStyle.copyWith(color: pnlPct.contains('-') ? AppColors.lossRed : AppColors.winGreen, fontSize: 11)),
-                ],
-              )
+              StatusPill(statusPillVariantFromKey(item['status']?.toString())),
+              const SizedBox(height: AppSpacing.xs),
+              Text(pnl != null ? fmtUsd(pnl) : fmtMissing(), style: AppTextStyles.numXS.copyWith(color: pnl == null ? DsColors.textSecondary : (pnl >= 0 ? DsColors.positive : DsColors.negative))),
             ],
-          )
-        ],
-      ),
-      ),
-    );
-  }
-
-  Color _getSignalStatusColor(Map<String, dynamic> signal) {
-    final decision = signal['decision'];
-    final isActive = signal['isActiveTrade'] ?? false;
-
-    if (decision == 'Tomada') {
-      return isActive ? AppColors.winGreen : Colors.blue;
-    } else if (decision == 'Descartada') {
-      return AppColors.lossRed;
-    } else {
-      if (signal['evaluatedAt'] != null) {
-        final evalTime = DateTime.parse(signal['evaluatedAt']);
-        if (DateTime.now().toUtc().difference(evalTime).inMinutes > 60) {
-          return Colors.grey;
-        }
-      }
-      return Colors.orange; // Pendiente
-    }
-  }
-
-  Widget _buildSignalCard(String avatarTxt, String title, String time, String desc, String status, Color color, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(8)),
-            alignment: Alignment.center,
-            child: Text(avatarTxt, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-                    const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Text('•', style: TextStyle(color: AppColors.textSecondary, fontSize: 10))),
-                    Text(time, style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(desc, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              children: [
-                Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                const SizedBox(width: 4),
-                Text(status, style: AppTheme.monoStyle.copyWith(color: color, fontSize: 10)),
-              ],
-            ),
-          )
-        ],
-      ),
-      ),
-    );
-  }
-
-  Widget _buildFooterInfo() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Text('USO MARGEN ', style: AppTheme.monoStyle.copyWith(color: AppColors.textSecondary, fontSize: 10)),
-          Text('${_balance > 0 ? ((_usedBalance / _balance) * 100).toStringAsFixed(1) : 0}%', style: AppTheme.monoStyle.copyWith(color: AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold)),
         ],
       ),
     );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return BottomNavigationBar(
-      backgroundColor: AppColors.background,
-      selectedItemColor: AppColors.winGreen,
-      unselectedItemColor: AppColors.textSecondary,
-      onTap: (index) {
-        if (index == 0) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
-        } else if (index == 2) {
-          Navigator.pushReplacementNamed(context, '/settings');
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Inicio'),
-        BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Historial'),
-        BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Ajustes'),
-      ],
-    );
-  }
-
-  Future<void> _logout(BuildContext context) async {
-    await AuthService().signOut();
-    if (context.mounted) {
-      context.go('/');
-    }
   }
 }
-
-
-
-
-

@@ -1,12 +1,19 @@
 import { Hono } from "hono";
 import { db } from "../../../../db/index.js";
 import { userConfig } from "../../../../db/schema.js";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull, isNotNull } from "drizzle-orm";
 import { signalHistory, dailyReports } from "../../../../db/schema.js";
 import { decrypt } from "../../../core/utils/encryption.js";
 import ccxt from "ccxt";
 import { newErrorId } from "../../../core/utils/errors.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
+import {
+  filterPendingSignals,
+  buildRecentActivity,
+  computeMarginWarning,
+  PENDING_SIGNALS_LIMIT,
+  RECENT_ACTIVITY_LIMIT,
+} from "./dashboardHelpers.js";
 
 export const dashboardRouter = new Hono<AuthEnv>();
 
@@ -23,14 +30,16 @@ dashboardRouter.get("/", async (c) => {
     }
 
     if (!user.binanceApiKey || (!user.binanceApiSecret && !user.rsaPrivateKey)) {
-      return c.json({ 
+      return c.json({
         status: "setup_required",
         message: "API Keys no configuradas",
         balance: 0,
         unrealizedPnl: 0,
         unrealizedPnlPercent: 0,
         openTrades: 0,
-        positions: [], freeBalance: 0, usedBalance: 0, signals: [], chartData: [] });
+        positions: [], freeBalance: 0, usedBalance: 0, signals: [], chartData: [],
+        pendingSignals: [], recentActivity: [], marginWarning: null, binanceConnected: false,
+      });
     }
 
     const apiKey = decrypt(user.binanceApiKey);
@@ -92,8 +101,23 @@ dashboardRouter.get("/", async (c) => {
     // Fetch open positions
     const positions = await binance.fetchPositions();
     const activeDbTrades = await db.query.signalHistory.findMany({ where: and(eq(signalHistory.isActiveTrade, true)) });
+    const openPositionsRaw = positions.filter(p => p.contracts && p.contracts > 0);
 
-    const openPositions = positions.filter(p => p.contracts && p.contracts > 0).map(p => {
+    // Funding rate real en una sola llamada batched para los símbolos con posición abierta.
+    // Si ccxt falla (símbolo no soportado, rate limit, etc.) se manda null: nunca un valor fijo.
+    let fundingRates: Record<string, number | null> = {};
+    if (openPositionsRaw.length > 0) {
+      try {
+        const rates = await binance.fetchFundingRates(openPositionsRaw.map(p => p.symbol!));
+        for (const [sym, r] of Object.entries(rates)) {
+          fundingRates[sym] = (r as any)?.fundingRate ?? null;
+        }
+      } catch (e) {
+        console.error("No se pudo obtener funding rates:", e);
+      }
+    }
+
+    const openPositions = openPositionsRaw.map(p => {
       const dbTrade = activeDbTrades.find(t => t.symbol === p.symbol);
       return {
       symbol: p.symbol,
@@ -110,9 +134,39 @@ dashboardRouter.get("/", async (c) => {
       stopLoss: dbTrade?.stopLoss,
       takeProfit: dbTrade?.takeProfit,
       strategy: dbTrade?.strategy || dbTrade?.regime || 'Motor Momentum Cuántico',
-      fundingRate: '0.0042', // Stub for now or fetch from ticker
+      fundingRate: fundingRates[p.symbol!] ?? null,
     };
     });
+
+    // Señales pendientes (sin decisión, no vencidas) y actividad reciente (con decisión).
+    const pendingSignalsRaw = await db.query.signalHistory.findMany({
+      where: isNull(signalHistory.decision),
+      orderBy: [desc(signalHistory.evaluatedAt)],
+      limit: PENDING_SIGNALS_LIMIT,
+    });
+    const recentActivityRaw = await db.query.signalHistory.findMany({
+      where: isNotNull(signalHistory.decision),
+      orderBy: [desc(signalHistory.evaluatedAt)],
+      limit: RECENT_ACTIVITY_LIMIT,
+    });
+    const pendingSignals = filterPendingSignals(pendingSignalsRaw);
+    const recentActivity = buildRecentActivity(recentActivityRaw);
+
+    // Precio actual batched para señales pendientes + posiciones, una sola llamada fetchTickers.
+    const priceSymbols = [...new Set([...pendingSignals.map(s => s.symbol), ...openPositionsRaw.map(p => p.symbol!)])];
+    let currentPrices: Record<string, number | null> = {};
+    if (priceSymbols.length > 0) {
+      try {
+        const tickers = await binance.fetchTickers(priceSymbols);
+        for (const sym of priceSymbols) {
+          currentPrices[sym] = (tickers as any)[sym]?.last ?? null;
+        }
+      } catch (e) {
+        console.error("No se pudo obtener precios actuales:", e);
+      }
+    }
+
+    const marginWarning = computeMarginWarning(freeBalance, user.montoOperacion ?? 25);
 
     return c.json({
       status: "active",
@@ -128,6 +182,14 @@ dashboardRouter.get("/", async (c) => {
         ...s
       })),
       chartData,
+      pendingSignals: pendingSignals.map(s => ({
+        ...s,
+        currentPrice: currentPrices[s.symbol] ?? null,
+      })),
+      recentActivity,
+      marginWarning,
+      maxTrades: user.maxTrades ?? 5,
+      binanceConnected: true,
     });
 
   } catch (error: any) {
@@ -142,6 +204,8 @@ dashboardRouter.get("/", async (c) => {
       unrealizedPnl: 0,
       unrealizedPnlPercent: 0,
       openTrades: 0,
-      positions: [], freeBalance: 0, usedBalance: 0, signals: [] }, 500);
+      positions: [], freeBalance: 0, usedBalance: 0, signals: [],
+      pendingSignals: [], recentActivity: [], marginWarning: null, binanceConnected: false,
+    }, 500);
   }
 });

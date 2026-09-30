@@ -153,6 +153,18 @@
   ya tiene `realized_pnl`/`executed_entry_price`, y sin tests que cubran
   la reserva atómica (A1) — ver la skill `reglas-trading` antes de tocar
   esto.
+* [ ] **Sumar funding al PnL real de los trades:** `Trader.getTradeRealizedPnl()`
+  (`src/bot/trader.ts:273`) solo suma `realizedPnl` y resta el fee de
+  `fetchMyTrades` (fills de órdenes) — **no incluye los pagos/cobros de
+  funding** mientras la posición estuvo abierta, que en Binance Futures
+  son transferencias separadas, no fills. Para un PnL neto real hay que
+  cruzar el historial de funding de la cuenta (`fetchFundingHistory` en
+  ccxt, o el endpoint `/fapi/v1/income` con `incomeType=FUNDING_FEE`)
+  filtrado por símbolo y por la ventana `[evaluated_at, cierre]` de cada
+  trade, y sumarlo a `realized_pnl` al cerrar (o guardarlo aparte, sin
+  netear, para poder reportarlo desglosado — ver la skill
+  `auditoria-trades`, que ya exige aclarar si un PnL reportado incluye
+  o no funding).
 
 ---
 

@@ -14,8 +14,34 @@ import {
   PENDING_SIGNALS_LIMIT,
   RECENT_ACTIVITY_LIMIT,
 } from "./dashboardHelpers.js";
+import { classifyProtectionOrders, isValidCcxtSymbol } from "./protectionOrders.js";
 
 export const dashboardRouter = new Hono<AuthEnv>();
+
+/** Arma el cliente ccxt autenticado de un usuario, o `null` si no tiene keys configuradas. */
+function buildBinanceClient(user: typeof userConfig.$inferSelect): InstanceType<typeof ccxt.binance> | null {
+  if (!user.binanceApiKey || (!user.binanceApiSecret && !user.rsaPrivateKey)) {
+    return null;
+  }
+
+  const apiKey = decrypt(user.binanceApiKey);
+  const secret = user.binanceApiSecret ? decrypt(user.binanceApiSecret) : undefined;
+  const privateKey = user.rsaPrivateKey ? decrypt(user.rsaPrivateKey) : undefined;
+
+  const exchangeArgs: any = {
+    apiKey: apiKey,
+    enableRateLimit: true,
+    options: { defaultType: 'future' }
+  };
+
+  if (privateKey) {
+    exchangeArgs.secret = privateKey; // CCXT Binance expects the private key inside the 'secret' property
+  } else if (secret) {
+    exchangeArgs.secret = secret;
+  }
+
+  return new ccxt.binance(exchangeArgs);
+}
 
 dashboardRouter.get("/", async (c) => {
   const firebaseUid = c.get("uid");
@@ -29,7 +55,8 @@ dashboardRouter.get("/", async (c) => {
       return c.json({ error: "User not found" }, 404);
     }
 
-    if (!user.binanceApiKey || (!user.binanceApiSecret && !user.rsaPrivateKey)) {
+    const binance = buildBinanceClient(user);
+    if (!binance) {
       return c.json({
         status: "setup_required",
         message: "API Keys no configuradas",
@@ -41,24 +68,6 @@ dashboardRouter.get("/", async (c) => {
         pendingSignals: [], recentActivity: [], marginWarning: null, binanceConnected: false,
       });
     }
-
-    const apiKey = decrypt(user.binanceApiKey);
-    const secret = user.binanceApiSecret ? decrypt(user.binanceApiSecret) : undefined;
-    const privateKey = user.rsaPrivateKey ? decrypt(user.rsaPrivateKey) : undefined;
-
-    const exchangeArgs: any = {
-      apiKey: apiKey,
-      enableRateLimit: true,
-      options: { defaultType: 'future' }
-    };
-
-    if (privateKey) {
-      exchangeArgs.secret = privateKey; // CCXT Binance expects the private key inside the 'secret' property
-    } else if (secret) {
-      exchangeArgs.secret = secret;
-    }
-
-    const binance = new ccxt.binance(exchangeArgs);
 
     // Fetch balance
     const balance = await binance.fetchBalance({ type: 'future' });
@@ -135,6 +144,7 @@ dashboardRouter.get("/", async (c) => {
       takeProfit: dbTrade?.takeProfit,
       strategy: dbTrade?.strategy || dbTrade?.regime || 'Motor Momentum Cuántico',
       fundingRate: fundingRates[p.symbol!] ?? null,
+      signalId: dbTrade?.id ?? null,
     };
     });
 
@@ -207,5 +217,50 @@ dashboardRouter.get("/", async (c) => {
       positions: [], freeBalance: 0, usedBalance: 0, signals: [],
       pendingSignals: [], recentActivity: [], marginWarning: null, binanceConnected: false,
     }, 500);
+  }
+});
+
+// GET /api/dashboard/positions/protection?symbol=<símbolo ccxt, ej. ENA/USDT:USDT>
+// Solo lectura: trae las órdenes de protección (SL/TP) reales de Binance para
+// una posición abierta. No se llama en cada poll del dashboard (cada 60s);
+// la pantalla de detalle de posición la pide una sola vez al abrir.
+dashboardRouter.get("/positions/protection", async (c) => {
+  const firebaseUid = c.get("uid");
+  const symbol = c.req.query("symbol");
+
+  if (!symbol || !isValidCcxtSymbol(symbol)) {
+    return c.json({ error: "symbol inválido" }, 400);
+  }
+
+  try {
+    const user = await db.query.userConfig.findFirst({
+      where: eq(userConfig.firebaseUid, firebaseUid),
+    });
+    if (!user) return c.json({ error: "User not found" }, 404);
+
+    const binance = buildBinanceClient(user);
+    if (!binance) return c.json({ error: "API keys not configured" }, 400);
+
+    const positions = await binance.fetchPositions([symbol]);
+    const position = positions.find(p => p.symbol === symbol && p.contracts && p.contracts > 0);
+    if (!position) {
+      return c.json({ error: "No hay una posición abierta para ese símbolo" }, 404);
+    }
+
+    const isLong = position.side === 'long';
+    const entryPrice = parseFloat(String(position.entryPrice ?? 0));
+
+    const orders = await binance.fetchOpenOrders(symbol, undefined, undefined, { trigger: true });
+    const classification = classifyProtectionOrders({ orders: orders as any, isLong, entryPrice });
+
+    return c.json({
+      symbol,
+      verifiedAt: new Date().toISOString(),
+      ...classification,
+    });
+  } catch (error: any) {
+    const errorId = newErrorId();
+    console.error(`[${errorId}] Protection orders error:`, error);
+    return c.json({ error: `No se pudieron verificar las órdenes de protección (ref ${errorId}).`, errorId }, 500);
   }
 });

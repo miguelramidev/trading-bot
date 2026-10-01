@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, serial, integer, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, serial, integer, bigint, unique } from "drizzle-orm/pg-core";
 
 // Guardamos la configuración de cada chat
 export const userConfig = pgTable("user_config", {
@@ -91,3 +91,29 @@ export const telegramUpdates = pgTable("telegram_updates", {
   updateId: bigint("update_id", { mode: "number" }).primaryKey(),
   receivedAt: timestamp("received_at").defaultNow().notNull(),
 });
+
+// Una fila por señal ejecutada y por usuario (incremental hacia la tabla propuesta en
+// ROADMAP.md: "Tabla trade_executions"). `signal_history` sigue siendo la fuente para la
+// app/Telegram (decision/isActiveTrade/reason no cambian); esta tabla es la que usa la
+// conciliación del cron para saber contra qué cuenta de Binance y qué fila verificar.
+export const tradeExecutions = pgTable("trade_executions", {
+  id: serial("id").primaryKey(),
+  signalId: integer("signal_id").notNull().references(() => signalHistory.id),
+  userId: integer("user_id").notNull().references(() => userConfig.id),
+  source: text("source"), // 'telegram' | 'api' | null si no se puede determinar (ej. backfill)
+  leverage: integer("leverage"),
+  marginUsd: text("margin_usd"), // texto, igual que el resto de precios/PnL (ver schema arriba)
+  quantity: text("quantity"),
+  entryPrice: text("entry_price"),
+  exitPrice: text("exit_price"),
+  openedAt: timestamp("opened_at").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  closedAt: timestamp("closed_at"),
+  closeReason: text("close_reason"), // 'tp' | 'sl' | 'manual' | 'emergency'
+  realizedPnl: text("realized_pnl"),
+  fee: text("fee"),
+  lastMissingSlAlertAt: timestamp("last_missing_sl_alert_at"), // throttle de la alerta de "sin SL"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique().on(table.signalId, table.userId),
+]);

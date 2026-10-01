@@ -3,6 +3,28 @@ import { parseIndicatorKeys, computeKlineIndicators, dropIncompleteCandle, INDIC
 
 export const marketRouter = new Hono();
 
+// Precio EN VIVO de un símbolo — para "Último precio" en el Detalle de señal,
+// que nunca debe salir del close de la última vela CERRADA (puede tener hasta
+// ~15 min de atraso; para una señal recién generada, esa vela es la MISMA que
+// la originó, así que el desplazamiento daba 0% y "llegás tarde" no podía
+// aparecer — bug real encontrado 2026-10-01). Público en Binance, igual que
+// `/klines`: pega directo a la REST de Binance, sin ccxt ni llaves de usuario.
+marketRouter.get("/ticker", async (c) => {
+  const rawSymbol = c.req.query('symbol') || 'SOLUSDT';
+  const symbol = rawSymbol.replace(':USDT', '').replace('/', '').toUpperCase();
+
+  try {
+    const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`);
+    if (!res.ok) {
+      return c.json({ error: "Failed to fetch from Binance" }, 500);
+    }
+    const data = (await res.json()) as { symbol: string; price: string };
+    return c.json({ symbol: data.symbol, price: parseFloat(data.price) });
+  } catch (error) {
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
 marketRouter.get("/klines", async (c) => {
   const rawSymbol = c.req.query('symbol') || 'SOLUSDT';
   const symbol = rawSymbol.replace(':USDT', '').replace('/', '').toUpperCase();

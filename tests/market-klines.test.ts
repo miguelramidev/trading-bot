@@ -152,3 +152,46 @@ describe("GET /api/market/klines — endpoint completo contra la señal real", (
     expect(body.indicators.adx.adx[0]).toBeCloseTo(fixture.triggerAdx, 2);
   });
 });
+
+describe("GET /api/market/ticker — precio en vivo, nunca el close de la última vela cerrada", () => {
+  async function makeApp() {
+    const { marketRouter } = await import("../src/api/modules/market/infrastructure/MarketController.js");
+    const app = new Hono();
+    app.route("/api/market", marketRouter);
+    return app;
+  }
+
+  it("limpia el símbolo (ccxt 'BTC/USDT:USDT' -> 'BTCUSDT') y devuelve el precio como número", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        expect(url).toContain("symbol=BTCUSDT");
+        return { ok: true, json: async () => ({ symbol: "BTCUSDT", price: "65800.50" }) };
+      })
+    );
+    const app = await makeApp();
+    const res = await app.request("/api/market/ticker?symbol=BTC/USDT:USDT");
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ symbol: "BTCUSDT", price: 65800.5 });
+  });
+
+  it("si Binance responde con error, devuelve 500 sin reventar", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false })));
+    const app = await makeApp();
+    const res = await app.request("/api/market/ticker?symbol=BTCUSDT");
+    expect(res.status).toBe(500);
+  });
+
+  it("si fetch lanza (red caída), devuelve 500 sin reventar", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("timeout de red");
+      })
+    );
+    const app = await makeApp();
+    const res = await app.request("/api/market/ticker?symbol=BTCUSDT");
+    expect(res.status).toBe(500);
+  });
+});

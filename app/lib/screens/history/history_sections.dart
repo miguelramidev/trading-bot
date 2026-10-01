@@ -140,6 +140,36 @@ class _SearchField extends StatelessWidget {
   }
 }
 
+// Anchos compartidos entre `buildHistoryTableHeader` y `buildHistoryTableRow`
+// — si se cambia uno, hay que cambiar el otro para que las columnas sigan alineadas.
+const double kHistoryDateWidth = 100;
+const double kHistorySymbolWidth = 90;
+const double kHistoryDirectionWidth = 70;
+const double kHistoryStatusWidth = 120;
+const double kHistoryPnlWidth = 90;
+const double kHistoryRoiWidth = 90;
+
+/// Encabezado de la tabla de escritorio — mismos anchos que `buildHistoryTableRow`.
+Widget buildHistoryTableHeader() {
+  final style = AppTextStyles.caption.copyWith(color: DsColors.textTertiary);
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: DsColors.divider))),
+    child: Row(
+      children: [
+        SizedBox(width: kHistoryDateWidth, child: Text('Fecha', style: style)),
+        SizedBox(width: kHistorySymbolWidth, child: Text('Activo', style: style)),
+        SizedBox(width: kHistoryDirectionWidth, child: Text('Lado', style: style)),
+        Expanded(flex: 2, child: Text('Estrategia', style: style)),
+        Expanded(flex: 2, child: Text('Entrada → salida', style: style)),
+        SizedBox(width: kHistoryStatusWidth, child: Text('Resultado', style: style)),
+        SizedBox(width: kHistoryPnlWidth, child: Text('PnL', textAlign: TextAlign.right, style: style)),
+        SizedBox(width: kHistoryRoiWidth, child: Text('% s/ margen', textAlign: TextAlign.right, style: style)),
+      ],
+    ),
+  );
+}
+
 /// Fila de la tabla de escritorio.
 Widget buildHistoryTableRow(HistoryRowData row, VoidCallback onTap) {
   final dateLabel = row.date != null
@@ -154,18 +184,18 @@ Widget buildHistoryTableRow(HistoryRowData row, VoidCallback onTap) {
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: DsColors.divider))),
       child: Row(
         children: [
-          SizedBox(width: 100, child: Text(dateLabel, style: AppTextStyles.numXS.copyWith(color: DsColors.textSecondary))),
-          SizedBox(width: 90, child: Text(row.symbol.split('/').first, style: AppTextStyles.body.copyWith(color: DsColors.textPrimary, fontWeight: FontWeight.w600))),
-          SizedBox(width: 70, child: DirectionTag(isLong: row.isLong)),
+          SizedBox(width: kHistoryDateWidth, child: Text(dateLabel, style: AppTextStyles.numXS.copyWith(color: DsColors.textSecondary))),
+          SizedBox(width: kHistorySymbolWidth, child: Text(row.symbol.split('/').first, style: AppTextStyles.body.copyWith(color: DsColors.textPrimary, fontWeight: FontWeight.w600))),
+          SizedBox(width: kHistoryDirectionWidth, child: Align(alignment: Alignment.centerLeft, child: DirectionTag(isLong: row.isLong))),
           Expanded(flex: 2, child: Text(row.strategy, style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary))),
           Expanded(flex: 2, child: Text('${fmtPrice(row.entryPrice)} → ${row.isDiscarded ? '—' : fmtPrice(row.exitPrice)}', style: AppTextStyles.numXS.copyWith(color: DsColors.textSecondary))),
-          SizedBox(width: 120, child: StatusPill(statusPillVariantForHistory(row.status))),
+          SizedBox(width: kHistoryStatusWidth, child: Align(alignment: Alignment.centerLeft, child: StatusPill(statusPillVariantForHistory(row.status)))),
           SizedBox(
-            width: 90,
+            width: kHistoryPnlWidth,
             child: Text(row.isDiscarded ? fmtMissing() : fmtUsd(row.pnl), textAlign: TextAlign.right, style: AppTextStyles.numS.copyWith(color: pnlColor)),
           ),
           SizedBox(
-            width: 90,
+            width: kHistoryRoiWidth,
             child: Text(row.isDiscarded ? fmtMissing() : fmtPct(row.roi), textAlign: TextAlign.right, style: AppTextStyles.numXS.copyWith(color: pnlColor)),
           ),
         ],
@@ -181,36 +211,39 @@ Widget buildHistoryCard(HistoryRowData row, VoidCallback onTap) {
       : '—';
   final pnlColor = row.isDiscarded ? DsColors.textSecondary : ((row.pnl ?? 0) >= 0 ? DsColors.positive : DsColors.negative);
 
-  return GestureDetector(
-    onTap: onTap,
-    child: AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Text(row.symbol.split('/').first, style: AppTextStyles.body.copyWith(color: DsColors.textPrimary, fontWeight: FontWeight.w700)),
-                  const SizedBox(width: AppSpacing.sm),
-                  DirectionTag(isLong: row.isLong),
-                ],
-              ),
-              StatusPill(statusPillVariantForHistory(row.status)),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text('$dateLabel · ${row.strategy}', style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('${fmtPrice(row.entryPrice)} → ${row.isDiscarded ? '—' : fmtPrice(row.exitPrice)}', style: AppTextStyles.numXS.copyWith(color: DsColors.textSecondary)),
-              Text(row.isDiscarded ? fmtMissing() : '${fmtUsd(row.pnl)} · ${fmtPct(row.roi)}', style: AppTextStyles.numS.copyWith(color: pnlColor)),
-            ],
-          ),
-        ],
+  return MouseRegion(
+    cursor: SystemMouseCursors.click,
+    child: GestureDetector(
+      onTap: onTap,
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(row.symbol.split('/').first, style: AppTextStyles.body.copyWith(color: DsColors.textPrimary, fontWeight: FontWeight.w700)),
+                    const SizedBox(width: AppSpacing.sm),
+                    DirectionTag(isLong: row.isLong),
+                  ],
+                ),
+                StatusPill(statusPillVariantForHistory(row.status)),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text('$dateLabel · ${row.strategy}', style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('${fmtPrice(row.entryPrice)} → ${row.isDiscarded ? '—' : fmtPrice(row.exitPrice)}', style: AppTextStyles.numXS.copyWith(color: DsColors.textSecondary)),
+                Text(row.isDiscarded ? fmtMissing() : '${fmtUsd(row.pnl)} · ${fmtPct(row.roi)}', style: AppTextStyles.numS.copyWith(color: pnlColor)),
+              ],
+            ),
+          ],
+        ),
       ),
     ),
   );

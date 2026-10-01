@@ -1,3 +1,5 @@
+import '../../core/utils/strategy_name.dart';
+
 /// Parsea una fila cruda de `trades[]` (`GET /api/history`) a valores
 /// tipados, compartido entre la tabla de escritorio y la lista de celular.
 class HistoryRowData {
@@ -35,7 +37,7 @@ class HistoryRowData {
       id: rawId is int ? rawId : int.tryParse(rawId?.toString() ?? ''),
       symbol: trade['symbol']?.toString() ?? '—',
       isLong: trade['direction']?.toString().toUpperCase() == 'LONG',
-      strategy: trade['strategy']?.toString() ?? '—',
+      strategy: strategyName(trade['strategy']?.toString()),
       entryPrice: trade['entryPrice']?.toString() ?? '—',
       exitPrice: trade['exitPrice']?.toString() ?? '—',
       status: trade['status']?.toString() ?? 'DESCARTADO',

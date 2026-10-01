@@ -72,10 +72,12 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
             _buildHeader(),
             const SizedBox(height: AppSpacing.lg),
             buildPriceSection(_controller),
+            if (_controller.canOperate) ...[
+              const SizedBox(height: AppSpacing.lg),
+              buildTradeNowSection(_controller),
+            ],
             const SizedBox(height: AppSpacing.lg),
-            buildTradeNowSection(_controller),
-            const SizedBox(height: AppSpacing.lg),
-            buildContextSection(widget.signal),
+            buildContextSection(_controller),
             if (insufficientMargin) ...[
               const SizedBox(height: AppSpacing.lg),
               buildMarginWarningSection(marginWarning)!,
@@ -103,18 +105,19 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
           children: [
             Text(fmtSymbol(_controller.symbol), style: AppTextStyles.titleMobile.copyWith(color: DsColors.textPrimary)),
-            const SizedBox(width: AppSpacing.sm),
             DirectionTag(isLong: _controller.isLong),
-            const SizedBox(width: AppSpacing.sm),
             buildStatusPill(_controller),
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Señal ${widget.signal['strategy'] ?? widget.signal['regime'] ?? '—'} · generada ${_formatTime(_controller.evaluatedAt)}${_controller.priceUpdatedAt != null ? ' · datos de las ${_formatTime(_controller.priceUpdatedAt)}' : ''}',
+          'Señal ${_controller.strategy} · generada ${_formatTime(_controller.evaluatedAt)}${_controller.priceUpdatedAt != null ? ' · datos de las ${_formatTime(_controller.priceUpdatedAt)}' : ''}',
           style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
         ),
       ],
@@ -127,7 +130,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
   }
 
   Widget _buildReasonCard() {
-    final reason = widget.signal['reason'];
+    final reason = _controller.reason;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +138,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           Text('Razón de la señal', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            reason != null ? stripHtml(reason.toString()) : 'Sin detalle adicional.',
+            reason != null ? stripHtml(reason) : 'Sin detalle adicional.',
             style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary, height: 1.5),
           ),
         ],

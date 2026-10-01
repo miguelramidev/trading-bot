@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/utils/dashboard_mappers.dart';
+import '../../core/utils/strategy_name.dart';
 import '../../core/utils/symbol_formatter.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../widgets/widgets.dart';
@@ -15,7 +16,7 @@ Widget buildPositionCard(BuildContext context, dynamic p) {
   return PositionCard(
     symbol: fmtSymbol(p['symbol']),
     isLong: (p['side']?.toString().toLowerCase() ?? 'long') == 'long',
-    strategy: p['strategy']?.toString() ?? '—',
+    strategy: strategyName(p['strategy']?.toString()),
     leverage: p['leverage'] is int ? p['leverage'] : int.tryParse(p['leverage']?.toString() ?? ''),
     marginMode: p['marginMode']?.toString(),
     entry: entry,
@@ -42,7 +43,7 @@ Widget buildSignalCard(BuildContext context, DashboardProvider provider, dynamic
   return SignalCard(
     symbol: fmtSymbol(s['symbol']),
     isLong: isLongDirection(s['direction']),
-    strategy: s['strategy']?.toString() ?? s['regime']?.toString() ?? '—',
+    strategy: strategyName(s['strategy']?.toString() ?? s['regime']?.toString()),
     expiresLabel: expiry.label,
     expiresSoon: expiry.soon,
     entry: entry,

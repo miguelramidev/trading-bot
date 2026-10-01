@@ -104,5 +104,48 @@ void main() {
       final c = PositionDetailController({'entry': '100', 'stopLoss': '95'}, isClosed: true);
       expect(c.stopLossMismatch, isFalse);
     });
+
+    test('dentro de 2 ticks de diferencia -> no es mismatch (redondeo normal de Binance)', () {
+      final c = PositionDetailController({'stopLoss': '95.00'}, isClosed: true);
+      c.protection = const ProtectionInfo(hasStopLoss: true, stopLossPrice: 95.01, tickSize: 0.01);
+      expect(c.stopLossMismatch, isFalse);
+    });
+
+    test('más allá de 2 ticks -> sí es mismatch', () {
+      final c = PositionDetailController({'stopLoss': '95.00'}, isClosed: true);
+      c.protection = const ProtectionInfo(hasStopLoss: true, stopLossPrice: 95.10, tickSize: 0.01);
+      expect(c.stopLossMismatch, isTrue);
+    });
+
+    test('sin tickSize (consulta vieja o símbolo no cargado) cae a una tolerancia fija chica', () {
+      final c = PositionDetailController({'stopLoss': '100.00'}, isClosed: true);
+      c.protection = const ProtectionInfo(hasStopLoss: true, stopLossPrice: 100.01); // 0.01% de diferencia, < 0.05% de tolerancia
+      expect(c.stopLossMismatch, isFalse);
+      c.protection = const ProtectionInfo(hasStopLoss: true, stopLossPrice: 101.0); // 1% de diferencia
+      expect(c.stopLossMismatch, isTrue);
+    });
+  });
+
+  group('notionalUsd — tamaño × entrada, no margen × apalancamiento', () {
+    test('se calcula desde size y entry cuando ambos están', () {
+      final c = PositionDetailController({'entryPrice': '100', 'size': 2.5}, isClosed: false);
+      expect(c.notionalUsd, 250);
+    });
+
+    test('sin size (trade cerrado, no se guarda) -> null', () {
+      final c = PositionDetailController({'entryPrice': '100'}, isClosed: true);
+      expect(c.notionalUsd, isNull);
+    });
+  });
+
+  group('marginModeLabel', () {
+    test('traduce isolated/cross a Aislado/Cruzado', () {
+      expect(PositionDetailController({'marginMode': 'isolated'}, isClosed: false).marginModeLabel, 'Aislado');
+      expect(PositionDetailController({'marginMode': 'cross'}, isClosed: false).marginModeLabel, 'Cruzado');
+    });
+
+    test('sin dato o desconocido -> null (la UI lo muestra como "—")', () {
+      expect(PositionDetailController({}, isClosed: true).marginModeLabel, isNull);
+    });
   });
 }

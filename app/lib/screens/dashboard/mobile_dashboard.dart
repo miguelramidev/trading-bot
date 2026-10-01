@@ -7,6 +7,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/utils/result_formatter.dart';
 import '../../core/utils/dashboard_mappers.dart';
+import '../../core/utils/strategy_name.dart';
 import '../../core/utils/symbol_formatter.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../widgets/widgets.dart';
@@ -27,8 +28,10 @@ class MobileDashboard extends StatelessWidget {
           Consumer<DashboardProvider>(
             builder: (context, provider, _) => IconButton(
               tooltip: 'Actualizar',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => provider.fetchDashboardData(forceRefresh: true),
+              icon: provider.isLoading
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh),
+              onPressed: provider.isLoading ? null : () => provider.fetchDashboardData(forceRefresh: true),
             ),
           ),
         ],
@@ -231,7 +234,7 @@ class _ActivityRow extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                Text('$timeLabel · ${item['strategy']?.toString() ?? '—'}', style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
+                Text('$timeLabel · ${strategyName(item['strategy']?.toString())}', style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
               ],
             ),
           ),

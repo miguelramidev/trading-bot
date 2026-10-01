@@ -7,6 +7,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/utils/result_formatter.dart';
 import '../../core/utils/dashboard_mappers.dart';
+import '../../core/utils/strategy_name.dart';
 import '../../core/utils/symbol_formatter.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../widgets/widgets.dart';
@@ -59,7 +60,10 @@ class DesktopDashboard extends StatelessWidget {
                       children: [
                         _ConnectionPill(connected: provider.binanceConnected),
                         const SizedBox(width: AppSpacing.md),
-                        SecondaryButton(label: 'Actualizar', onPressed: () => provider.fetchDashboardData(forceRefresh: true)),
+                        SecondaryButton(
+                          label: provider.isLoading ? 'Actualizando...' : 'Actualizar',
+                          onPressed: provider.isLoading ? null : () => provider.fetchDashboardData(forceRefresh: true),
+                        ),
                       ],
                     ),
                   ],
@@ -105,6 +109,7 @@ class DesktopDashboard extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     child: Column(
                       children: [
+                        const _ActivityHeaderRow(),
                         for (var i = 0; i < provider.recentActivity.length; i++)
                           _ActivityRow(item: provider.recentActivity[i], showDivider: i < provider.recentActivity.length - 1),
                       ],
@@ -214,6 +219,37 @@ class _BalanceSection extends StatelessWidget {
   }
 }
 
+// Anchos compartidos entre `_ActivityHeaderRow` y `_ActivityRow` — si se
+// cambia uno, hay que cambiar el otro para que las columnas sigan alineadas.
+const double _kActivityTimeWidth = 110;
+const double _kActivitySymbolWidth = 110;
+const double _kActivityDirectionWidth = 80;
+const double _kActivityStatusWidth = 130;
+const double _kActivityPnlWidth = 90;
+
+class _ActivityHeaderRow extends StatelessWidget {
+  const _ActivityHeaderRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTextStyles.caption.copyWith(color: DsColors.textTertiary);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: DsColors.divider))),
+      child: Row(
+        children: [
+          SizedBox(width: _kActivityTimeWidth, child: Text('Fecha', style: style)),
+          SizedBox(width: _kActivitySymbolWidth, child: Text('Activo', style: style)),
+          SizedBox(width: _kActivityDirectionWidth, child: Text('Lado', style: style)),
+          Expanded(child: Text('Estrategia', style: style)),
+          SizedBox(width: _kActivityStatusWidth, child: Text('Resultado', style: style)),
+          SizedBox(width: _kActivityPnlWidth, child: Text('PnL', textAlign: TextAlign.right, style: style)),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActivityRow extends StatelessWidget {
   final dynamic item;
   final bool showDivider;
@@ -233,13 +269,13 @@ class _ActivityRow extends StatelessWidget {
       decoration: BoxDecoration(border: showDivider ? const Border(bottom: BorderSide(color: DsColors.divider)) : null),
       child: Row(
         children: [
-          SizedBox(width: 110, child: Text(timeLabel, style: AppTextStyles.numXS.copyWith(color: DsColors.textSecondary))),
-          Expanded(child: Text(fmtSymbol(item['symbol']), style: AppTextStyles.body.copyWith(color: DsColors.textPrimary, fontWeight: FontWeight.w600))),
-          Expanded(child: DirectionTag(isLong: isLongDirection(item['direction']))),
-          Expanded(flex: 2, child: Text(item['strategy']?.toString() ?? '—', style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary))),
-          Expanded(child: StatusPill(statusPillVariantFromKey(item['status']?.toString()))),
+          SizedBox(width: _kActivityTimeWidth, child: Text(timeLabel, style: AppTextStyles.numXS.copyWith(color: DsColors.textSecondary))),
+          SizedBox(width: _kActivitySymbolWidth, child: Text(fmtSymbol(item['symbol']), style: AppTextStyles.body.copyWith(color: DsColors.textPrimary, fontWeight: FontWeight.w600))),
+          SizedBox(width: _kActivityDirectionWidth, child: Align(alignment: Alignment.centerLeft, child: DirectionTag(isLong: isLongDirection(item['direction'])))),
+          Expanded(child: Text(strategyName(item['strategy']?.toString()), style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary))),
+          SizedBox(width: _kActivityStatusWidth, child: Align(alignment: Alignment.centerLeft, child: StatusPill(statusPillVariantFromKey(item['status']?.toString())))),
           SizedBox(
-            width: 90,
+            width: _kActivityPnlWidth,
             child: Text(
               pnl != null ? fmtUsd(pnl) : fmtMissing(),
               textAlign: TextAlign.right,

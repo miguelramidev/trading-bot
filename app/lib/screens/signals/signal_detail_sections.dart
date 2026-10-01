@@ -28,6 +28,12 @@ Widget buildStatusPill(SignalDetailController controller) {
     case SignalDetailStatus.expirada:
       return const StatusPill(StatusPillVariant.expirada);
     case SignalDetailStatus.terminada:
+      // La decisión manda: si originalmente se descartó, el resultado que el
+      // monitor simuló después (TP/SL) no cambia que nunca se operó — mismo
+      // criterio que `mapDecisionToStatus` del backend.
+      if (decision != null && decision.startsWith('Descartada')) {
+        return const StatusPill(StatusPillVariant.descartada);
+      }
       if (decision != null && decision.contains('TP Tocado')) return const StatusPill(StatusPillVariant.objetivo);
       if (decision != null && decision.contains('SL Tocado')) return const StatusPill(StatusPillVariant.stop);
       return const StatusPill(StatusPillVariant.desactivada, label: 'Terminada');
@@ -73,9 +79,14 @@ Widget buildTradeNowSection(SignalDetailController controller) {
         Row(
           children: [
             Expanded(child: _field('Margen', fmtUsd(projection.marginUsd, signed: false))),
-            Expanded(child: _field('Apalancamiento', 'x${controller.leverageMin}, puede subir hasta x${controller.leverageMax} si Binance lo exige')),
+            Expanded(child: _field('Apalancamiento', 'x${controller.leverageMin}')),
             Expanded(child: _field('Nocional', fmtUsd(projection.notionalUsd, signed: false))),
           ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Apalancamiento mínimo x${controller.leverageMin}; puede subir hasta x${controller.leverageMax} si Binance lo exige.',
+          style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.md),
         Row(
@@ -123,18 +134,18 @@ Widget _field(String label, String value) {
 }
 
 /// Contexto de la señal: régimen de BTC, tendencia 4h, funding, correlación, RSI, ADX.
-Widget buildContextSection(Map<String, dynamic> signal) {
-  final bias4h = signal['bias4h'];
+Widget buildContextSection(SignalDetailController controller) {
+  final bias4h = controller.bias4h;
   final biasLabel = bias4h == 'UP' ? 'Alcista' : (bias4h == 'DOWN' ? 'Bajista' : 'Neutral');
   final biasColor = bias4h == 'UP' ? DsColors.positive : (bias4h == 'DOWN' ? DsColors.negative : DsColors.textPrimary);
 
   final rows = <(String, String, Color)>[
-    ('Régimen de BTC', signal['btcRegime']?.toString() ?? fmtMissing(), DsColors.textPrimary),
+    ('Régimen de BTC', controller.btcRegime ?? fmtMissing(), DsColors.textPrimary),
     ('Tendencia 4h', biasLabel, biasColor),
-    ('Funding', signal['fundingRate']?.toString() ?? fmtMissing(), DsColors.textPrimary),
-    ('Correlación BTC', signal['btcCorrelation']?.toString() ?? fmtMissing(), DsColors.textPrimary),
-    ('RSI (15m)', signal['triggerRsi']?.toString() ?? fmtMissing(), DsColors.textPrimary),
-    ('ADX (15m)', signal['triggerAdx']?.toString() ?? fmtMissing(), DsColors.textPrimary),
+    ('Funding', controller.fundingRate ?? fmtMissing(), DsColors.textPrimary),
+    ('Correlación BTC', controller.btcCorrelation ?? fmtMissing(), DsColors.textPrimary),
+    ('RSI (15m)', controller.triggerRsi ?? fmtMissing(), DsColors.textPrimary),
+    ('ADX (15m)', controller.triggerAdx ?? fmtMissing(), DsColors.textPrimary),
   ];
 
   return AppCard(

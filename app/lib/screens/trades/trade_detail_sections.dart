@@ -176,14 +176,12 @@ String _fmtTime(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.
 /// Tamaño, nocional, margen, apalancamiento, modo, liquidación, funding.
 /// "—" en lo que no hay dato (siempre el caso hoy en trades cerrados).
 Widget buildDetailsSection(PositionDetailController controller) {
-  final notional = (controller.marginUsd != null && controller.leverage != null) ? controller.marginUsd! * controller.leverage! : null;
-  final size = controller.trade['size'];
   final rows = <(String, String)>[
-    ('Tamaño', size != null ? fmtPrice(size) : fmtMissing()),
-    ('Nocional', notional != null ? fmtUsd(notional, signed: false) : fmtMissing()),
+    ('Tamaño', controller.size != null ? fmtPrice(controller.size) : fmtMissing()),
+    ('Nocional', controller.notionalUsd != null ? fmtUsd(controller.notionalUsd, signed: false) : fmtMissing()),
     ('Margen', controller.marginUsd != null ? fmtUsd(controller.marginUsd, signed: false) : fmtMissing()),
     ('Apalancamiento', controller.leverage != null ? 'x${controller.leverage}' : fmtMissing()),
-    ('Modo de margen', controller.marginMode ?? fmtMissing()),
+    ('Modo de margen', controller.marginModeLabel ?? fmtMissing()),
     ('Liquidación', controller.liquidationPrice != null ? fmtPrice(controller.liquidationPrice) : fmtMissing()),
     ('Funding actual', controller.fundingRate != null ? '${(controller.fundingRate! * 100).toStringAsFixed(4)}%' : fmtMissing()),
   ];
@@ -226,9 +224,12 @@ Widget buildOriginSignalSection(PositionDetailController controller, VoidCallbac
           ],
         ),
         if (onViewSignal != null)
-          GestureDetector(
-            onTap: onViewSignal,
-            child: Text('Ver señal', style: AppTextStyles.body.copyWith(color: DsColors.accentText)),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: onViewSignal,
+              child: Text('Ver señal', style: AppTextStyles.body.copyWith(color: DsColors.accentText)),
+            ),
           ),
       ],
     ),

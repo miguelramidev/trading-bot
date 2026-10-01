@@ -65,6 +65,7 @@ class DesktopHistory extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     child: Column(
                       children: [
+                        buildHistoryTableHeader(),
                         for (var i = 0; i < rows.length; i++) buildHistoryTableRow(rows[i], () => context.go('/history/trade/${rows[i].id}', extra: rawTrades[i])),
                       ],
                     ),

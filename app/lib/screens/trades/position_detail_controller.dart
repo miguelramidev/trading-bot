@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../core/network/api_client.dart';
+import '../../core/utils/strategy_name.dart';
 import '../../core/utils/trade_projection.dart';
 
 /// Órdenes de protección reales en Binance (`GET /api/dashboard/positions/protection`).
@@ -10,6 +11,7 @@ class ProtectionInfo {
   final double? stopLossPrice;
   final double? takeProfitPrice;
   final DateTime? verifiedAt;
+  final double? tickSize;
 
   const ProtectionInfo({
     required this.hasStopLoss,
@@ -17,6 +19,7 @@ class ProtectionInfo {
     this.stopLossPrice,
     this.takeProfitPrice,
     this.verifiedAt,
+    this.tickSize,
   });
 }
 
@@ -64,9 +67,33 @@ class PositionDetailController extends ChangeNotifier {
   int? get leverage => trade['leverage'] is int ? trade['leverage'] as int : int.tryParse(trade['leverage']?.toString() ?? '');
   double? get marginUsd => _num(trade['initialMargin']);
   String? get marginMode => trade['marginMode']?.toString();
+
+  /// "isolated"/"cross" (como lo manda Binance via ccxt) traducido.
+  String? get marginModeLabel {
+    switch (marginMode?.toLowerCase()) {
+      case 'isolated':
+        return 'Aislado';
+      case 'cross':
+        return 'Cruzado';
+      default:
+        return null;
+    }
+  }
+
   double? get liquidationPrice => _num(trade['liquidationPrice']);
   double? get fundingRate => _num(trade['fundingRate']);
-  String get strategy => trade['strategy']?.toString() ?? trade['regime']?.toString() ?? '—';
+  String get strategy => strategyName(trade['strategy']?.toString() ?? trade['regime']?.toString());
+
+  /// Tamaño (contratos) de la posición, si viene (solo abiertas, `positions[]`).
+  double? get size => _num(trade['size']);
+
+  /// Nocional = tamaño × entrada (no margen × apalancamiento: ese cálculo se
+  /// desvía del real por el redondeo de Binance al ejecutar).
+  double? get notionalUsd {
+    final s = size;
+    if (s == null || entry == 0) return null;
+    return s * entry;
+  }
 
   int? get signalId {
     final raw = trade['signalId'] ?? trade['id'];
@@ -84,13 +111,19 @@ class PositionDetailController extends ChangeNotifier {
   }
 
   /// El SL real de Binance no coincide con el que la señal intentó poner.
+  /// Tolera el redondeo de Binance al tick size del símbolo (si lo
+  /// conocemos): hasta 2 ticks de diferencia no cuenta como mismatch. Sin
+  /// tick size (símbolo no cargado, consulta vieja) cae a una tolerancia
+  /// fija chica, para no marcar falsos positivos por redondeo de precio.
   bool get stopLossMismatch {
     final realStop = protection?.stopLossPrice;
-    if (realStop == null || entry == 0) return false;
     final intendedStop = _num(trade['stopLoss']);
-    if (intendedStop == null) return false;
-    final diffPct = ((realStop - intendedStop) / entry).abs() * 100;
-    return diffPct > 0.05;
+    if (realStop == null || intendedStop == null) return false;
+
+    final diff = (realStop - intendedStop).abs();
+    final tick = protection?.tickSize;
+    final tolerance = tick != null ? tick * 2 : intendedStop.abs() * 0.0005;
+    return diff > tolerance;
   }
 
   double? _num(dynamic v) {
@@ -112,6 +145,7 @@ class PositionDetailController extends ChangeNotifier {
           stopLossPrice: _num((data['stopLoss'] as Map<String, dynamic>?)?['price']),
           takeProfitPrice: _num((data['takeProfit'] as Map<String, dynamic>?)?['price']),
           verifiedAt: DateTime.tryParse(data['verifiedAt']?.toString() ?? ''),
+          tickSize: _num(data['tickSize']),
         );
       } else {
         protectionError = 'No se pudo verificar la protección en Binance.';

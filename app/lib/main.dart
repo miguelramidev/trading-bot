@@ -193,6 +193,11 @@ class MacroQuantApp extends StatelessWidget {
           ),
         ),
         routerConfig: _router,
+        // Selección de texto en toda la app — un tap simple (botones,
+        // tarjetas, chips) no compite con la selección, que se dispara con
+        // arrastre/doble tap/long-press, así que convive con los
+        // GestureDetector/InkWell existentes.
+        builder: (context, child) => SelectionArea(child: child ?? const SizedBox.shrink()),
       ),
     );
   }

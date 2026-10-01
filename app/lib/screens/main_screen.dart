@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'dashboard/responsive_layout.dart';
 import '../core/theme/ds_colors.dart';
+import '../core/theme/app_text_styles.dart';
+import '../core/theme/app_spacing.dart';
 import '../providers/dashboard_provider.dart';
 
 class MainScreen extends StatelessWidget {
@@ -76,38 +78,38 @@ class MainScreen extends StatelessWidget {
     );
   }
 
+  static const _titles = ['Inicio', 'Historial', 'Configuración'];
+
   Widget _buildDesktopTopBar(BuildContext context) {
-    String title = 'MacroQuant Executive';
-    String subtitle = 'Panel de Control';
-    if (navigationShell.currentIndex == 0) subtitle = 'Monitor Algorítmico';
-    if (navigationShell.currentIndex == 1) subtitle = 'Historial de Señales';
-    if (navigationShell.currentIndex == 2) subtitle = 'Configuración de Motor';
+    final title = _titles[navigationShell.currentIndex.clamp(0, _titles.length - 1)];
+    final connected = context.watch<DashboardProvider>().binanceConnected;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl, vertical: AppSpacing.xl),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: DsColors.border, width: 1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Text(title, style: const TextStyle(color: DsColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('/', style: TextStyle(color: DsColors.textSecondary))),
-              Text(subtitle, style: const TextStyle(color: DsColors.textSecondary, fontSize: 14)),
-            ],
-          ),
+          Text(title, style: AppTextStyles.section.copyWith(color: DsColors.textPrimary)),
           Row(
             children: [
               Row(
                 children: [
-                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: DsColors.positive, shape: BoxShape.circle)),
-                  const SizedBox(width: 8),
-                  const Text('Conectado', style: TextStyle(color: DsColors.positive, fontSize: 12, fontWeight: FontWeight.bold)),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(color: connected ? DsColors.positive : DsColors.negative, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    connected ? 'Binance conectado' : 'Sin conexión con Binance',
+                    style: AppTextStyles.caption.copyWith(color: connected ? DsColors.positive : DsColors.negative, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
-              const SizedBox(width: 24),
+              const SizedBox(width: AppSpacing.xxl),
               IconButton(
                 icon: const Icon(Icons.logout, color: DsColors.textSecondary),
                 tooltip: 'Cerrar sesión',

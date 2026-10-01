@@ -21,28 +21,68 @@ extension on _ChartTab {
       };
   String get interval => this == _ChartTab.btc1d ? '1d' : label;
   bool get isBtc => this == _ChartTab.btc1d;
+
+  /// Duración de una vela de esta pestaña, en ms — para ubicar la vela de la
+  /// señal y para darle margen a `endTime` al pedir las velas.
+  int get intervalMs => switch (this) {
+        _ChartTab.m15 => 15 * 60 * 1000,
+        _ChartTab.h4 => 4 * 60 * 60 * 1000,
+        _ChartTab.d1 => 24 * 60 * 60 * 1000,
+        _ChartTab.btc1d => 24 * 60 * 60 * 1000,
+      };
 }
 
 class _Candle {
-  final double open, high, low, close;
-  const _Candle({required this.open, required this.high, required this.low, required this.close});
+  final int time;
+  final double open, high, low, close, volume;
+  const _Candle({required this.time, required this.open, required this.high, required this.low, required this.close, required this.volume});
+}
+
+/// EMA200 + MACD(12,26,9) + ADX(14) del símbolo operado (pestaña 15m), o
+/// EMA20/50/200 de BTC en 1D (pestaña BTC 1d, solo para señales de Macro
+/// Breakout) — lo que `GET /api/market/klines?indicators=...` devuelva.
+class _Indicators {
+  final List<double>? ema200;
+  final List<double>? ema50;
+  final List<double>? ema20;
+  final List<double>? macdHistogram;
+  final List<double>? macdLine;
+  final List<double>? macdSignal;
+  final List<double>? adx;
+
+  const _Indicators({this.ema200, this.ema50, this.ema20, this.macdHistogram, this.macdLine, this.macdSignal, this.adx});
+
+  bool get isEmpty => ema200 == null && ema50 == null && ema20 == null && macdHistogram == null && adx == null;
+}
+
+class _TabData {
+  final List<_Candle> candles;
+  final _Indicators indicators;
+  const _TabData({required this.candles, required this.indicators});
 }
 
 /// Gráfico de la señal (sección 4.5 del documento de diseño), compartido
 /// entre mobile y desktop: pestañas 15m/4h/1d/BTC 1d que piden sus velas
-/// recién cuando se abren (se cachean por pestaña, no se vuelven a pedir),
-/// con las líneas de stop/entrada/objetivo superpuestas sobre las velas del
-/// símbolo operado (no sobre BTC 1d, que es otra escala de precio).
+/// recién cuando se abren (se cachean por pestaña, no se vuelven a pedir).
 ///
-/// Usa `fl_chart` (`CandlestickChart`), no `k_chart`: a diferencia de
-/// `k_chart`, expone `minY`/`maxY` explícitos (así el rango vertical
-/// siempre puede incluir el stop y el objetivo) y no tiene pan/zoom propio
-/// que pueda desincronizar la superposición de líneas.
+/// Sobre la pestaña 15m del símbolo operado se superponen los indicadores
+/// que de verdad usa la estrategia activa (EMA200, MACD(12,26,9), ADX(14)
+/// con el umbral de 25) — no EMA21/Bollinger/RSI, que se calculan pero no
+/// condicionan la entrada (ver CONTEXT.md). Para una señal de Macro
+/// Breakout, la pestaña BTC 1d muestra en cambio las EMAs de BTC que esa
+/// estrategia usa para alinear el régimen macro.
+///
+/// Usa `fl_chart` (`CandlestickChart`), no `k_chart`: expone `minY`/`maxY`
+/// explícitos (el rango vertical siempre puede incluir el stop/objetivo/
+/// EMA200) y no tiene pan/zoom propio que pueda desincronizar las
+/// superposiciones.
 class SignalChartView extends StatefulWidget {
   final String symbol;
   final double entry;
   final double stop;
   final double target;
+  final String strategy;
+  final DateTime? evaluatedAt;
 
   /// Se llama con el cierre de la última vela de 15m del símbolo operado
   /// apenas se carga esa pestaña (la inicial) — así la pantalla que envuelve
@@ -56,6 +96,8 @@ class SignalChartView extends StatefulWidget {
     required this.entry,
     required this.stop,
     required this.target,
+    required this.strategy,
+    this.evaluatedAt,
     this.onPriceLoaded,
   });
 
@@ -65,9 +107,11 @@ class SignalChartView extends StatefulWidget {
 
 class _SignalChartViewState extends State<SignalChartView> {
   _ChartTab _tab = _ChartTab.m15;
-  final Map<_ChartTab, List<_Candle>> _cache = {};
+  final Map<_ChartTab, _TabData> _cache = {};
   bool _loading = false;
   String? _error;
+
+  bool get _isMacroBreakout => widget.strategy.toLowerCase().contains('macro') || widget.strategy == '3';
 
   @override
   void initState() {
@@ -77,6 +121,15 @@ class _SignalChartViewState extends State<SignalChartView> {
 
   String get _cleanSymbol => widget.symbol.split(':').first.replaceAll('/', '');
 
+  /// Solo la pestaña 15m del símbolo operado trae los indicadores reales de
+  /// la estrategia; BTC 1d los trae solo para Macro Breakout; el resto es
+  /// velas y volumen nomás.
+  List<String> _indicatorKeysFor(_ChartTab tab) {
+    if (tab == _ChartTab.m15) return const ['ema200', 'macd', 'adx'];
+    if (tab == _ChartTab.btc1d && _isMacroBreakout) return const ['ema20', 'ema50', 'ema200'];
+    return const [];
+  }
+
   Future<void> _loadTab(_ChartTab tab) async {
     if (_cache.containsKey(tab)) return;
     setState(() {
@@ -85,20 +138,24 @@ class _SignalChartViewState extends State<SignalChartView> {
     });
     try {
       final symbol = tab.isBtc ? 'BTCUSDT' : _cleanSymbol;
-      final res = await ApiClient.get('/api/market/klines?symbol=$symbol&interval=${tab.interval}&limit=100');
+      final indicatorKeys = _indicatorKeysFor(tab);
+      final query = <String, String>{
+        'symbol': symbol,
+        'interval': tab.interval,
+        'limit': '100',
+        if (indicatorKeys.isNotEmpty) 'indicators': indicatorKeys.join(','),
+        if (widget.evaluatedAt != null)
+          'endTime': '${widget.evaluatedAt!.millisecondsSinceEpoch + tab.intervalMs * 2}',
+      };
+      final queryString = query.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
+      final res = await ApiClient.get('/api/market/klines?$queryString');
       if (res.statusCode == 200) {
-        final list = (jsonDecode(res.body) as List)
-            .map((e) => _Candle(
-                  open: double.parse(e[1].toString()),
-                  high: double.parse(e[2].toString()),
-                  low: double.parse(e[3].toString()),
-                  close: double.parse(e[4].toString()),
-                ))
-            .toList();
+        final data = jsonDecode(res.body);
+        final tabData = _parseTabData(data);
         if (!mounted) return;
-        setState(() => _cache[tab] = list);
-        if (tab == _ChartTab.m15 && list.isNotEmpty) {
-          widget.onPriceLoaded?.call(list.last.close);
+        setState(() => _cache[tab] = tabData);
+        if (tab == _ChartTab.m15 && tabData.candles.isNotEmpty) {
+          widget.onPriceLoaded?.call(tabData.candles.last.close);
         }
       } else {
         if (!mounted) return;
@@ -112,6 +169,42 @@ class _SignalChartViewState extends State<SignalChartView> {
     }
   }
 
+  /// Sin `indicators`, la respuesta es un array crudo (lista); con
+  /// `indicators`, es `{candles, indicators}`. Mismo endpoint, dos formas.
+  _TabData _parseTabData(dynamic data) {
+    final rawCandles = data is List ? data : (data['candles'] as List);
+    final candles = rawCandles
+        .map((e) => _Candle(
+              time: int.parse(e[0].toString()),
+              open: double.parse(e[1].toString()),
+              high: double.parse(e[2].toString()),
+              low: double.parse(e[3].toString()),
+              close: double.parse(e[4].toString()),
+              volume: double.parse(e[5].toString()),
+            ))
+        .toList();
+
+    if (data is! Map || data['indicators'] == null) {
+      return _TabData(candles: candles, indicators: const _Indicators());
+    }
+    final ind = data['indicators'] as Map<String, dynamic>;
+    List<double>? asList(dynamic v) => (v as List?)?.map((x) => (x as num).toDouble()).toList();
+    final macd = ind['macd'] as Map<String, dynamic>?;
+    final adx = ind['adx'] as Map<String, dynamic>?;
+    return _TabData(
+      candles: candles,
+      indicators: _Indicators(
+        ema200: asList(ind['ema200']),
+        ema50: asList(ind['ema50']),
+        ema20: asList(ind['ema20']),
+        macdHistogram: asList(macd?['histogram']),
+        macdLine: asList(macd?['macdLine']),
+        macdSignal: asList(macd?['signalLine']),
+        adx: asList(adx?['adx']),
+      ),
+    );
+  }
+
   void _onTabSelected(int index) {
     final tab = _ChartTab.values[index];
     setState(() => _tab = tab);
@@ -120,7 +213,7 @@ class _SignalChartViewState extends State<SignalChartView> {
 
   @override
   Widget build(BuildContext context) {
-    final candles = _cache[_tab];
+    final data = _cache[_tab];
     final showLevels = !_tab.isBtc;
 
     return Column(
@@ -134,26 +227,33 @@ class _SignalChartViewState extends State<SignalChartView> {
               selectedIndex: _tab.index,
               onChanged: _onTabSelected,
             ),
-            if (showLevels)
-              Row(
-                children: [
-                  _legendItem('Objetivo', DsColors.positive),
-                  const SizedBox(width: AppSpacing.md),
-                  _legendItem('Entrada', DsColors.textSecondary),
-                  const SizedBox(width: AppSpacing.md),
-                  _legendItem('Stop', DsColors.negative),
-                ],
-              ),
+            Flexible(child: _buildLegend(data, showLevels)),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        SizedBox(
-          height: 360,
-          width: double.infinity,
-          child: _buildBody(candles, showLevels),
-        ),
+        _buildBody(data, showLevels),
       ],
     );
+  }
+
+  Widget _buildLegend(_TabData? data, bool showLevels) {
+    final items = <Widget>[];
+    if (showLevels) {
+      items.addAll([
+        _legendItem('Objetivo', DsColors.positive),
+        _legendItem('Entrada', DsColors.textSecondary),
+        _legendItem('Stop', DsColors.negative),
+      ]);
+    }
+    if (data != null && !data.indicators.isEmpty) {
+      if (data.indicators.ema200 != null) items.add(_legendItem('EMA200', DsColors.warning));
+      if (data.indicators.ema50 != null) items.add(_legendItem('EMA50', DsColors.accentText));
+      if (data.indicators.ema20 != null) items.add(_legendItem('EMA20', DsColors.positive));
+      if (data.indicators.macdHistogram != null) items.add(_legendItem('MACD', DsColors.accentText));
+      if (data.indicators.adx != null) items.add(_legendItem('ADX', DsColors.warning));
+    }
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Wrap(spacing: AppSpacing.md, runSpacing: AppSpacing.xs, alignment: WrapAlignment.end, children: items);
   }
 
   Widget _legendItem(String label, Color color) {
@@ -167,21 +267,59 @@ class _SignalChartViewState extends State<SignalChartView> {
     );
   }
 
-  Widget _buildBody(List<_Candle>? candles, bool showLevels) {
-    if (_loading && candles == null) {
-      return const Center(child: CircularProgressIndicator());
+  Widget _buildBody(_TabData? data, bool showLevels) {
+    if (_loading && data == null) {
+      return const SizedBox(height: 360, child: Center(child: CircularProgressIndicator()));
     }
-    if (candles == null || candles.isEmpty) {
-      return Center(child: Text(_error ?? 'Sin velas disponibles.', style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary)));
+    if (data == null || data.candles.isEmpty) {
+      return SizedBox(
+        height: 360,
+        child: Center(child: Text(_error ?? 'Sin velas disponibles.', style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary))),
+      );
     }
 
+    final candles = data.candles;
+    final hasOscillators = _tab == _ChartTab.m15 && (data.indicators.macdHistogram != null || data.indicators.adx != null);
+
+    int? signalIndex;
+    if (widget.evaluatedAt != null) {
+      signalIndex = findSignalCandleIndex(
+        openTimesMs: candles.map((c) => c.time).toList(),
+        targetMs: widget.evaluatedAt!.millisecondsSinceEpoch,
+        intervalMs: _tab.intervalMs,
+      );
+    }
+
+    return Column(
+      children: [
+        _buildPricePanel(candles, data.indicators, showLevels, signalIndex),
+        const SizedBox(height: AppSpacing.sm),
+        if (hasOscillators) ...[
+          _buildOscillatorPanel(candles, data.indicators, signalIndex),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        _buildVolumePanel(candles, signalIndex),
+      ],
+    );
+  }
+
+  Widget _buildPricePanel(List<_Candle> candles, _Indicators indicators, bool showLevels, int? signalIndex) {
     final lows = candles.map((c) => c.low);
     final highs = candles.map((c) => c.high);
-    final range = showLevels
+    var range = showLevels
         ? computeChartYRange(lows: lows, highs: highs, stop: widget.stop, target: widget.target)
         : ChartYRange(minY: lows.reduce((a, b) => a < b ? a : b), maxY: highs.reduce((a, b) => a > b ? a : b));
 
+    // El rango también tiene que incluir las EMAs superpuestas, si las hay.
+    final emaValues = [...?indicators.ema200, ...?indicators.ema50, ...?indicators.ema20].where((v) => v > 0);
+    if (emaValues.isNotEmpty) {
+      final minEma = emaValues.reduce((a, b) => a < b ? a : b);
+      final maxEma = emaValues.reduce((a, b) => a > b ? a : b);
+      range = ChartYRange(minY: range.minY < minEma ? range.minY : minEma, maxY: range.maxY > maxEma ? range.maxY : maxEma);
+    }
+
     return Container(
+      height: 320,
       decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
       padding: const EdgeInsets.all(AppSpacing.sm),
       child: LayoutBuilder(
@@ -218,6 +356,13 @@ class _SignalChartViewState extends State<SignalChartView> {
                 ),
                 transformationConfig: const FlTransformationConfig(scaleEnabled: false, panEnabled: false),
               ),
+              if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
+              if (indicators.ema200 != null)
+                _priceLineOverlay(indicators.ema200!, DsColors.warning, candles.length, constraints.maxWidth, constraints.maxHeight, range),
+              if (indicators.ema50 != null)
+                _priceLineOverlay(indicators.ema50!, DsColors.accentText, candles.length, constraints.maxWidth, constraints.maxHeight, range),
+              if (indicators.ema20 != null)
+                _priceLineOverlay(indicators.ema20!, DsColors.positive, candles.length, constraints.maxWidth, constraints.maxHeight, range),
               if (showLevels) ...[
                 _levelLine(price: widget.target, color: DsColors.positive, label: 'TP', range: range, height: constraints.maxHeight),
                 _levelLine(price: widget.entry, color: DsColors.textSecondary, label: 'Señal', range: range, height: constraints.maxHeight),
@@ -226,6 +371,34 @@ class _SignalChartViewState extends State<SignalChartView> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  /// Polilínea de una EMA sobre el panel de precio, con el mismo sistema de
+  /// coordenadas que las líneas de stop/entrada/objetivo.
+  Widget _priceLineOverlay(List<double> values, Color color, int candleCount, double width, double height, ChartYRange range) {
+    return IgnorePointer(
+      child: CustomPaint(
+        size: Size(width, height),
+        painter: _PolylinePainter(
+          values: values,
+          color: color,
+          candleCount: candleCount,
+          range: range,
+        ),
+      ),
+    );
+  }
+
+  Widget _signalMarker(int index, int candleCount, double width, double height) {
+    final x = (index + 0.5) / candleCount * width;
+    return Positioned(
+      left: x - 1,
+      top: 0,
+      bottom: 0,
+      child: IgnorePointer(
+        child: Container(width: 1.5, color: DsColors.accentText.withValues(alpha: 0.6)),
       ),
     );
   }
@@ -255,4 +428,182 @@ class _SignalChartViewState extends State<SignalChartView> {
       ),
     );
   }
+
+  /// MACD (histograma + línea) y ADX con el umbral de 25 que usa la
+  /// Estrategia 1/3 como filtro de régimen.
+  Widget _buildOscillatorPanel(List<_Candle> candles, _Indicators indicators, int? signalIndex) {
+    final adxValues = indicators.adx;
+    final adxAtSignal = (signalIndex != null && adxValues != null && signalIndex < adxValues.length) ? adxValues[signalIndex] : null;
+
+    return Container(
+      height: 140,
+      decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (adxAtSignal != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text('ADX en la señal: ${adxAtSignal.toStringAsFixed(1)}', style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
+            ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final adxRange = adxValues != null
+                    ? ChartYRange(minY: 0, maxY: [...adxValues, 25].reduce((a, b) => a > b ? a : b) * 1.1)
+                    : const ChartYRange(minY: -1, maxY: 1);
+                final macdValues = [...?indicators.macdHistogram, ...?indicators.macdLine, ...?indicators.macdSignal];
+                final macdRange = macdValues.isNotEmpty
+                    ? ChartYRange(
+                        minY: macdValues.reduce((a, b) => a < b ? a : b) * 1.1,
+                        maxY: macdValues.reduce((a, b) => a > b ? a : b) * 1.1,
+                      )
+                    : const ChartYRange(minY: -1, maxY: 1);
+
+                return Stack(
+                  children: [
+                    if (indicators.macdHistogram != null)
+                      _histogramBars(indicators.macdHistogram!, macdRange, candles.length, constraints.maxWidth, constraints.maxHeight),
+                    if (indicators.macdLine != null)
+                      _priceLineOverlay(indicators.macdLine!, DsColors.textSecondary, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
+                    if (indicators.macdSignal != null)
+                      _priceLineOverlay(indicators.macdSignal!, DsColors.accentText, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
+                    if (adxValues != null) ...[
+                      _priceLineOverlay(adxValues, DsColors.warning, candles.length, constraints.maxWidth, constraints.maxHeight, adxRange),
+                      _thresholdLine(25, adxRange, constraints.maxHeight, 'ADX 25'),
+                    ],
+                    if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _histogramBars(List<double> values, ChartYRange range, int candleCount, double width, double height) {
+    return IgnorePointer(
+      child: CustomPaint(
+        size: Size(width, height),
+        painter: _HistogramPainter(values: values, range: range, candleCount: candleCount),
+      ),
+    );
+  }
+
+  Widget _thresholdLine(double value, ChartYRange range, double height, String label) {
+    final y = priceToChartY(value, minY: range.minY, maxY: range.maxY, height: height);
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: y,
+      child: IgnorePointer(
+        child: Container(height: 1, color: DsColors.warning.withValues(alpha: 0.5)),
+      ),
+    );
+  }
+
+  Widget _buildVolumePanel(List<_Candle> candles, int? signalIndex) {
+    final maxVol = candles.map((c) => c.volume).reduce((a, b) => a > b ? a : b);
+    return Container(
+      height: 70,
+      decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              CustomPaint(
+                size: Size(constraints.maxWidth, constraints.maxHeight),
+                painter: _VolumeBarsPainter(candles: candles, maxVolume: maxVol == 0 ? 1 : maxVol),
+              ),
+              if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PolylinePainter extends CustomPainter {
+  final List<double> values;
+  final Color color;
+  final int candleCount;
+  final ChartYRange range;
+
+  _PolylinePainter({required this.values, required this.color, required this.candleCount, required this.range});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty || candleCount == 0) return;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      if (values[i] == 0 && i < values.length - 1 && values[i + 1] == 0) continue; // placeholders de calentamiento, si quedara alguno
+      final x = (i + 0.5) / candleCount * size.width;
+      final y = priceToChartY(values[i], minY: range.minY, maxY: range.maxY, height: size.height);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PolylinePainter oldDelegate) =>
+      oldDelegate.values != values || oldDelegate.color != color || oldDelegate.range.minY != range.minY || oldDelegate.range.maxY != range.maxY;
+}
+
+class _HistogramPainter extends CustomPainter {
+  final List<double> values;
+  final ChartYRange range;
+  final int candleCount;
+
+  _HistogramPainter({required this.values, required this.range, required this.candleCount});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty || candleCount == 0) return;
+    final zeroY = priceToChartY(0, minY: range.minY, maxY: range.maxY, height: size.height);
+    final barWidth = (size.width / candleCount) * 0.6;
+    for (var i = 0; i < values.length; i++) {
+      final x = (i + 0.5) / candleCount * size.width;
+      final y = priceToChartY(values[i], minY: range.minY, maxY: range.maxY, height: size.height);
+      final paint = Paint()..color = values[i] >= 0 ? DsColors.positive.withValues(alpha: 0.7) : DsColors.negative.withValues(alpha: 0.7);
+      canvas.drawRect(Rect.fromLTRB(x - barWidth / 2, y < zeroY ? y : zeroY, x + barWidth / 2, y < zeroY ? zeroY : y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _HistogramPainter oldDelegate) => oldDelegate.values != values;
+}
+
+class _VolumeBarsPainter extends CustomPainter {
+  final List<_Candle> candles;
+  final double maxVolume;
+
+  _VolumeBarsPainter({required this.candles, required this.maxVolume});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (candles.isEmpty) return;
+    final barWidth = (size.width / candles.length) * 0.6;
+    final paint = Paint()..color = DsColors.textTertiary.withValues(alpha: 0.6);
+    for (var i = 0; i < candles.length; i++) {
+      final x = (i + 0.5) / candles.length * size.width;
+      final barHeight = (candles[i].volume / maxVolume) * size.height;
+      canvas.drawRect(Rect.fromLTRB(x - barWidth / 2, size.height - barHeight, x + barWidth / 2, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _VolumeBarsPainter oldDelegate) => oldDelegate.candles != candles;
 }

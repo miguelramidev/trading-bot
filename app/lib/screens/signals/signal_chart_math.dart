@@ -41,3 +41,23 @@ double priceToChartY(double price, {required double minY, required double maxY, 
   final y = height - fraction * height;
   return y.clamp(0.0, height);
 }
+
+/// Índice de la vela que contiene `targetMs` (el momento de la señal), dado
+/// el `openTime` en ms de cada vela y la duración de cada una. `null` si
+/// `targetMs` cae antes de la primera vela o después de la última
+/// (la señal no está en el rango visible — no se dibuja ninguna marca).
+int? findSignalCandleIndex({
+  required List<int> openTimesMs,
+  required int targetMs,
+  required int intervalMs,
+}) {
+  if (openTimesMs.isEmpty) return null;
+  if (targetMs < openTimesMs.first) return null;
+  final lastCandleEnd = openTimesMs.last + intervalMs;
+  if (targetMs >= lastCandleEnd) return null;
+
+  for (var i = openTimesMs.length - 1; i >= 0; i--) {
+    if (openTimesMs[i] <= targetMs) return i;
+  }
+  return null;
+}

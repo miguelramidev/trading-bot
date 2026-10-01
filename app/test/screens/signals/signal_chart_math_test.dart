@@ -52,4 +52,33 @@ void main() {
       expect(priceToChartY(100, minY: 100, maxY: 100, height: 200), 100);
     });
   });
+
+  group('findSignalCandleIndex', () {
+    const interval = 900000; // 15m en ms
+    final openTimes = [0, 900000, 1800000, 2700000, 3600000]; // 5 velas de 15m
+
+    test('encuentra la vela que contiene el momento exacto de apertura', () {
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 1800000, intervalMs: interval), 2);
+    });
+
+    test('encuentra la vela cuando el momento cae en el medio, no en la apertura', () {
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 1800000 + 400000, intervalMs: interval), 2);
+    });
+
+    test('el final exacto del rango (última vela + su duración) ya no está adentro', () {
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 3600000 + interval, intervalMs: interval), isNull);
+    });
+
+    test('justo antes de que termine la última vela sí está adentro', () {
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 3600000 + interval - 1, intervalMs: interval), 4);
+    });
+
+    test('antes de la primera vela -> null (la señal no está en el rango visible)', () {
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: -1, intervalMs: interval), isNull);
+    });
+
+    test('lista vacía -> null', () {
+      expect(findSignalCandleIndex(openTimesMs: [], targetMs: 100, intervalMs: interval), isNull);
+    });
+  });
 }

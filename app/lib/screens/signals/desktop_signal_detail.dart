@@ -152,6 +152,8 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                       entry: _controller.entry,
                       stop: _controller.stop,
                       target: _controller.target,
+                      strategy: _controller.strategy,
+                      evaluatedAt: _controller.evaluatedAt,
                       onPriceLoaded: _controller.setCurrentPrice,
                     ),
                   ),

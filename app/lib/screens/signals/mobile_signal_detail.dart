@@ -89,6 +89,8 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                 entry: _controller.entry,
                 stop: _controller.stop,
                 target: _controller.target,
+                strategy: _controller.strategy,
+                evaluatedAt: _controller.evaluatedAt,
                 onPriceLoaded: _controller.setCurrentPrice,
               ),
             ),

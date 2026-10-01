@@ -19,17 +19,19 @@ class SegmentedControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: DsColors.background, borderRadius: BorderRadius.circular(AppRadius.md)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < options.length; i++) ...[
-            if (i > 0) const SizedBox(width: 4),
-            _segment(options[i], i == selectedIndex, () => onChanged(i)),
+    return SelectionContainer.disabled(
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: DsColors.background, borderRadius: BorderRadius.circular(AppRadius.md)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < options.length; i++) ...[
+              if (i > 0) const SizedBox(width: 4),
+              _segment(options[i], i == selectedIndex, () => onChanged(i)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

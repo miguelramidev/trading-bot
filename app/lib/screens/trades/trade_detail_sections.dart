@@ -268,11 +268,13 @@ Widget buildOriginSignalSection(PositionDetailController controller, VoidCallbac
           ],
         ),
         if (onViewSignal != null)
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: onViewSignal,
-              child: Text('Ver señal', style: AppTextStyles.body.copyWith(color: DsColors.accentText)),
+          SelectionContainer.disabled(
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: onViewSignal,
+                child: Text('Ver señal', style: AppTextStyles.body.copyWith(color: DsColors.accentText)),
+              ),
             ),
           ),
       ],

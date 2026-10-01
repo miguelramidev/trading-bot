@@ -29,23 +29,35 @@ extension DiscardReasonLabel on DiscardReason {
 }
 
 Widget _dialogShell({required String title, required Widget content, required List<Widget> actions}) {
-  return Dialog(
-    backgroundColor: DsColors.surface,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl), side: const BorderSide(color: DsColors.border)),
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
-          const SizedBox(height: AppSpacing.lg),
-          content,
-          const SizedBox(height: AppSpacing.xl),
-          Row(children: actions),
-        ],
-      ),
-    ),
+  return Builder(
+    builder: (context) {
+      // Mismo breakpoint que `ResponsiveLayout`: en escritorio el modal no
+      // se estira a lo ancho de la pantalla, queda centrado y legible; en
+      // celular sí ocupa el ancho, con el margen que ya da `Dialog` por
+      // default (`insetPadding`).
+      final isDesktop = MediaQuery.of(context).size.width >= 900;
+      return Dialog(
+        backgroundColor: DsColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl), side: const BorderSide(color: DsColors.border)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: isDesktop ? 480 : double.infinity),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
+                const SizedBox(height: AppSpacing.lg),
+                content,
+                const SizedBox(height: AppSpacing.xl),
+                Row(children: actions),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
   );
 }
 

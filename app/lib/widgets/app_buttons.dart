@@ -16,19 +16,21 @@ class PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDisabled = onPressed == null;
-    return SizedBox(
-      height: 48,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isDisabled ? DsColors.surfaceRaised : DsColors.accent,
-          foregroundColor: isDisabled ? DsColors.textTertiary : DsColors.textOnAccent,
-          disabledBackgroundColor: DsColors.surfaceRaised,
-          disabledForegroundColor: DsColors.textTertiary,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+    return SelectionContainer.disabled(
+      child: SizedBox(
+        height: 48,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isDisabled ? DsColors.surfaceRaised : DsColors.accent,
+            foregroundColor: isDisabled ? DsColors.textTertiary : DsColors.textOnAccent,
+            disabledBackgroundColor: DsColors.surfaceRaised,
+            disabledForegroundColor: DsColors.textTertiary,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          ),
+          child: Text(isDisabled && disabledReason != null ? disabledReason! : label, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700)),
         ),
-        child: Text(isDisabled && disabledReason != null ? disabledReason! : label, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700)),
       ),
     );
   }
@@ -43,16 +45,18 @@ class SecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: DsColors.textPrimary,
-          side: const BorderSide(color: DsColors.border),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+    return SelectionContainer.disabled(
+      child: SizedBox(
+        height: 48,
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: DsColors.textPrimary,
+            side: const BorderSide(color: DsColors.border),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          ),
+          child: Text(label, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
         ),
-        child: Text(label, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
       ),
     );
   }
@@ -67,16 +71,18 @@ class DangerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: DsColors.negative,
-          side: BorderSide(color: DsColors.negative.withValues(alpha: 0.5)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+    return SelectionContainer.disabled(
+      child: SizedBox(
+        height: 48,
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: DsColors.negative,
+            side: BorderSide(color: DsColors.negative.withValues(alpha: 0.5)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          ),
+          child: Text(label, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
         ),
-        child: Text(label, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
       ),
     );
   }

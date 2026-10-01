@@ -10,10 +10,12 @@ class AppSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Switch(
-      value: value,
-      onChanged: onChanged,
-      activeThumbColor: DsColors.accent,
+    return SelectionContainer.disabled(
+      child: Switch(
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: DsColors.accent,
+      ),
     );
   }
 }

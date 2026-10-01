@@ -40,11 +40,13 @@ class SectionHeader extends StatelessWidget {
           ],
         ),
         if (linkLabel != null)
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: onLinkTap,
-              child: Text(linkLabel!, style: AppTextStyles.body.copyWith(color: DsColors.accentText)),
+          SelectionContainer.disabled(
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: onLinkTap,
+                child: Text(linkLabel!, style: AppTextStyles.body.copyWith(color: DsColors.accentText)),
+              ),
             ),
           ),
       ],

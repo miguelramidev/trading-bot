@@ -15,24 +15,26 @@ class AppFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? DsColors.surfaceRaised : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(color: selected ? DsColors.borderStrong : DsColors.border),
-          ),
-          child: Text(
-            label,
-            style: AppTextStyles.body.copyWith(
-              color: selected ? DsColors.textPrimary : DsColors.textSecondary,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+    return SelectionContainer.disabled(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? DsColors.surfaceRaised : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: selected ? DsColors.borderStrong : DsColors.border),
+            ),
+            child: Text(
+              label,
+              style: AppTextStyles.body.copyWith(
+                color: selected ? DsColors.textPrimary : DsColors.textSecondary,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
             ),
           ),
         ),

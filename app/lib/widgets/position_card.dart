@@ -43,7 +43,8 @@ class PositionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pnlColor = (pnlUsd ?? 0) >= 0 ? DsColors.positive : DsColors.negative;
-    return MouseRegion(
+    return SelectionContainer.disabled(
+      child: MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
       onTap: onTap,
@@ -92,6 +93,7 @@ class PositionCard extends StatelessWidget {
             SlTpRangeBar(stop: stop, entry: entry, target: target, price: lastPrice, isShort: !isLong),
           ],
         ),
+      ),
       ),
       ),
     );

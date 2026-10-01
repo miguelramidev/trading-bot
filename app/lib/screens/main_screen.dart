@@ -34,34 +34,38 @@ class MainScreen extends StatelessWidget {
       mobile: Scaffold(
         backgroundColor: DsColors.background,
         body: navigationShell,
-        bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: DsColors.background,
-          selectedItemColor: DsColors.positive,
-          unselectedItemColor: DsColors.textSecondary,
-          currentIndex: navigationShell.currentIndex,
-          onTap: (index) => _onItemTapped(index, context),
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Inicio'),
-            BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Historial'),
-            BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Ajustes'),
-          ],
+        bottomNavigationBar: SelectionContainer.disabled(
+          child: BottomNavigationBar(
+            backgroundColor: DsColors.background,
+            selectedItemColor: DsColors.positive,
+            unselectedItemColor: DsColors.textSecondary,
+            currentIndex: navigationShell.currentIndex,
+            onTap: (index) => _onItemTapped(index, context),
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Inicio'),
+              BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Historial'),
+              BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Ajustes'),
+            ],
+          ),
         ),
       ),
       desktop: Scaffold(
         backgroundColor: DsColors.background,
         body: Row(
           children: [
-            NavigationRail(
-              backgroundColor: DsColors.surface,
-              selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (int index) => _onItemTapped(index, context),
-              selectedIconTheme: const IconThemeData(color: DsColors.positive),
-              unselectedIconTheme: const IconThemeData(color: DsColors.textSecondary),
-              destinations: const [
-                NavigationRailDestination(icon: Icon(Icons.grid_view), label: Text('Inicio')),
-                NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Historial')),
-                NavigationRailDestination(icon: Icon(Icons.tune), label: Text('Ajustes')),
-              ],
+            SelectionContainer.disabled(
+              child: NavigationRail(
+                backgroundColor: DsColors.surface,
+                selectedIndex: navigationShell.currentIndex,
+                onDestinationSelected: (int index) => _onItemTapped(index, context),
+                selectedIconTheme: const IconThemeData(color: DsColors.positive),
+                unselectedIconTheme: const IconThemeData(color: DsColors.textSecondary),
+                destinations: const [
+                  NavigationRailDestination(icon: Icon(Icons.grid_view), label: Text('Inicio')),
+                  NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Historial')),
+                  NavigationRailDestination(icon: Icon(Icons.tune), label: Text('Ajustes')),
+                ],
+              ),
             ),
             const VerticalDivider(thickness: 1, width: 1, color: DsColors.border),
             Expanded(
@@ -116,13 +120,15 @@ class MainScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: AppSpacing.xxl),
-              IconButton(
-                icon: const Icon(Icons.logout, color: DsColors.textSecondary),
-                tooltip: 'Cerrar sesión',
-                onPressed: () async {
-                  await AuthService().signOut();
-                  if (context.mounted) context.go('/');
-                },
+              SelectionContainer.disabled(
+                child: IconButton(
+                  icon: const Icon(Icons.logout, color: DsColors.textSecondary),
+                  tooltip: 'Cerrar sesión',
+                  onPressed: () async {
+                    await AuthService().signOut();
+                    if (context.mounted) context.go('/');
+                  },
+                ),
               ),
             ],
           )

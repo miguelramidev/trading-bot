@@ -118,6 +118,28 @@ class _SignalChartViewState extends State<SignalChartView> {
   bool _loading = false;
   String? _error;
 
+  /// Columna reservada a la derecha para el eje de precios (estilo
+  /// TradingView): las velas terminan antes de ahí, y las etiquetas de
+  /// SL/entrada/TP viven en esa columna, sin cortarse contra el borde.
+  static const double _priceAxisWidth = 64;
+
+  double _chartWidth(double totalWidth) => (totalWidth - _priceAxisWidth).clamp(0.0, totalWidth);
+
+  /// Reserva la misma columna del eje (vacía, sin etiquetas) en los paneles
+  /// que no tienen niveles de precio propios (MACD/ADX/volumen), para que
+  /// sus velas/barras terminen exactamente donde terminan las del panel de
+  /// precio — alineación vertical entre todos los paneles, estilo TradingView.
+  Widget _withAxisGutter(double totalWidth, double height, Widget Function(double chartWidth) builder) {
+    final chartWidth = _chartWidth(totalWidth);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(width: chartWidth, height: height, child: builder(chartWidth)),
+        SizedBox(width: _priceAxisWidth, height: height),
+      ],
+    );
+  }
+
   bool get _isMacroBreakout => widget.strategy.toLowerCase().contains('macro') || widget.strategy == '3';
 
   @override
@@ -286,8 +308,13 @@ class _SignalChartViewState extends State<SignalChartView> {
     }
 
     final candles = data.candles;
-    final hasMacd = _tab == _ChartTab.m15 && data.indicators.macdHistogram != null;
-    final hasAdx = _tab == _ChartTab.m15 && data.indicators.adx != null;
+    // Paneles propios de MACD/ADX: se muestran siempre que se hayan PEDIDO
+    // para esta pestaña, no solo cuando el backend devolvió datos — si no
+    // hay historia suficiente, el panel lo dice en vez de desaparecer en
+    // silencio (ver `_buildMacdPanel`/`_buildAdxPanel`).
+    final requestedKeys = _indicatorKeysFor(_tab);
+    final showMacdPanel = requestedKeys.contains('macd');
+    final showAdxPanel = requestedKeys.contains('adx');
 
     int? signalIndex;
     if (widget.evaluatedAt != null) {
@@ -304,13 +331,13 @@ class _SignalChartViewState extends State<SignalChartView> {
 
     return Column(
       children: [
-        _buildPricePanel(candles, data.indicators, showLevels, signalIndex),
+        _buildPricePanel(candles, data.indicators, showLevels, signalIndex, requestedKeys),
         const SizedBox(height: AppSpacing.sm),
-        if (hasMacd) ...[
+        if (showMacdPanel) ...[
           _buildMacdPanel(candles, data.indicators, signalIndex),
           const SizedBox(height: AppSpacing.sm),
         ],
-        if (hasAdx) ...[
+        if (showAdxPanel) ...[
           _buildAdxPanel(candles, data.indicators, signalIndex),
           const SizedBox(height: AppSpacing.sm),
         ],
@@ -319,7 +346,7 @@ class _SignalChartViewState extends State<SignalChartView> {
     );
   }
 
-  Widget _buildPricePanel(List<_Candle> candles, _Indicators indicators, bool showLevels, int? signalIndex) {
+  Widget _buildPricePanel(List<_Candle> candles, _Indicators indicators, bool showLevels, int? signalIndex, List<String> requestedKeys) {
     final lows = candles.map((c) => c.low);
     final highs = candles.map((c) => c.high);
     var range = showLevels
@@ -334,60 +361,104 @@ class _SignalChartViewState extends State<SignalChartView> {
       range = ChartYRange(minY: range.minY < minEma ? range.minY : minEma, maxY: range.maxY > maxEma ? range.maxY : maxEma);
     }
 
-    return Container(
-      height: 320,
-      decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              CandlestickChart(
-                CandlestickChartData(
-                  candlestickSpots: [
-                    for (var i = 0; i < candles.length; i++)
-                      CandlestickSpot(x: i.toDouble(), open: candles[i].open, high: candles[i].high, low: candles[i].low, close: candles[i].close),
-                  ],
-                  minX: -1,
-                  maxX: candles.length.toDouble(),
-                  minY: range.minY,
-                  maxY: range.maxY,
-                  gridData: const FlGridData(show: false),
-                  titlesData: const FlTitlesData(show: false),
-                  borderData: FlBorderData(show: false),
-                  candlestickPainter: DefaultCandlestickPainter(
-                    candlestickStyleProvider: (spot, i) {
-                      final color = spot.isUp ? DsColors.positive : DsColors.negativeCandle;
-                      return CandlestickStyle(
-                        lineColor: color,
-                        lineWidth: 1,
-                        bodyStrokeColor: color,
-                        bodyStrokeWidth: 0,
-                        bodyFillColor: color,
-                        bodyWidth: 6,
-                        bodyRadius: 1,
-                      );
-                    },
+    // Historia insuficiente para alguna EMA pedida (símbolo recién listado
+    // en Binance, sin las velas que ese período necesita): el backend manda
+    // `null` para esa serie puntual — se avisa en vez de omitirla en silencio.
+    final missingEma = <String>[
+      if (requestedKeys.contains('ema200') && indicators.ema200 == null) 'EMA200',
+      if (requestedKeys.contains('ema50') && indicators.ema50 == null) 'EMA50',
+      if (requestedKeys.contains('ema20') && indicators.ema20 == null) 'EMA20',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 320,
+          decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final chartWidth = _chartWidth(constraints.maxWidth);
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: chartWidth,
+                    height: constraints.maxHeight,
+                    child: Stack(
+                      children: [
+                        CandlestickChart(
+                          CandlestickChartData(
+                            candlestickSpots: [
+                              for (var i = 0; i < candles.length; i++)
+                                CandlestickSpot(x: i.toDouble(), open: candles[i].open, high: candles[i].high, low: candles[i].low, close: candles[i].close),
+                            ],
+                            minX: -1,
+                            maxX: candles.length.toDouble(),
+                            minY: range.minY,
+                            maxY: range.maxY,
+                            gridData: const FlGridData(show: false),
+                            titlesData: const FlTitlesData(show: false),
+                            borderData: FlBorderData(show: false),
+                            candlestickPainter: DefaultCandlestickPainter(
+                              candlestickStyleProvider: (spot, i) {
+                                final color = spot.isUp ? DsColors.positive : DsColors.negativeCandle;
+                                return CandlestickStyle(
+                                  lineColor: color,
+                                  lineWidth: 1,
+                                  bodyStrokeColor: color,
+                                  bodyStrokeWidth: 0,
+                                  bodyFillColor: color,
+                                  bodyWidth: 6,
+                                  bodyRadius: 1,
+                                );
+                              },
+                            ),
+                          ),
+                          transformationConfig: const FlTransformationConfig(scaleEnabled: false, panEnabled: false),
+                        ),
+                        if (signalIndex != null) _signalMarker(signalIndex, candles.length, chartWidth, constraints.maxHeight),
+                        if (indicators.ema200 != null)
+                          _priceLineOverlay(indicators.ema200!, DsColors.warning, candles.length, chartWidth, constraints.maxHeight, range),
+                        if (indicators.ema50 != null)
+                          _priceLineOverlay(indicators.ema50!, DsColors.accentText, candles.length, chartWidth, constraints.maxHeight, range),
+                        if (indicators.ema20 != null)
+                          _priceLineOverlay(indicators.ema20!, DsColors.positive, candles.length, chartWidth, constraints.maxHeight, range),
+                        if (showLevels) ...[
+                          _levelLineSegment(price: widget.target, color: DsColors.positive, range: range, height: constraints.maxHeight),
+                          _levelLineSegment(price: widget.entry, color: DsColors.textSecondary, range: range, height: constraints.maxHeight),
+                          _levelLineSegment(price: widget.stop, color: DsColors.negative, range: range, height: constraints.maxHeight),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
-                transformationConfig: const FlTransformationConfig(scaleEnabled: false, panEnabled: false),
-              ),
-              if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
-              if (indicators.ema200 != null)
-                _priceLineOverlay(indicators.ema200!, DsColors.warning, candles.length, constraints.maxWidth, constraints.maxHeight, range),
-              if (indicators.ema50 != null)
-                _priceLineOverlay(indicators.ema50!, DsColors.accentText, candles.length, constraints.maxWidth, constraints.maxHeight, range),
-              if (indicators.ema20 != null)
-                _priceLineOverlay(indicators.ema20!, DsColors.positive, candles.length, constraints.maxWidth, constraints.maxHeight, range),
-              if (showLevels) ...[
-                _levelLine(price: widget.target, color: DsColors.positive, label: 'TP', range: range, height: constraints.maxHeight),
-                _levelLine(price: widget.entry, color: DsColors.textSecondary, label: 'Señal', range: range, height: constraints.maxHeight),
-                _levelLine(price: widget.stop, color: DsColors.negative, label: 'SL', range: range, height: constraints.maxHeight),
-              ],
-            ],
-          );
-        },
-      ),
+                  SizedBox(
+                    width: _priceAxisWidth,
+                    height: constraints.maxHeight,
+                    child: showLevels
+                        ? Stack(
+                            children: [
+                              _levelLabel(price: widget.target, color: DsColors.positive, range: range, height: constraints.maxHeight),
+                              _levelLabel(price: widget.entry, color: DsColors.textSecondary, range: range, height: constraints.maxHeight),
+                              _levelLabel(price: widget.stop, color: DsColors.negative, range: range, height: constraints.maxHeight),
+                            ],
+                          )
+                        : null,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        if (missingEma.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Historia insuficiente para ${missingEma.join(", ")}.',
+            style: AppTextStyles.caption.copyWith(color: DsColors.textTertiary),
+          ),
+        ],
+      ],
     );
   }
 
@@ -419,34 +490,61 @@ class _SignalChartViewState extends State<SignalChartView> {
     );
   }
 
-  Widget _levelLine({required double price, required Color color, required String label, required ChartYRange range, required double height}) {
+  /// Solo la línea horizontal del nivel (stop/entrada/objetivo) — va en el
+  /// área de velas. La etiqueta con el precio va aparte, en la columna del
+  /// eje (`_levelLabel`), para que nunca se corte contra el borde.
+  Widget _levelLineSegment({required double price, required Color color, required ChartYRange range, required double height}) {
     final y = priceToChartY(price, minY: range.minY, maxY: range.maxY, height: height);
     return Positioned(
       left: 0,
       right: 0,
       top: y,
+      child: IgnorePointer(child: Container(height: 1, color: color.withValues(alpha: 0.7))),
+    );
+  }
+
+  /// Etiqueta de precio en la columna del eje (estilo TradingView): a la
+  /// misma altura que su línea en `_levelLineSegment`, pero en su propia
+  /// columna reservada — nunca compite por espacio con las velas ni se
+  /// corta contra el borde derecho.
+  Widget _levelLabel({required double price, required Color color, required ChartYRange range, required double height}) {
+    final y = priceToChartY(price, minY: range.minY, maxY: range.maxY, height: height);
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: (y - 9).clamp(0.0, height - 18),
       child: IgnorePointer(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(height: 1, color: color.withValues(alpha: 0.7)),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                margin: const EdgeInsets.only(top: 2, right: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
-                child: Text('$label ${fmtPrice(price)}', style: AppTextStyles.micro.copyWith(color: DsColors.background, fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ],
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.only(left: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+            child: Text(fmtPrice(price), style: AppTextStyles.micro.copyWith(color: DsColors.background, fontWeight: FontWeight.w600)),
+          ),
         ),
+      ),
+    );
+  }
+
+  /// Panel vacío con un aviso, en vez de un panel sin nada adentro: para
+  /// cuando el indicador se pidió pero el backend mandó `null` (sin
+  /// historia suficiente para ese período — ver `computeKlineIndicators`).
+  Widget _insufficientHistoryPanel(String label) {
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Center(
+        child: Text('Historia insuficiente para $label.', style: AppTextStyles.caption.copyWith(color: DsColors.textTertiary)),
       ),
     );
   }
 
   /// MACD (histograma + línea + señal), panel propio con su propia escala.
   Widget _buildMacdPanel(List<_Candle> candles, _Indicators indicators, int? signalIndex) {
+    if (indicators.macdHistogram == null) return _insufficientHistoryPanel('MACD');
+
     return Container(
       height: 120,
       decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
@@ -461,17 +559,18 @@ class _SignalChartViewState extends State<SignalChartView> {
                 )
               : const ChartYRange(minY: -1, maxY: 1);
 
-          return Stack(
-            children: [
-              if (indicators.macdHistogram != null)
-                _histogramBars(indicators.macdHistogram!, macdRange, candles.length, constraints.maxWidth, constraints.maxHeight),
-              if (indicators.macdLine != null)
-                _priceLineOverlay(indicators.macdLine!, DsColors.textSecondary, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
-              if (indicators.macdSignal != null)
-                _priceLineOverlay(indicators.macdSignal!, DsColors.accentText, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
-              if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
-            ],
-          );
+          return _withAxisGutter(constraints.maxWidth, constraints.maxHeight, (chartWidth) {
+            return Stack(
+              children: [
+                if (indicators.macdHistogram != null) _histogramBars(indicators.macdHistogram!, macdRange, candles.length, chartWidth, constraints.maxHeight),
+                if (indicators.macdLine != null)
+                  _priceLineOverlay(indicators.macdLine!, DsColors.textSecondary, candles.length, chartWidth, constraints.maxHeight, macdRange),
+                if (indicators.macdSignal != null)
+                  _priceLineOverlay(indicators.macdSignal!, DsColors.accentText, candles.length, chartWidth, constraints.maxHeight, macdRange),
+                if (signalIndex != null) _signalMarker(signalIndex, candles.length, chartWidth, constraints.maxHeight),
+              ],
+            );
+          });
         },
       ),
     );
@@ -481,7 +580,9 @@ class _SignalChartViewState extends State<SignalChartView> {
   /// régimen, panel propio con su propia escala.
   Widget _buildAdxPanel(List<_Candle> candles, _Indicators indicators, int? signalIndex) {
     final adxValues = indicators.adx;
-    final adxAtSignal = (signalIndex != null && adxValues != null && signalIndex < adxValues.length) ? adxValues[signalIndex] : null;
+    if (adxValues == null) return _insufficientHistoryPanel('ADX');
+
+    final adxAtSignal = (signalIndex != null && signalIndex < adxValues.length) ? adxValues[signalIndex] : null;
 
     return Container(
       height: 120,
@@ -498,19 +599,17 @@ class _SignalChartViewState extends State<SignalChartView> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final adxRange = adxValues != null
-                    ? ChartYRange(minY: 0, maxY: [...adxValues, 25].reduce((a, b) => a > b ? a : b) * 1.1)
-                    : const ChartYRange(minY: -1, maxY: 1);
+                final adxRange = ChartYRange(minY: 0, maxY: [...adxValues, 25].reduce((a, b) => a > b ? a : b) * 1.1);
 
-                return Stack(
-                  children: [
-                    if (adxValues != null) ...[
-                      _priceLineOverlay(adxValues, DsColors.warning, candles.length, constraints.maxWidth, constraints.maxHeight, adxRange),
+                return _withAxisGutter(constraints.maxWidth, constraints.maxHeight, (chartWidth) {
+                  return Stack(
+                    children: [
+                      _priceLineOverlay(adxValues, DsColors.warning, candles.length, chartWidth, constraints.maxHeight, adxRange),
                       _thresholdLine(25, adxRange, constraints.maxHeight, 'ADX 25'),
+                      if (signalIndex != null) _signalMarker(signalIndex, candles.length, chartWidth, constraints.maxHeight),
                     ],
-                    if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
-                  ],
-                );
+                  );
+                });
               },
             ),
           ),
@@ -548,15 +647,17 @@ class _SignalChartViewState extends State<SignalChartView> {
       padding: const EdgeInsets.all(AppSpacing.sm),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return Stack(
-            children: [
-              CustomPaint(
-                size: Size(constraints.maxWidth, constraints.maxHeight),
-                painter: _VolumeBarsPainter(candles: candles, maxVolume: maxVol == 0 ? 1 : maxVol),
-              ),
-              if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
-            ],
-          );
+          return _withAxisGutter(constraints.maxWidth, constraints.maxHeight, (chartWidth) {
+            return Stack(
+              children: [
+                CustomPaint(
+                  size: Size(chartWidth, constraints.maxHeight),
+                  painter: _VolumeBarsPainter(candles: candles, maxVolume: maxVol == 0 ? 1 : maxVol),
+                ),
+                if (signalIndex != null) _signalMarker(signalIndex, candles.length, chartWidth, constraints.maxHeight),
+              ],
+            );
+          });
         },
       ),
     );

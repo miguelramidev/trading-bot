@@ -14,7 +14,17 @@ export type ReconciliationAction =
   | { kind: "still_open" }
   | { kind: "missing_stop_loss"; shouldAlert: boolean }
   | { kind: "stop_mismatch"; expectedPrice: number; actualPrice: number }
-  | { kind: "closed"; reason: CloseReason; pnl: number | null; exitPrice: number | null; quantity: number | null };
+  | {
+      kind: "closed";
+      reason: CloseReason;
+      /** Cómo se identificó el motivo del cierre: por el `clientOrderId` de la orden que generó
+       * el fill (preciso), por el respaldo de precio (aproximado, sin tag reconocible), o
+       * "unknown" cuando ninguno de los dos pudo determinarlo (cae en "manual" sin certeza). */
+      identifiedBy: "clientOrderId" | "price" | "unknown";
+      pnl: number | null;
+      exitPrice: number | null;
+      quantity: number | null;
+    };
 
 export interface DecideReconciliationActionInput {
   direction: "LONG" | "SHORT";
@@ -62,12 +72,17 @@ export function decideReconciliationAction(input: DecideReconciliationActionInpu
     const quantity = closingFill?.fillsFound ? closingFill.quantity ?? null : null;
 
     let reason: CloseReason;
-    if (closingClientOrderId?.startsWith("sl_")) reason = "sl";
-    else if (closingClientOrderId?.startsWith("tp_")) reason = "tp";
-    else if (closingClientOrderId?.startsWith("emrg_")) reason = "emergency";
-    else reason = (fillPrice !== null && classifyByPrice(fillPrice, gridSL, gridTP, tickSize)) || "manual";
+    let identifiedBy: "clientOrderId" | "price" | "unknown";
+    if (closingClientOrderId?.startsWith("sl_")) { reason = "sl"; identifiedBy = "clientOrderId"; }
+    else if (closingClientOrderId?.startsWith("tp_")) { reason = "tp"; identifiedBy = "clientOrderId"; }
+    else if (closingClientOrderId?.startsWith("emrg_")) { reason = "emergency"; identifiedBy = "clientOrderId"; }
+    else {
+      const byPrice = fillPrice !== null ? classifyByPrice(fillPrice, gridSL, gridTP, tickSize) : null;
+      reason = byPrice ?? "manual";
+      identifiedBy = byPrice ? "price" : "unknown";
+    }
 
-    return { kind: "closed", reason, pnl, exitPrice: fillPrice, quantity };
+    return { kind: "closed", reason, identifiedBy, pnl, exitPrice: fillPrice, quantity };
   }
 
   const classification = classifyProtectionOrders({ orders: protectionOrders, isLong: direction === "LONG", entryPrice });

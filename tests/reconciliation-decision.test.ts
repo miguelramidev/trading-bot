@@ -43,7 +43,7 @@ describe("decideReconciliationAction — cerró en TP", () => {
       closingClientOrderId: "tp_BTCUSDTUSDT_abc123",
     });
 
-    expect(result).toEqual({ kind: "closed", reason: "tp", pnl: 19, exitPrice: 110, quantity: 2 });
+    expect(result).toEqual({ kind: "closed", reason: "tp", identifiedBy: "clientOrderId", pnl: 19, exitPrice: 110, quantity: 2 });
   });
 
   it("respaldo por precio cuando no hay clientOrderId: fill cerca del TP", () => {
@@ -55,7 +55,7 @@ describe("decideReconciliationAction — cerró en TP", () => {
       closingClientOrderId: undefined,
     });
 
-    expect(result).toEqual({ kind: "closed", reason: "tp", pnl: 9.5, exitPrice: 110.05, quantity: 1 });
+    expect(result).toEqual({ kind: "closed", reason: "tp", identifiedBy: "price", pnl: 9.5, exitPrice: 110.05, quantity: 1 });
   });
 });
 
@@ -69,7 +69,7 @@ describe("decideReconciliationAction — cerró en SL", () => {
       closingClientOrderId: "sl_BTCUSDTUSDT_abc123",
     });
 
-    expect(result).toEqual({ kind: "closed", reason: "sl", pnl: -11, exitPrice: 95, quantity: 2 });
+    expect(result).toEqual({ kind: "closed", reason: "sl", identifiedBy: "clientOrderId", pnl: -11, exitPrice: 95, quantity: 2 });
   });
 
   it("respaldo por precio cuando no hay clientOrderId: fill cerca del SL", () => {
@@ -81,7 +81,7 @@ describe("decideReconciliationAction — cerró en SL", () => {
       closingClientOrderId: undefined,
     });
 
-    expect(result).toEqual({ kind: "closed", reason: "sl", pnl: -5.2, exitPrice: 94.98, quantity: 1 });
+    expect(result).toEqual({ kind: "closed", reason: "sl", identifiedBy: "price", pnl: -5.2, exitPrice: 94.98, quantity: 1 });
   });
 });
 
@@ -95,7 +95,7 @@ describe("decideReconciliationAction — cierre de emergencia", () => {
       closingClientOrderId: "emrg_BTCUSDTUSDT_abc123",
     });
 
-    expect(result).toEqual({ kind: "closed", reason: "emergency", pnl: -3.1, exitPrice: 97, quantity: 1 });
+    expect(result).toEqual({ kind: "closed", reason: "emergency", identifiedBy: "clientOrderId", pnl: -3.1, exitPrice: 97, quantity: 1 });
   });
 });
 
@@ -109,7 +109,7 @@ describe("decideReconciliationAction — cierre manual", () => {
       closingClientOrderId: undefined,
     });
 
-    expect(result).toEqual({ kind: "closed", reason: "manual", pnl: 1.9, exitPrice: 102, quantity: 1 });
+    expect(result).toEqual({ kind: "closed", reason: "manual", identifiedBy: "unknown", pnl: 1.9, exitPrice: 102, quantity: 1 });
   });
 
   it("clientOrderId presente pero sin ninguno de los prefijos conocidos: cae al respaldo por precio igual que sin clientOrderId", () => {
@@ -123,9 +123,10 @@ describe("decideReconciliationAction — cierre manual", () => {
 
     expect(result.kind).toBe("closed");
     expect((result as any).reason).toBe("sl"); // el respaldo por precio igual lo identifica
+    expect((result as any).identifiedBy).toBe("price");
   });
 
-  it("sin ningún fill encontrado (ni con reintentos): manual, con pnl/exitPrice/quantity en null", () => {
+  it("sin ningún fill encontrado (ni con reintentos): manual/unknown, con pnl/exitPrice/quantity en null", () => {
     const result = decideReconciliationAction({
       ...base,
       positionOpen: false,
@@ -134,7 +135,7 @@ describe("decideReconciliationAction — cierre manual", () => {
       closingClientOrderId: undefined,
     });
 
-    expect(result).toEqual({ kind: "closed", reason: "manual", pnl: null, exitPrice: null, quantity: null });
+    expect(result).toEqual({ kind: "closed", reason: "manual", identifiedBy: "unknown", pnl: null, exitPrice: null, quantity: null });
   });
 });
 

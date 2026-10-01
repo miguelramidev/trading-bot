@@ -97,6 +97,7 @@ const baseSignal = {
   gridTP: "51000",
   stopLoss: "49000",
   takeProfit: "51000",
+  isActiveTrade: true,
 };
 
 function makeTradeExecution(overrides: Partial<any> = {}) {
@@ -234,6 +235,51 @@ describe("reconcileActiveTrades — cierre real (modo activo)", () => {
     expect(mocks.sendPushNotification).not.toHaveBeenCalled();
     expect(mocks.telegramSendMessage).not.toHaveBeenCalled();
   });
+
+  it("transición: si signal_history ya la cerró el monitor de velas (mientras la conciliación estaba en solo registro), actualiza trade_executions y cancela huérfanas, pero NO toca signal_history ni notifica de nuevo", async () => {
+    mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
+    mocks.fetchAllPositions.mockResolvedValue([]);
+    mocks.getClosingFill.mockResolvedValue({ fillsFound: true, orderId: "9", quantity: 0.01, avgPrice: 51000, pnl: 10, fee: 0.5 });
+    mocks.getOrderClientId.mockResolvedValue("tp_BTCUSDTUSDT_abc");
+    mocks.signalFindFirst.mockResolvedValue({ ...baseSignal, isActiveTrade: false }); // ya cerrada por el monitor de velas
+
+    await reconcileActiveTrades();
+
+    expect(mocks.tradeExecSet).toHaveBeenCalledWith(expect.objectContaining({ isActive: false, closeReason: "tp" }));
+    expect(mocks.cancelLeftoverOrders).toHaveBeenCalledWith("BTC/USDT:USDT");
+    expect(mocks.signalHistorySet).not.toHaveBeenCalled();
+    expect(mocks.sendPushNotification).not.toHaveBeenCalled();
+    expect(mocks.telegramSendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("reconcileActiveTrades — modo de solo registro no suma reintentos de más", () => {
+  it("si el fill no aparece en el primer intento, NO reintenta (a diferencia del modo activo)", async () => {
+    mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
+    mocks.fetchAllPositions.mockResolvedValue([]); // sin posición -> cerrada
+    mocks.getClosingFill
+      .mockResolvedValueOnce({ fillsFound: false })
+      .mockResolvedValueOnce({ fillsFound: true, orderId: "9", quantity: 0.01, avgPrice: 51000, pnl: 10, fee: 0.5 });
+
+    await reconcileActiveTrades();
+
+    // En modo activo este mismo mock habría reintentado y encontrado el fill en el 2º intento
+    // (ver tests/trade-execution.test.ts); en modo de solo registro se queda con el primero.
+    expect(mocks.getClosingFill).toHaveBeenCalledTimes(1);
+  });
+
+  it("modo activo (comparación): el mismo caso SÍ reintenta hasta encontrar el fill", async () => {
+    vi.stubEnv("RECONCILIATION_DRY_RUN", "false");
+    mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
+    mocks.fetchAllPositions.mockResolvedValue([]);
+    mocks.getClosingFill
+      .mockResolvedValueOnce({ fillsFound: false })
+      .mockResolvedValueOnce({ fillsFound: true, orderId: "9", quantity: 0.01, avgPrice: 51000, pnl: 10, fee: 0.5 });
+
+    await reconcileActiveTrades();
+
+    expect(mocks.getClosingFill).toHaveBeenCalledTimes(2);
+  }, 10000);
 });
 
 describe("reconcileActiveTrades — sin Stop Loss (modo activo)", () => {

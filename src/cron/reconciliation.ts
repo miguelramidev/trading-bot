@@ -124,7 +124,11 @@ async function reconcileOneTrade(
   let closingClientOrderId: string | undefined;
   if (!positionOpen) {
     const exitSide = direction === "LONG" ? "sell" : "buy";
-    closingFill = await fetchClosingFillWithRetries(trader, symbol, trade.openedAt.getTime(), exitSide);
+    // En modo de solo registro no reintentamos: si el fill todavía no llegó, se va a volver a
+    // ver en el próximo ciclo (15m después) de cualquier forma, así que no vale la pena sumar
+    // reintentos (ni los ~3s de espera) a un ciclo que total no va a escribir ni notificar nada.
+    const maxAttempts = dryRun ? 1 : CLOSING_FILL_MAX_ATTEMPTS;
+    closingFill = await fetchClosingFillWithRetries(trader, symbol, trade.openedAt.getTime(), exitSide, maxAttempts);
     if (closingFill.fillsFound) {
       closingClientOrderId = await trader.getOrderClientId(symbol, closingFill.orderId);
     }
@@ -151,18 +155,19 @@ async function reconcileOneTrade(
     return;
   }
 
-  await applyAction(action, trade, user, trader, symbol, direction, entryPrice);
+  await applyAction(action, trade, signal.isActiveTrade, user, trader, symbol, direction, entryPrice);
 }
 
 async function fetchClosingFillWithRetries(
   trader: Trader,
   symbol: string,
   sinceMs: number,
-  exitSide: "buy" | "sell"
+  exitSide: "buy" | "sell",
+  maxAttempts: number
 ): ReturnType<Trader["getClosingFill"]> {
   let fill = await trader.getClosingFill(symbol, sinceMs, exitSide);
   let attempts = 1;
-  while (!fill.fillsFound && attempts < CLOSING_FILL_MAX_ATTEMPTS) {
+  while (!fill.fillsFound && attempts < maxAttempts) {
     await sleep(CLOSING_FILL_RETRY_DELAY_MS);
     fill = await trader.getClosingFill(symbol, sinceMs, exitSide);
     attempts++;
@@ -173,6 +178,7 @@ async function fetchClosingFillWithRetries(
 async function applyAction(
   action: ReconciliationAction,
   trade: TradeExecutionRow,
+  signalWasActiveTrade: boolean,
   user: UserRow,
   trader: Trader,
   symbol: string,
@@ -210,6 +216,10 @@ async function applyAction(
   }
 
   // action.kind === "closed"
+  console.log(
+    `[conciliación] trade_executions.id=${trade.id} (${symbol}): cerró por "${action.reason}", identificado por ${action.identifiedBy}.`
+  );
+
   // Update condicional (isActive=true en el WHERE): si otro ciclo ya cerró esta fila entre que
   // la leímos y acá, `updated` queda vacío y no duplicamos el cierre ni la notificación.
   const updated = await db
@@ -227,6 +237,20 @@ async function applyAction(
 
   if (updated.length === 0) return;
 
+  // Respaldo: normalmente Binance ya auto-expira la orden de protección contraria cuando una de
+  // las dos cierra toda la posición, pero no en un cierre manual desde la app. Esto corre pase lo
+  // que pase con signal_history: es higiene de Binance, no depende de qué tabla haya quedado al día.
+  await trader.cancelLeftoverOrders(symbol).catch((e: any) => console.error("[conciliación] Error cancelando huérfanas tras el cierre:", e.message));
+
+  // Transición mientras el modo de solo registro estuvo activo: el monitor por velas pudo haber
+  // cerrado esta misma fila de signal_history en un ciclo anterior (corrían en paralelo). Si ya
+  // está cerrada, no la tocamos de nuevo ni mandamos una segunda notificación — trade_executions
+  // ya quedó al día arriba, que es lo único que le faltaba.
+  if (!signalWasActiveTrade) {
+    console.log(`[conciliación] trade_executions.id=${trade.id} (${symbol}): signal_history ya estaba cerrada (monitor de velas) — no se notifica de nuevo.`);
+    return;
+  }
+
   await db
     .update(signalHistory)
     .set({
@@ -236,10 +260,6 @@ async function applyAction(
       executedExitPrice: action.exitPrice !== null ? action.exitPrice.toString() : null,
     })
     .where(eq(signalHistory.id, trade.signalId));
-
-  // Respaldo: normalmente Binance ya auto-expira la orden de protección contraria cuando una de
-  // las dos cierra toda la posición, pero no en un cierre manual desde la app.
-  await trader.cancelLeftoverOrders(symbol).catch((e: any) => console.error("[conciliación] Error cancelando huérfanas tras el cierre:", e.message));
 
   const notificationInput = {
     symbol,

@@ -47,14 +47,19 @@ class PositionDetailController extends ChangeNotifier {
 
   double get entry => _num(trade['entryPrice']) ?? _num(trade['executedEntryPrice']) ?? _num(trade['entry']) ?? 0;
 
-  /// Último precio (abierta) o precio de salida real (cerrada).
-  double get lastPrice => _num(trade['markPrice']) ?? _num(trade['executedExitPrice']) ?? entry;
+  /// Último precio (abierta, de `/api/dashboard`) o precio de salida real
+  /// (cerrada: `GET /api/history/:id` lo manda como `exitPrice`, no
+  /// `executedExitPrice` — ese es el nombre de la columna en la base, no el
+  /// de la respuesta HTTP).
+  double get lastPrice => _num(trade['markPrice']) ?? _num(trade['exitPrice']) ?? _num(trade['executedExitPrice']) ?? entry;
 
   double get stop => _num(trade['stopLoss']) ?? entry;
   double get target => _num(trade['takeProfit']) ?? entry;
 
-  double? get pnlUsd => _num(trade['unrealizedPnl']) ?? _num(trade['realizedPnl']);
-  double? get pnlPct => _num(trade['percentage']) ?? _num(trade['realizedRoi']);
+  /// Igual que `lastPrice`: `/api/history/:id` manda `pnl`/`roi`, no
+  /// `realizedPnl`/`realizedRoi` (esos son los nombres de columna).
+  double? get pnlUsd => _num(trade['unrealizedPnl']) ?? _num(trade['pnl']) ?? _num(trade['realizedPnl']);
+  double? get pnlPct => _num(trade['percentage']) ?? _num(trade['roi']) ?? _num(trade['realizedRoi']);
 
   int? get leverage => trade['leverage'] is int ? trade['leverage'] as int : int.tryParse(trade['leverage']?.toString() ?? '');
   double? get marginUsd => _num(trade['initialMargin']);

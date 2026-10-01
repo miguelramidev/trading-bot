@@ -25,9 +25,14 @@ void main() {
       expect(c.lastPrice, 103.2);
     });
 
-    test('trade cerrado: entry / executedExitPrice', () {
-      final c = PositionDetailController({'entry': '100.5', 'executedExitPrice': '110.0'}, isClosed: true);
+    test('trade cerrado: entryPrice / exitPrice (nombres reales de GET /api/history/:id)', () {
+      final c = PositionDetailController({'entryPrice': '100.5', 'exitPrice': '110.0'}, isClosed: true);
       expect(c.entry, 100.5);
+      expect(c.lastPrice, 110.0);
+    });
+
+    test('fallback a executedExitPrice si "exitPrice" no viene (nombre de columna, no de la respuesta HTTP)', () {
+      final c = PositionDetailController({'entry': '100.5', 'executedExitPrice': '110.0'}, isClosed: true);
       expect(c.lastPrice, 110.0);
     });
 
@@ -44,7 +49,13 @@ void main() {
       expect(c.pnlPct, 1.5);
     });
 
-    test('cerrada: realizedPnl / realizedRoi', () {
+    test('cerrada: pnl / roi (nombres reales de GET /api/history/:id)', () {
+      final c = PositionDetailController({'pnl': -2.1, 'roi': -3.0}, isClosed: true);
+      expect(c.pnlUsd, -2.1);
+      expect(c.pnlPct, -3.0);
+    });
+
+    test('fallback a realizedPnl/realizedRoi si "pnl"/"roi" no vienen (nombres de columna)', () {
       final c = PositionDetailController({'realizedPnl': '-2.1', 'realizedRoi': '-3.0'}, isClosed: true);
       expect(c.pnlUsd, -2.1);
       expect(c.pnlPct, -3.0);

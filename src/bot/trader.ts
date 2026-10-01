@@ -1,11 +1,17 @@
 import ccxt from "ccxt";
 import { Resource } from "sst";
+import { extractTickSize } from "../api/modules/dashboard/infrastructure/protectionOrders.js";
 
 export type TradeStatus = "ejecutado" | "rechazado" | "advertencia" | "critico";
 
 export interface TradeResult {
   status: TradeStatus;
   mensaje: string;
+  /** `false` solo cuando ya no queda ninguna posición abierta en Binance al terminar
+   * `executeTrade` (cierre de emergencia exitoso tras fallar el SL). `undefined`/`true` en
+   * cualquier otro caso: el llamador debe asumir que la posición sigue abierta salvo que esto
+   * diga explícitamente `false` (ver la conciliación en `src/cron/reconciliation.ts`). */
+  positionOpen?: boolean;
 }
 
 const EXIT_ORDER_MAX_ATTEMPTS = 3; // 1 intento + 2 reintentos
@@ -30,7 +36,7 @@ function isDuplicateClientOrderId(error: any): boolean {
   return typeof error?.message === "string" && error.message.includes('"code":-20132');
 }
 
-function buildClientOrderId(prefix: "sl" | "tp", symbol: string, ts: number): string {
+function buildClientOrderId(prefix: "sl" | "tp" | "emrg", symbol: string, ts: number): string {
   return `${prefix}_${symbol.replace(/[^A-Za-z0-9]/g, "")}_${ts.toString(36)}`;
 }
 
@@ -139,7 +145,13 @@ export class Trader {
         // Ya no hay posición abierta (se cerró por otro lado): no hay nada que cerrar.
         closed = true;
       } else {
-        await this.exchange.createMarketOrder(symbol, oppositeSide, pos.contracts, { reduceOnly: true });
+        // clientOrderId tageado para que la conciliación (src/cron/reconciliation.ts) pueda
+        // distinguir este cierre de uno manual del usuario desde la app de Binance: ambos son
+        // un market reduceOnly sin ningún otro rastro, pero solo este lleva el prefijo `emrg_`.
+        await this.exchange.createMarketOrder(symbol, oppositeSide, pos.contracts, {
+          reduceOnly: true,
+          clientOrderId: buildClientOrderId("emrg", symbol, Date.now()),
+        });
         closed = true;
       }
     } catch (e: any) {
@@ -282,6 +294,7 @@ export class Trader {
           return {
             status: "advertencia",
             mensaje: `⚠️ POSICIÓN CERRADA POR FALLA DE PROTECCIÓN\nNo se pudo colocar el Stop Loss tras varios intentos, así que la posición se cerró a mercado por seguridad. No queda exposición abierta, pero hay que revisar por qué falló el Stop Loss.\n${resumen}`,
+            positionOpen: false,
           };
         }
         return {
@@ -337,6 +350,95 @@ export class Trader {
     } catch (e) {
       console.error("Error limpiando huérfanos:", e);
     }
+  }
+
+  // --- Lecturas para la conciliación (src/cron/reconciliation.ts) ---
+  // Una sola llamada por usuario y por ciclo de cron, nunca por operación (ver CONTEXT.md).
+
+  /** Todas las posiciones abiertas de la cuenta, una sola llamada sin filtrar por símbolo. */
+  async fetchAllPositions(): Promise<any[]> {
+    return this.exchange.fetchPositions();
+  }
+
+  /** Todas las órdenes de protección (SL/TP) vivas de la cuenta. Son algo orders en Binance
+   * Futures (confirmado contra la cuenta real: `fetchOpenOrders` sin `trigger:true` siempre
+   * devuelve vacío para un SL/TP nuestro) — sin el flag, la conciliación nunca vería el SL. */
+  async fetchAllOpenOrders(): Promise<any[]> {
+    return this.exchange.fetchOpenOrders(undefined, undefined, undefined, { trigger: true });
+  }
+
+  /** Tick size de precio del símbolo (ver `extractTickSize`), para la tolerancia de
+   * "¿el SL real coincide con el de la señal?" de la conciliación. `null` si no se pudo determinar. */
+  async getTickSize(symbol: string): Promise<number | null> {
+    await this.exchange.loadMarkets();
+    return extractTickSize(this.exchange.markets[symbol]);
+  }
+
+  /**
+   * Fill(s) que cerraron la posición, para una operación abierta desde `openedAtMs`. Se
+   * identifica por el LADO (opuesto al de apertura, `exitSide`), nunca por `realizedPnl !== 0`:
+   * un cierre exactamente en el precio de entrada da PnL neto cero y no se podría distinguir de
+   * "todavía no hay fills". Si el cierre quedó repartido en varios fills de la misma orden
+   * (ejecución parcial contra el libro), se agregan todos — se toma la última orden de cierre
+   * vista (la más reciente del lado de salida), nunca una anterior que haya quedado huérfana.
+   */
+  async getClosingFill(
+    symbol: string,
+    openedAtMs: number,
+    exitSide: "buy" | "sell"
+  ): Promise<
+    | { fillsFound: true; orderId: string; quantity: number; avgPrice: number; pnl: number; fee: number; timestamp?: number }
+    | { fillsFound: false }
+  > {
+    try {
+      const trades = await this.exchange.fetchMyTrades(symbol.replace(":USDT", ""), openedAtMs, 100);
+      const exitFills = trades.filter((t: any) => t.side === exitSide);
+      if (exitFills.length === 0) return { fillsFound: false };
+
+      const lastOrderId = exitFills[exitFills.length - 1].order;
+      const closingFills = exitFills.filter((t: any) => t.order === lastOrderId);
+
+      let quantity = 0;
+      let notional = 0;
+      let pnl = 0;
+      let fee = 0;
+      let timestamp: number | undefined;
+      for (const t of closingFills) {
+        const amount = t.amount ?? 0;
+        quantity += amount;
+        notional += amount * (t.price ?? 0);
+        if (t.info?.realizedPnl) pnl += parseFloat(t.info.realizedPnl);
+        if (t.fee?.cost) fee += t.fee.cost;
+        timestamp = t.timestamp;
+      }
+
+      return { fillsFound: true, orderId: lastOrderId, quantity, avgPrice: quantity > 0 ? notional / quantity : 0, pnl, fee, timestamp };
+    } catch (e) {
+      console.error(`Error obteniendo el fill de cierre para ${symbol}:`, e);
+      return { fillsFound: false };
+    }
+  }
+
+  /** `clientOrderId` real de una orden ya ejecutada, consultada por su `orderId` numérico (SIN
+   * `{trigger:true}`: confirmado contra la cuenta real que una vez que una orden algo se
+   * dispara, el `orderId` resultante deja de existir como algoId — `fetchOrder` plano es el que
+   * la encuentra, y conserva el `clientOrderId` original que pusimos al crearla). */
+  async getOrderClientId(symbol: string, orderId: string): Promise<string | undefined> {
+    try {
+      const order = await this.exchange.fetchOrder(orderId, symbol);
+      return order?.clientOrderId ?? undefined;
+    } catch (e) {
+      console.error(`Error consultando la orden ${orderId} de ${symbol}:`, e);
+      return undefined;
+    }
+  }
+
+  /** Cancela lo que quede vivo (regular y algo orders) para un símbolo tras confirmar un cierre
+   * — mismo barrido que `emergencyClose`, de respaldo: Binance suele auto-expirar la orden de
+   * protección contraria cuando la otra cierra toda la posición, pero no en un cierre manual. */
+  async cancelLeftoverOrders(symbol: string): Promise<void> {
+    await this.exchange.cancelAllOrders(symbol).catch((e: any) => console.error("Error cancelando órdenes regulares:", e.message));
+    await this.exchange.cancelAllOrders(symbol, { trigger: true }).catch((e: any) => console.error("Error cancelando algo orders:", e.message));
   }
 
   /**

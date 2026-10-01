@@ -145,6 +145,10 @@ dashboardRouter.get("/", async (c) => {
       strategy: dbTrade?.strategy || dbTrade?.regime || 'Motor Momentum Cuántico',
       fundingRate: fundingRates[p.symbol!] ?? null,
       signalId: dbTrade?.id ?? null,
+      // El Detalle de señal necesita esto para resolver el status correcto
+      // cuando se abre desde una posición activa (no solo desde Historial).
+      decision: dbTrade?.decision ?? null,
+      isActiveTrade: dbTrade?.isActiveTrade ?? null,
     };
     });
 

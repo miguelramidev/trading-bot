@@ -81,6 +81,15 @@ export function computeHistoryStats<T extends StatusedTrade>(trades: T[]): Histo
   return { totalTrades, winningTrades, losingTrades, totalPnl, grossProfit, grossLoss, winRate, profitFactor };
 }
 
+/**
+ * Estrategias distintas presentes en el historial (ya acotado por período,
+ * pero ANTES de aplicar la búsqueda por estrategia): alimenta el selector de
+ * Historial, que no debe ofrecer opciones inexistentes para el período visto.
+ */
+export function computeAvailableStrategies<T extends { strategy: string }>(trades: T[]): string[] {
+  return [...new Set(trades.map((t) => t.strategy))].sort((a, b) => a.localeCompare(b));
+}
+
 /** Filtro de tipo (Todas/Ejecutadas/Descartadas): solo la lista, nunca las métricas. */
 export function filterTradesByType<T extends { status: "DESCARTADO" | "TP HIT" | "SL HIT" }>(trades: T[], filter: string): T[] {
   if (filter === "Tomadas") return trades.filter((t) => t.status !== "DESCARTADO");

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats } from "../src/api/modules/history/infrastructure/historyHelpers.js";
+import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats, computeAvailableStrategies } from "../src/api/modules/history/infrastructure/historyHelpers.js";
 
 describe("periodCutoff", () => {
   const now = new Date("2026-10-01T00:00:00Z");
@@ -111,5 +111,21 @@ describe("computeHistoryStats", () => {
     const stats = computeHistoryStats([]);
     expect(stats.profitFactor).toBe(0);
     expect(stats.winRate).toBe(0);
+  });
+});
+
+describe("computeAvailableStrategies", () => {
+  it("devuelve las estrategias distintas, ordenadas alfabéticamente", () => {
+    const trades = [
+      { strategy: "Tendencial" },
+      { strategy: "Macro Breakout" },
+      { strategy: "Tendencial" },
+      { strategy: "Rango" },
+    ];
+    expect(computeAvailableStrategies(trades)).toEqual(["Macro Breakout", "Rango", "Tendencial"]);
+  });
+
+  it("sin trades, lista vacía", () => {
+    expect(computeAvailableStrategies([])).toEqual([]);
   });
 });

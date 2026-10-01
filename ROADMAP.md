@@ -168,6 +168,25 @@
   netear, para poder reportarlo desglosado — ver la skill
   `auditoria-trades`, que ya exige aclarar si un PnL reportado incluye
   o no funding).
+* [ ] **Guardar la hora de la vela gatillo en `signal_history` (2026-10-01):**
+  hoy el Detalle de señal tiene que *adivinar* qué vela de 15m disparó la
+  señal a partir de `evaluated_at` (fórmula `boundary = floor(evaluatedAt /
+  intervalMs) * intervalMs; candidate = boundary - intervalMs`, porque
+  `analyze.ts` usa la última vela **cerrada** al momento de evaluar), y
+  después tiene que *verificar* ese candidato comparando su ADX contra
+  `trigger_adx` (con tolerancia por redondeo) porque la fórmula sola no es
+  confiable cerca del borde del intervalo — ver `findSignalCandleIndex` en
+  `app/lib/screens/signals/signal_chart_math.dart` y su caso de prueba real
+  (señal de WIF, `evaluated_at` 2026-10-01T11:46, vela correcta abre
+  11:30 UTC con ADX 25.03, no la que "contiene" el timestamp, que abre
+  11:45 con ADX 23.68). Si `signal_history` guardara directamente el
+  timestamp de apertura de esa vela (columna nueva, p. ej.
+  `trigger_candle_open_at timestamptz`), todo ese heurístico (fórmula +
+  verificación + fallback a la vela anterior + "no marcar nada si ninguna
+  coincide") dejaría de ser necesario: el frontend solo buscaría la vela
+  por timestamp exacto. No implementar sin `db:push` explícito del usuario
+  ni sin backfill/compatibilidad para las filas viejas (que seguirían sin
+  este dato y necesitando el heurístico como fallback).
 
 ---
 

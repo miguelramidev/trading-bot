@@ -6,7 +6,7 @@ import { signalHistory, userConfig } from "../../../../db/schema.js";
 import { desc, eq, and, isNotNull, gte, type SQL } from "drizzle-orm";
 import { internalError } from "../../../core/utils/errors.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
-import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats } from "./historyHelpers.js";
+import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats, computeAvailableStrategies } from "./historyHelpers.js";
 
 export const historyRouter = new Hono<AuthEnv>();
 
@@ -55,8 +55,11 @@ historyRouter.get(
         let roi: number | null = null;
         let pnl: number | null = null;
 
-        const pnlVal = parseFloat(t.realizedPnl || "0");
-        const roiVal = parseFloat(t.realizedRoi || "0");
+        // null, no 0: `realized_roi` puede venir null incluso en una señal YA
+        // EJECUTADA (hallazgo de la skill auditoria-trades: roto desde el
+        // refactor multi-tenant del 25/09) — "|| '0'" lo disfrazaba de 0.00%.
+        const pnlVal = t.realizedPnl != null ? parseFloat(t.realizedPnl) : null;
+        const roiVal = t.realizedRoi != null ? parseFloat(t.realizedRoi) : null;
 
         // The bug made some discarded trades look like "Cerrada (SL Tocado)". We can heuristically fix them for display:
         // If entryPrice is null or 0 and it was closed, it was likely discarded by mistake.
@@ -65,7 +68,7 @@ historyRouter.get(
         if (wasActuallyDiscarded) {
           statusStr = "DESCARTADO";
         } else if (t.decision?.includes("Cerrada")) {
-          if (pnlVal > 0 || t.decision.includes("TP")) {
+          if ((pnlVal ?? 0) > 0 || t.decision.includes("TP")) {
             statusStr = "TP HIT";
           } else {
             statusStr = "SL HIT";
@@ -91,6 +94,10 @@ historyRouter.get(
           status: statusStr,
           date: t.evaluatedAt,
           reason: t.reason,
+          // El Detalle de señal necesita saber si de verdad se ejecutó (no
+          // solo el `status` derivado de arriba, que no distingue "activa").
+          decision: t.decision,
+          isActiveTrade: t.isActiveTrade,
           // Contexto de la señal: faltaba acá, así que el Detalle de señal
           // abierto desde Historial lo mostraba vacío.
           btcRegime: t.btcRegime,
@@ -100,6 +107,11 @@ historyRouter.get(
           triggerAdx: t.triggerAdx,
         };
       });
+
+      // Estrategias del selector: del período visto, ANTES de que la búsqueda
+      // por estrategia las acote (si no, elegir una ya las haría desaparecer
+      // a todas menos ella).
+      const availableStrategies = computeAvailableStrategies(mappedTrades);
 
       // Búsqueda por activo/estrategia: acota también las métricas (siguen a
       // período + búsqueda). El filtro de tipo, más abajo, solo acota la lista.
@@ -123,6 +135,7 @@ historyRouter.get(
           grossLoss: stats.grossLoss.toFixed(2),
           periodSignalsCount: periodSignals.length,
         },
+        availableStrategies,
         pagination: {
           total: filteredTrades.length,
           page: pageNum,
@@ -158,9 +171,11 @@ historyRouter.get(
       if (!t) return c.json({ error: "Trade not found" }, 404);
 
       const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
-      // null, no 0: una descartada no tiene resultado.
-      const pnlVal = wasActuallyDiscarded ? null : parseFloat(t.realizedPnl || "0");
-      const roiVal = wasActuallyDiscarded ? null : parseFloat(t.realizedRoi || "0");
+      // null, no 0: una descartada no tiene resultado, y `realized_roi`/`realized_pnl`
+      // pueden venir null incluso en una señal YA EJECUTADA (ver historyHelpers:
+      // roto desde el refactor multi-tenant del 25/09) — "|| '0'" lo disfrazaba de 0.
+      const pnlVal = wasActuallyDiscarded || t.realizedPnl == null ? null : parseFloat(t.realizedPnl);
+      const roiVal = wasActuallyDiscarded || t.realizedRoi == null ? null : parseFloat(t.realizedRoi);
 
       let statusStr = "DESCARTADO";
       if (!wasActuallyDiscarded && t.decision?.includes("Cerrada")) {
@@ -186,6 +201,8 @@ historyRouter.get(
         status: statusStr,
         date: t.evaluatedAt,
         reason: t.reason,
+        decision: t.decision,
+        isActiveTrade: t.isActiveTrade,
         btcRegime: t.btcRegime,
         bias4h: t.bias4h,
         btcCorrelation: t.btcCorrelation,

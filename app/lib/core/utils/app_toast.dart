@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:toastification/toastification.dart';
-import '../theme/app_colors.dart';
+import '../theme/ds_colors.dart';
 
 class AppToast {
   static void showSuccess(BuildContext context, String message) {
@@ -8,7 +8,7 @@ class AppToast {
       context: context,
       message: message,
       type: ToastificationType.success,
-      color: AppColors.winGreen,
+      color: DsColors.positive,
       icon: Icons.check_circle_outline,
     );
   }
@@ -18,7 +18,7 @@ class AppToast {
       context: context,
       message: message,
       type: ToastificationType.error,
-      color: AppColors.lossRed,
+      color: DsColors.negative,
       icon: Icons.error_outline,
     );
   }
@@ -28,7 +28,7 @@ class AppToast {
       context: context,
       message: message,
       type: ToastificationType.info,
-      color: AppColors.accentBlue,
+      color: DsColors.accent,
       icon: Icons.info_outline,
     );
   }
@@ -38,7 +38,7 @@ class AppToast {
       context: context,
       message: message,
       type: ToastificationType.warning,
-      color: AppColors.warningAmber,
+      color: DsColors.warning,
       icon: Icons.warning_amber_outlined,
       autoCloseDuration: const Duration(seconds: 6),
     );
@@ -50,7 +50,7 @@ class AppToast {
       context: context,
       message: message,
       type: ToastificationType.error,
-      color: AppColors.criticalRed,
+      color: DsColors.critical,
       icon: Icons.report_gmailerrorred_outlined,
       autoCloseDuration: null,
       closeButtonShowType: CloseButtonShowType.always,
@@ -71,7 +71,7 @@ class AppToast {
 
     toastification.show(
       context: context,
-      title: Text(message, style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+      title: Text(message, style: TextStyle(color: DsColors.textPrimary, fontSize: 14)),
       type: type,
       style: ToastificationStyle.flat,
       autoCloseDuration: autoCloseDuration,
@@ -80,8 +80,8 @@ class AppToast {
       animationDuration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       margin: isWeb ? const EdgeInsets.only(top: 24, right: 24) : const EdgeInsets.only(bottom: 24, left: 16, right: 16),
-      backgroundColor: AppColors.surfaceHighlight,
-      foregroundColor: AppColors.textPrimary,
+      backgroundColor: DsColors.surfaceRaised,
+      foregroundColor: DsColors.textPrimary,
       primaryColor: color,
       icon: Icon(icon, color: color),
       borderRadius: BorderRadius.circular(12),

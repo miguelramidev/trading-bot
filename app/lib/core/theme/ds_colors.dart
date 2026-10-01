@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Paleta del sistema de diseño nuevo (docs/design/design-system.md, sección 2.1).
-///
-/// No confundir con [AppColors]: varios nombres se repiten entre las dos clases
-/// (`background`, `surface`, `border`, `textPrimary`, `textSecondary`) pero con
-/// valores distintos, así que no pueden convivir en la misma clase sin romper
-/// una de las dos paletas. Los componentes nuevos (`lib/widgets/`) usan
-/// exclusivamente `DsColors`; las pantallas actuales siguen usando `AppColors`
-/// hasta que se migren una por una. Cuando ninguna pantalla use `AppColors`,
-/// se borra esa clase y esta pasa a ser la única paleta.
+/// Paleta del sistema de diseño (docs/design/design-system.md, sección 2.1).
+/// Única paleta de la app — `AppColors` (la paleta vieja, con nombres
+/// repetidos pero valores distintos) se borró una vez migrada la última
+/// pantalla que la usaba.
 class DsColors {
   // Fondos
   static const Color background = Color(0xFF0E1116);

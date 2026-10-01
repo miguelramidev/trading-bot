@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_toast.dart';
-import '../theme/app_colors.dart';
+import '../theme/ds_colors.dart';
 
 /// Resultado de negocio de POST /api/signals/:id/execute ("resultado" en la respuesta).
 ///
@@ -74,19 +74,19 @@ Future<void> showCriticalExecuteDialog(BuildContext context, String message) {
     builder: (dialogContext) => PopScope(
       canPop: false,
       child: AlertDialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: DsColors.surface,
         title: const Text(
           'Alerta crítica',
-          style: TextStyle(color: AppColors.criticalRed, fontWeight: FontWeight.bold),
+          style: TextStyle(color: DsColors.critical, fontWeight: FontWeight.bold),
         ),
         content: Text(
           '$message\n\nCerrá la posición manualmente en Binance antes de continuar.',
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: const TextStyle(color: DsColors.textPrimary),
         ),
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.criticalRed),
+            style: ElevatedButton.styleFrom(backgroundColor: DsColors.critical),
             child: const Text('Entendido', style: TextStyle(color: Colors.white)),
           ),
         ],

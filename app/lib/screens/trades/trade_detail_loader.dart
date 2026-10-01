@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/ds_colors.dart';
 import '../../core/network/api_client.dart';
 import 'trade_detail_screen.dart';
 import 'package:go_router/go_router.dart';
@@ -58,18 +58,18 @@ class _TradeDetailLoaderState extends State<TradeDetailLoader> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(child: CircularProgressIndicator(color: AppColors.winGreen)),
+        backgroundColor: DsColors.background,
+        body: Center(child: CircularProgressIndicator(color: DsColors.positive)),
       );
     }
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: DsColors.background,
         appBar: AppBar(
-          backgroundColor: AppColors.surface,
+          backgroundColor: DsColors.surface,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
+            icon: const Icon(Icons.arrow_back, color: DsColors.textSecondary),
             onPressed: () => context.go('/history'),
           ),
         ),
@@ -77,9 +77,9 @@ class _TradeDetailLoaderState extends State<TradeDetailLoader> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outline, color: AppColors.textSecondary, size: 48),
+              const Icon(Icons.lock_outline, color: DsColors.textSecondary, size: 48),
               const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+              Text(_error!, style: const TextStyle(color: DsColors.textSecondary, fontSize: 16)),
               const SizedBox(height: 24),
               TextButton(onPressed: () => context.go('/history'), child: const Text('Volver al historial')),
             ],

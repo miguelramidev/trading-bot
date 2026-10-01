@@ -47,7 +47,6 @@ dependencies:
   firebase_messaging: ^15.2.10
 
 dev_dependencies:
-  google_fonts: ^6.1.0
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.0
 

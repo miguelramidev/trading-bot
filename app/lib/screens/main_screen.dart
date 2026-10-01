@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'dashboard/responsive_layout.dart';
-import '../core/theme/app_colors.dart';
+import '../core/theme/ds_colors.dart';
 import '../providers/dashboard_provider.dart';
 
 class MainScreen extends StatelessWidget {
@@ -30,12 +30,12 @@ class MainScreen extends StatelessWidget {
     });
     return ResponsiveLayout(
       mobile: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: DsColors.background,
         body: navigationShell,
         bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: AppColors.background,
-          selectedItemColor: AppColors.winGreen,
-          unselectedItemColor: AppColors.textSecondary,
+          backgroundColor: DsColors.background,
+          selectedItemColor: DsColors.positive,
+          unselectedItemColor: DsColors.textSecondary,
           currentIndex: navigationShell.currentIndex,
           onTap: (index) => _onItemTapped(index, context),
           items: const [
@@ -46,22 +46,22 @@ class MainScreen extends StatelessWidget {
         ),
       ),
       desktop: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: DsColors.background,
         body: Row(
           children: [
             NavigationRail(
-              backgroundColor: AppColors.surface,
+              backgroundColor: DsColors.surface,
               selectedIndex: navigationShell.currentIndex,
               onDestinationSelected: (int index) => _onItemTapped(index, context),
-              selectedIconTheme: const IconThemeData(color: AppColors.winGreen),
-              unselectedIconTheme: const IconThemeData(color: AppColors.textSecondary),
+              selectedIconTheme: const IconThemeData(color: DsColors.positive),
+              unselectedIconTheme: const IconThemeData(color: DsColors.textSecondary),
               destinations: const [
                 NavigationRailDestination(icon: Icon(Icons.grid_view), label: Text('Inicio')),
                 NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Historial')),
                 NavigationRailDestination(icon: Icon(Icons.tune), label: Text('Ajustes')),
               ],
             ),
-            const VerticalDivider(thickness: 1, width: 1, color: AppColors.border),
+            const VerticalDivider(thickness: 1, width: 1, color: DsColors.border),
             Expanded(
               child: Column(
                 children: [
@@ -86,30 +86,30 @@ class MainScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
+        border: Border(bottom: BorderSide(color: DsColors.border, width: 1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('/', style: TextStyle(color: AppColors.textSecondary))),
-              Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+              Text(title, style: const TextStyle(color: DsColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('/', style: TextStyle(color: DsColors.textSecondary))),
+              Text(subtitle, style: const TextStyle(color: DsColors.textSecondary, fontSize: 14)),
             ],
           ),
           Row(
             children: [
               Row(
                 children: [
-                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.winGreen, shape: BoxShape.circle)),
+                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: DsColors.positive, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
-                  const Text('Conectado', style: TextStyle(color: AppColors.winGreen, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const Text('Conectado', style: TextStyle(color: DsColors.positive, fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(width: 24),
               IconButton(
-                icon: const Icon(Icons.logout, color: AppColors.textSecondary),
+                icon: const Icon(Icons.logout, color: DsColors.textSecondary),
                 tooltip: 'Cerrar sesión',
                 onPressed: () async {
                   await AuthService().signOut();

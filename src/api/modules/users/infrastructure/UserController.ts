@@ -1,13 +1,15 @@
-import { encrypt } from "../../../core/utils/encryption.js";
+import { encrypt, decrypt } from "../../../core/utils/encryption.js";
 import crypto from "crypto";
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import ccxt from "ccxt";
 import { db } from "../../../../db/index.js";
 import { userConfig } from "../../../../db/schema.js";
 import { eq } from "drizzle-orm";
 import { internalError } from "../../../core/utils/errors.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
+import { validateCapitalRisk } from "./configValidation.js";
 
 import { SyncUserUseCase } from "../application/SyncUserUseCase.js";
 import { PostgresUserRepository } from "./PostgresUserRepository.js";
@@ -90,6 +92,12 @@ usersRouter.get("/config", async (c) => {
       return c.json({ error: "User not found" }, 404);
     }
 
+    // Restricciones reales de la API key en Binance (retiros habilitados, futuros
+    // habilitados). Timeout corto a propósito: esto es un dato informativo de la
+    // pantalla de Configuración, no puede demorar la carga completa del formulario.
+    // Si falla o tarda, `null` — nunca un valor supuesto.
+    const binanceKeyInfo = await fetchBinanceKeyInfo(user);
+
     // Retornamos la configuración, ocultando credenciales sensibles
     return c.json({
       success: true,
@@ -105,6 +113,7 @@ usersRouter.get("/config", async (c) => {
         hasBinanceKeys: !!user.binanceApiKey && !!user.binanceApiSecret,
         hasRsaKeys: !!user.rsaPublicKey && !!user.rsaPrivateKey,
         rsaPublicKey: user.rsaPublicKey,
+        binanceKeyInfo,
       }
     });
   } catch (error: any) {
@@ -112,17 +121,42 @@ usersRouter.get("/config", async (c) => {
   }
 });
 
+/** `null` si no hay keys, si la consulta falla, o si tarda más de 2s. */
+async function fetchBinanceKeyInfo(user: typeof userConfig.$inferSelect): Promise<{ futuresEnabled: boolean; withdrawalsDisabled: boolean } | null> {
+  if (!user.binanceApiKey || (!user.binanceApiSecret && !user.rsaPrivateKey)) return null;
+
+  try {
+    const apiKey = decrypt(user.binanceApiKey);
+    const secret = user.rsaPrivateKey ? decrypt(user.rsaPrivateKey) : decrypt(user.binanceApiSecret!);
+    const binance = new ccxt.binance({
+      apiKey,
+      secret,
+      enableRateLimit: true,
+      timeout: 2000,
+      options: { defaultType: "future" },
+    });
+
+    const restrictions: any = await binance.sapiGetAccountApiRestrictions();
+    return {
+      futuresEnabled: restrictions?.enableFutures === true,
+      withdrawalsDisabled: restrictions?.enableWithdrawals === false,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 // PUT /api/users/config
 usersRouter.put(
   "/config",
   zValidator("json", z.object({
     binanceApiKey: z.string().optional(),
     binanceApiSecret: z.string().optional(),
-    montoOperacion: z.number().optional(),
+    montoOperacion: z.number().positive().optional(),
     apalancamiento: z.number().optional(),
-    leverageMin: z.number().min(1).max(125).optional(),
-    leverageMax: z.number().min(1).max(125).optional(),
-    maxTrades: z.number().optional(),
+    leverageMin: z.number().int().min(1).max(10).optional(),
+    leverageMax: z.number().int().min(1).max(10).optional(),
+    maxTrades: z.number().int().min(1).max(10).optional(),
     notificationsWeb: z.boolean().optional(),
     notificationsMobile: z.boolean().optional(),
     notificationsTelegram: z.boolean().optional(),
@@ -135,6 +169,31 @@ usersRouter.put(
     // Validación y actualización
     const data = c.req.valid("json");
     try {
+      // Hallazgo M6: valida el resultado COMBINADO (lo guardado + los cambios de
+      // este PUT), no cada campo aislado — así un PUT que solo manda `leverageMax`
+      // por debajo del `leverageMin` ya guardado también se rechaza.
+      const touchesCapitalRisk =
+        data.montoOperacion !== undefined ||
+        data.maxTrades !== undefined ||
+        data.leverageMin !== undefined ||
+        data.leverageMax !== undefined;
+
+      if (touchesCapitalRisk) {
+        const current = await db.query.userConfig.findFirst({ where: eq(userConfig.firebaseUid, firebaseUid) });
+        if (!current) return c.json({ error: "User not found" }, 404);
+
+        const merged = {
+          montoOperacion: data.montoOperacion ?? current.montoOperacion ?? 25,
+          maxTrades: data.maxTrades ?? current.maxTrades ?? 5,
+          leverageMin: data.leverageMin ?? current.leverageMin ?? 1,
+          leverageMax: data.leverageMax ?? current.leverageMax ?? 2,
+        };
+        const validationError = validateCapitalRisk(merged);
+        if (validationError) {
+          return c.json({ error: validationError }, 400);
+        }
+      }
+
       const setObj: any = {};
       if (data.binanceApiKey) setObj.binanceApiKey = encrypt(data.binanceApiKey);
       if (data.binanceApiSecret) setObj.binanceApiSecret = encrypt(data.binanceApiSecret);

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../../../../db/index.js";
 import { signalHistory, userConfig } from "../../../../db/schema.js";
-import { desc, eq, and, isNotNull } from "drizzle-orm";
+import { desc, eq, and, isNotNull, gte, type SQL } from "drizzle-orm";
 import { internalError } from "../../../core/utils/errors.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
+import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats } from "./historyHelpers.js";
 
 export const historyRouter = new Hono<AuthEnv>();
 
@@ -14,39 +15,45 @@ historyRouter.get(
   zValidator("query", z.object({
     page: z.string().optional().default("1"),
     limit: z.string().optional().default("20"),
-    filter: z.string().optional().default("Todos"), // "Todos", "Tomadas", "Descartadas"
+    filter: z.string().optional().default("Todos"), // "Todos", "Tomadas", "Descartadas" — solo filtra la lista, no las métricas
+    period: z.enum(["all", "7d", "30d"]).optional().default("all"),
+    symbol: z.string().optional(),
+    strategy: z.string().optional(),
   })),
   async (c) => {
     const firebaseUid = c.get("uid");
 
-    const { page, limit, filter } = c.req.valid("query");
+    const { page, limit, filter, period, symbol, strategy } = c.req.valid("query");
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
+    const cutoff = periodCutoff(period);
 
     try {
       const user = await db.query.userConfig.findFirst({ where: eq(userConfig.firebaseUid, firebaseUid) });
       if (!user) return c.json({ error: "User not found" }, 404);
 
+      const closedConditions: SQL[] = [
+        isNotNull(signalHistory.decision),
+        eq(signalHistory.isActiveTrade, false),
+      ];
+      if (cutoff) closedConditions.push(gte(signalHistory.evaluatedAt, cutoff));
+
       const allSignals = await db.query.signalHistory.findMany({
-        where: and(
-          isNotNull(signalHistory.decision),
-          eq(signalHistory.isActiveTrade, false)
-        ),
+        where: and(...closedConditions),
         orderBy: [desc(signalHistory.evaluatedAt)],
       });
 
-      let totalTrades = 0;
-      let winningTrades = 0;
-      let losingTrades = 0;
-      let totalPnl = 0;
-      let grossProfit = 0;
-      let grossLoss = 0;
+      // Para "N de M señales en el período": total evaluado en la ventana, sin importar si cerró o no.
+      const periodSignals = await db.query.signalHistory.findMany({
+        where: cutoff ? gte(signalHistory.evaluatedAt, cutoff) : undefined,
+        columns: { id: true },
+      });
 
       const mappedTrades = allSignals.map(t => {
-        let statusStr = "DESCARTADO";
+        let statusStr: "DESCARTADO" | "TP HIT" | "SL HIT" = "DESCARTADO";
         let roi = 0;
         let pnl = 0;
-        
+
         const pnlVal = parseFloat(t.realizedPnl || "0");
         const roiVal = parseFloat(t.realizedRoi || "0");
 
@@ -59,15 +66,9 @@ historyRouter.get(
         } else if (t.decision?.includes("Cerrada")) {
           if (pnlVal > 0 || t.decision.includes("TP")) {
             statusStr = "TP HIT";
-            winningTrades++;
-            grossProfit += pnlVal;
           } else {
             statusStr = "SL HIT";
-            losingTrades++;
-            grossLoss += Math.abs(pnlVal);
           }
-          totalTrades++;
-          totalPnl += pnlVal;
           roi = roiVal;
           pnl = pnlVal;
         }
@@ -92,16 +93,11 @@ historyRouter.get(
         };
       });
 
-      const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-      const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss) : (grossProfit > 0 ? 999 : 0);
-
-      // Apply Filter
-      let filteredTrades = mappedTrades;
-      if (filter === "Tomadas") {
-        filteredTrades = mappedTrades.filter(t => t.status !== "DESCARTADO");
-      } else if (filter === "Descartadas") {
-        filteredTrades = mappedTrades.filter(t => t.status === "DESCARTADO");
-      }
+      // Búsqueda por activo/estrategia: acota también las métricas (siguen a
+      // período + búsqueda). El filtro de tipo, más abajo, solo acota la lista.
+      const searchFiltered = filterTradesBySearch(mappedTrades, { symbol, strategy });
+      const stats = computeHistoryStats(searchFiltered);
+      const filteredTrades = filterTradesByType(searchFiltered, filter);
 
       // Pagination
       const startIndex = (pageNum - 1) * limitNum;
@@ -109,14 +105,15 @@ historyRouter.get(
 
       return c.json({
         stats: {
-          totalTrades,
-          winningTrades,
-          losingTrades,
-          winRate: winRate.toFixed(1),
-          totalPnl: totalPnl.toFixed(2),
-          profitFactor: profitFactor.toFixed(2),
-          grossProfit: grossProfit.toFixed(2),
-          grossLoss: grossLoss.toFixed(2)
+          totalTrades: stats.totalTrades,
+          winningTrades: stats.winningTrades,
+          losingTrades: stats.losingTrades,
+          winRate: stats.winRate.toFixed(1),
+          totalPnl: stats.totalPnl.toFixed(2),
+          profitFactor: stats.profitFactor.toFixed(2),
+          grossProfit: stats.grossProfit.toFixed(2),
+          grossLoss: stats.grossLoss.toFixed(2),
+          periodSignalsCount: periodSignals.length,
         },
         pagination: {
           total: filteredTrades.length,

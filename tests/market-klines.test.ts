@@ -79,6 +79,35 @@ describe("computeKlineIndicators — misma función que analyze.ts, no una copia
   });
 });
 
+describe("computeKlineIndicators — historia insuficiente manda null, nunca un array vacío", () => {
+  // Símbolo recién listado en Binance (pocas velas de 15m): EMA200 necesita
+  // 200, ADX(14) solo 15 — con 50 velas, ADX sí alcanza a calcularse pero
+  // EMA200/MACD(slowPeriod=26) no. Antes del fix, `DataFetcher.calculateEMA`
+  // devolvía `[]` (no `null`) y eso llegaba crudo hasta acá; un array vacío
+  // no es `null`, así que Flutter igual intentaba dibujar la línea (sin
+  // datos, en silencio) en vez de mostrar que faltaba historia.
+  const klines = buildSyntheticKlines(50);
+
+  it("EMA200 sin historia suficiente -> null, no []", () => {
+    const result = computeKlineIndicators(klines, ["ema200"], 30);
+    expect(result.ema200).toBeNull();
+  });
+
+  it("MACD sin historia suficiente (slowPeriod 26 > 50 no alcanza para el EMA lento) -> null", () => {
+    // 50 velas alcanza para el EMA rápido(12)/lento(26) de MACD en sí, así
+    // que para forzar el caso insuficiente se prueba con menos velas que el slowPeriod.
+    const result = computeKlineIndicators(buildSyntheticKlines(20), ["macd"], 10);
+    expect(result.macd).toBeNull();
+  });
+
+  it("ADX(14) SÍ alcanza a calcularse con 50 velas aunque EMA200 no: cada indicador es independiente", () => {
+    const result = computeKlineIndicators(klines, ["ema200", "adx"], 30);
+    expect(result.ema200).toBeNull();
+    expect(result.adx).not.toBeNull();
+    expect(result.adx!.adx.length).toBeGreaterThan(0);
+  });
+});
+
 describe("validación contra una señal real (fixture) — el ADX coincide con triggerAdx guardado", () => {
   const fixture = JSON.parse(readFileSync(join(__dirname, "fixtures/real-signal-adx.json"), "utf-8"));
 

@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../core/theme/app_colors.dart';
-import '../core/theme/app_theme.dart';
+import '../core/theme/ds_colors.dart';
+import '../core/theme/app_text_styles.dart';
+import '../core/theme/app_spacing.dart';
+import '../core/theme/app_radius.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
 import '../core/utils/app_toast.dart';
+import '../widgets/widgets.dart';
+
+/// Breakpoint unificado con `ResponsiveLayout` (`lib/screens/dashboard/responsive_layout.dart`).
+const double kLoginDesktopBreakpoint = 900;
 
 class LoginScreen extends StatefulWidget {
   final User? existingUser;
   final VoidCallback? onBiometricSuccess;
 
-  const LoginScreen({
-    super.key,
-    this.existingUser,
-    this.onBiometricSuccess,
-  });
+  const LoginScreen({super.key, this.existingUser, this.onBiometricSuccess});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -24,406 +26,185 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+  String? _deniedEmail;
 
   @override
   void initState() {
     super.initState();
     if (widget.existingUser != null) {
-      // Si ya hay usuario, disparamos la biometría automáticamente al cargar
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _handleBiometricAuth();
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleBiometricAuth());
     }
   }
 
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      final UserCredential? userCredential = await _authService.signInWithGoogle();
-      if (userCredential != null) {
-        // La navegación se maneja automáticamente en main.dart gracias al StreamBuilder
-        // que escucha los cambios de estado de autenticación.
-      } else {
-        if (mounted) {
-          AppToast.showInfo(context, 'Inicio de sesión cancelado o bloqueado por el sistema.');
-        }
+      final credential = await _authService.signInWithGoogle();
+      if (credential == null) {
+        if (mounted) AppToast.showInfo(context, 'Inicio de sesión cancelado o bloqueado por el sistema.');
+        return;
       }
+      final user = credential.user;
+      final result = await _authService.confirmAccess(displayName: user?.displayName);
+      await _handleAccessResult(result, user?.email);
+      // Si quedó permitido, el StreamBuilder de main.dart navega solo.
     } catch (e) {
-      if (mounted) {
-        AppToast.showError(context, 'Error al iniciar sesión: $e');
-      }
+      if (mounted) AppToast.showError(context, 'Error al iniciar sesión: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _handleBiometricAuth() async {
     final isAvailable = await BiometricService.isBiometricAvailable();
     if (!isAvailable) {
-      if (mounted) {
-        AppToast.showError(context, 'Biometría no disponible en este dispositivo.');
-      }
+      if (mounted) AppToast.showError(context, 'Biometría no disponible en este dispositivo.');
       return;
     }
 
     final success = await BiometricService.authenticate();
-    if (success && mounted) {
-      AppToast.showSuccess(context, 'Autenticación exitosa.');
-      if (widget.onBiometricSuccess != null) {
-        widget.onBiometricSuccess!();
-      }
+    if (!success || !mounted) return;
+
+    final result = await _authService.confirmAccess(displayName: widget.existingUser?.displayName);
+    await _handleAccessResult(result, widget.existingUser?.email);
+  }
+
+  /// `denied`: cierra la sesión de Firebase y muestra "cuenta sin acceso".
+  /// `allowed`/`unknown`: deja pasar (un error de red no es un 403 confirmado).
+  Future<void> _handleAccessResult(AccessCheckResult result, String? email) async {
+    if (result == AccessCheckResult.denied) {
+      await _authService.signOut();
+      if (!mounted) return;
+      setState(() => _deniedEmail = email);
+      return;
     }
+    if (result == AccessCheckResult.allowed && mounted) {
+      AppToast.showSuccess(context, 'Autenticación exitosa.');
+    }
+    widget.onBiometricSuccess?.call();
+  }
+
+  void _useAnotherAccount() {
+    setState(() => _deniedEmail = null);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: DsColors.background,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isWeb = constraints.maxWidth > 800;
-
-          return Stack(
-            children: [
-              // Fondo (matriz de puntos para web, degradado sutil para mobile)
-              if (isWeb) _buildWebBackground() else _buildMobileBackground(),
-
-              // Barra superior (solo web: título)
-              if (isWeb)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(child: _buildWebTopBar()),
-                ),
-
-              // Tarjeta Central
-              Center(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 80.0),
-                    child: isWeb ? _buildWebCard(context) : _buildMobileCard(context),
-                  ),
+          final isDesktop = constraints.maxWidth >= kLoginDesktopBreakpoint;
+          return Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 80),
+              child: SizedBox(
+                width: isDesktop ? 440 : double.infinity,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: AppSpacing.xxl),
+                    if (_deniedEmail != null)
+                      _buildDeniedCard()
+                    else if (widget.existingUser != null)
+                      _buildBiometricCard()
+                    else
+                      _buildStartCard(),
+                  ],
                 ),
               ),
-
-              // Footer
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: SafeArea(
-                  child: isWeb ? _buildWebFooter(context) : _buildMobileFooter(context),
-                ),
-              ),
-            ],
+            ),
           );
         },
       ),
     );
   }
 
-  // --- Fondos ---
-  Widget _buildWebBackground() {
-    return Container(
-      color: const Color(0xFF07090D),
-      // Podríamos agregar un CustomPaint para dibujar la grilla de puntos si se desea
-    );
-  }
-
-  Widget _buildMobileBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF09141E), // Tono azulado en la parte superior
-            AppColors.background,
-          ],
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(color: DsColors.surfaceRaised, border: Border.all(color: DsColors.border), borderRadius: BorderRadius.circular(AppRadius.xl)),
+          alignment: Alignment.center,
+          child: Text('MQ', style: AppTextStyles.numM.copyWith(color: DsColors.accent)),
         ),
-      ),
+        const SizedBox(height: AppSpacing.lg),
+        Text('MacroQuant', style: AppTextStyles.title.copyWith(color: DsColors.textPrimary)),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Tus señales, tus posiciones y tu historial de Binance Futures en un solo lugar.',
+          textAlign: TextAlign.center,
+          style: AppTextStyles.body.copyWith(color: DsColors.textSecondary),
+        ),
+      ],
     );
   }
 
-  // --- Top Bar (solo web) ---
-  Widget _buildWebTopBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 20.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.shield_outlined, color: AppColors.winGreen),
-              const SizedBox(width: 8),
-              Text('MacroQuant', style: AppTheme.monoStyle.copyWith(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Cards ---
-  Widget _buildMobileCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 400),
-      padding: const EdgeInsets.all(24.0), // Reducido el padding para pantallas pequeñas
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
-      ),
+  Widget _buildStartCard() {
+    return AppCard(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          _buildLogoIcon(),
-          const SizedBox(height: 24),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              'MacroQuant',
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 28),
-            ),
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              'INTELIGENCIA CUANTITATIVA',
-              style: AppTheme.monoStyle.copyWith(fontSize: 12, color: AppColors.textSecondary, letterSpacing: 1.5),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceHighlight,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.verified_user_outlined, color: AppColors.winGreen, size: 14),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Acceso Institucional & Portafolios Privados',
-                    style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          if (widget.existingUser == null)
-            _buildGoogleButton(isDark: true)
-          else ...[
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _handleBiometricAuth,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.winGreen,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.fingerprint, color: Colors.black, size: 20),
-                      const SizedBox(width: 12),
-                      const Text('Verificar Identidad (Face ID)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () async {
-                await _authService.signOut();
-                // No necesitamos setState porque el StreamBuilder en main.dart reconstruirá la vista
-              },
-              child: Text('Cambiar de cuenta', style: TextStyle(color: AppColors.textSecondary)),
-            ),
-          ],
+          _buildGoogleButton(),
+          const SizedBox(height: AppSpacing.md),
+          Text('El acceso está limitado a cuentas autorizadas.', textAlign: TextAlign.center, style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
         ],
       ),
     );
   }
 
-  Widget _buildWebCard(BuildContext context) {
-    return Container(
-      width: 500,
-      padding: const EdgeInsets.all(48.0),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
+  Widget _buildBiometricCard() {
+    return AppCard(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          _buildLogoIcon(),
-          const SizedBox(height: 24),
-          Text(
-            'MACROQUANT',
-            style: AppTheme.monoStyle.copyWith(fontSize: 20, color: AppColors.textPrimary, letterSpacing: 2.0),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Bienvenido a tu terminal',
-            style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 24),
-          ),
-          const SizedBox(height: 40),
-          if (widget.existingUser == null)
-            _buildGoogleButton(isDark: false)
-          else ...[
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _handleBiometricAuth,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.winGreen,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.key_outlined, color: Colors.black, size: 20),
-                    const SizedBox(width: 12),
-                    const Text('Hardware Key / SSO Institucional', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () async {
-                await _authService.signOut();
-              },
-              child: Text('Cambiar de cuenta', style: TextStyle(color: AppColors.textSecondary)),
-            ),
-          ],
-          const SizedBox(height: 40),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.shield_outlined, color: AppColors.textSecondary, size: 14),
-              const SizedBox(width: 8),
-              Text('Plataforma exclusiva para trading institucional', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-            ],
-          ),
+          PrimaryButton(label: 'Desbloquear', onPressed: _handleBiometricAuth),
+          const SizedBox(height: AppSpacing.md),
+          SecondaryButton(label: 'Usar otra cuenta', onPressed: () => _authService.signOut()),
         ],
       ),
     );
   }
 
-  // --- Helpers ---
-  Widget _buildLogoIcon() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Image.asset(
-        'assets/images/logo.png',
-        width: 64,
-        height: 64,
-        fit: BoxFit.cover,
+  Widget _buildDeniedCard() {
+    return AppCard(
+      child: Column(
+        children: [
+          Callout(
+            variant: CalloutVariant.warning,
+            icon: Icons.lock_outline,
+            message: 'La cuenta ${_deniedEmail ?? ''} no tiene acceso a esta app.',
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SecondaryButton(label: 'Usar otra cuenta de Google', onPressed: _useAnotherAccount),
+        ],
       ),
     );
   }
 
-  Widget _buildGoogleButton({required bool isDark}) {
+  Widget _buildGoogleButton() {
     return SizedBox(
       width: double.infinity,
+      height: 50,
       child: ElevatedButton(
         onPressed: _isLoading ? null : _handleGoogleSignIn,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isDark ? AppColors.surfaceHighlight : Colors.white,
-          foregroundColor: isDark ? Colors.white : Colors.black,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: const Color(0xFFF1F3F6),
+          foregroundColor: const Color(0xFF0B1220),
           elevation: 0,
-          side: isDark ? const BorderSide(color: AppColors.border) : null,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          disabledBackgroundColor: isDark ? AppColors.surfaceHighlight.withOpacity(0.5) : Colors.white70,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
         ),
         child: _isLoading
-            ? SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
-              )
-            : Row(
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0B1220)))
+            : const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  FaIcon(FontAwesomeIcons.google, color: isDark ? Colors.white : Colors.black, size: 20),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Continuar con Google',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: isDark ? Colors.white : Colors.black,
-                    ),
-                  ),
+                  FaIcon(FontAwesomeIcons.google, color: Color(0xFF0B1220), size: 18),
+                  SizedBox(width: AppSpacing.md),
+                  Text('Continuar con Google', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF0B1220))),
                 ],
               ),
-      ),
-    );
-  }
-
-  Widget _buildMobileFooter(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 32.0),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Términos del Servicio', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12, color: AppColors.textSecondary)),
-              const SizedBox(width: 16),
-              const Icon(Icons.circle, size: 4, color: AppColors.textSecondary),
-              const SizedBox(width: 16),
-              Text('Privacidad Institucional', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12, color: AppColors.textSecondary)),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWebFooter(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 32.0),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        runSpacing: 12,
-        children: [
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text('Términos Institucionales', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-              const SizedBox(width: 16),
-              Text('•', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-              const SizedBox(width: 16),
-              Text('Privacidad Cuantitativa', style: AppTheme.monoStyle.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-            ],
-          ),
-        ],
       ),
     );
   }

@@ -8,6 +8,11 @@ import '../core/network/api_client.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+/// Resultado de confirmar el acceso contra el backend después del login.
+/// `denied` es la lista de permitidos (403, tanda 2) — nunca se confunde con
+/// un error de red o del servidor (`unknown`, que no bloquea la entrada).
+enum AccessCheckResult { allowed, denied, unknown }
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   // Inicialización condicional: En Web, GoogleSignIn requiere explícitamente el clientId
@@ -36,66 +41,42 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      // 4. Iniciar sesión en Firebase con la credencial
-      final userCredential = await _auth.signInWithCredential(credential);
-      final fbUser = userCredential.user;
-
-      if (fbUser != null) {
-        try {
-          print('Sincronizando usuario con backend PostgreSQL...');
-          // 5. Sincronizar el usuario con la Base de Datos en AWS Neon
-          // El backend toma el uid y el email del token verificado; solo se manda el nombre.
-          final response = await ApiClient.post('/api/users/sync', body: {
-              'name': fbUser.displayName ?? 'Trader',
-          });
-
-
-          if (response.statusCode == 200) {
-            print('✅ Usuario sincronizado con éxito en la DB.');
-            
-            // 6. Configurar Firebase Cloud Messaging
-            try {
-              // Solicitar permisos nativos de notificación
-              NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
-                alert: true,
-                badge: true,
-                sound: true,
-              );
-              
-              if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-                // Obtener el token del dispositivo
-                // Para Web, necesitas especificar el vapidKey en getToken(vapidKey: "...")
-                // TODO: Reemplaza "TU_VAPID_KEY_AQUI" por el Keypair de Firebase -> Cloud Messaging -> Web configuration
-                String? fcmToken = await FirebaseMessaging.instance.getToken(
-                  vapidKey: kIsWeb ? "BOdyQFifaU2KNLkvPdByFZ37Yi-7kCC34X2IkBWNdzwNF7LTUKPccBoMoFxdLgf6GzSpkLpMKIySuIpUuFn07eY" : null
-                );
-                if (fcmToken != null) {
-                  // Guardarlo en el backend
-                  final fcmResponse = await ApiClient.post('/api/users/fcm-token', body: {
-                    'token': fcmToken
-                  });
-                  if (fcmResponse.statusCode == 200) {
-                     print('✅ FCM Token guardado exitosamente.');
-                  }
-                }
-              }
-            } catch (e) {
-              print('⚠️ No se pudo inicializar FCM: $e');
-            }
-          } else {
-
-            print('⚠️ Error al sincronizar usuario: ${response.body}');
-          }
-        } catch (syncError) {
-          print('⚠️ Excepción al sincronizar usuario: $syncError');
-          // No lanzamos la excepción para no bloquear el inicio de sesión en la app
-        }
-      }
-
-      return userCredential;
+      // 4. Iniciar sesión en Firebase con la credencial. La confirmación de
+      // acceso contra el backend (y el FCM que depende de ella) vive en
+      // `confirmAccess()` — el caller (LoginScreen) la llama después, porque
+      // necesita el resultado para decidir si deja pasar o muestra "cuenta
+      // sin acceso".
+      return await _auth.signInWithCredential(credential);
     } catch (e) {
       print('Error durante el inicio de sesión con Google: $e');
       rethrow;
+    }
+  }
+
+  /// Llamada autenticada liviana (`POST /api/users/sync`) para confirmar que
+  /// el uid está en la lista de permitidos ANTES de dejar entrar a la app —
+  /// tanto después de un login con Google nuevo como después de desbloquear
+  /// con biometría una sesión ya existente. Si el acceso está permitido,
+  /// también dispara el registro de FCM.
+  Future<AccessCheckResult> confirmAccess({String? displayName}) async {
+    try {
+      final response = await ApiClient.post('/api/users/sync', body: {
+        'name': displayName ?? 'Trader',
+      });
+
+      if (response.statusCode == 200) {
+        await initFCM();
+        return AccessCheckResult.allowed;
+      }
+      if (response.statusCode == 403) {
+        return AccessCheckResult.denied;
+      }
+      // Error del servidor o de red: no es un "no tenés acceso" confirmado,
+      // así que no se bloquea la entrada — el resto de la app ya maneja sus
+      // propios errores de conexión.
+      return AccessCheckResult.unknown;
+    } catch (e) {
+      return AccessCheckResult.unknown;
     }
   }
 

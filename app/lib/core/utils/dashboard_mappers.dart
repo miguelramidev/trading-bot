@@ -21,6 +21,20 @@ StatusPillVariant statusPillVariantFromKey(String? key) {
 
 bool isLongDirection(dynamic direction) => direction?.toString().toUpperCase() == 'LONG';
 
+/// `btcRegime` crudo del backend es algo como "Tendencial (27.50)" (ver
+/// `analyze.ts`, `btcRegimeStr`) — en la tarjeta de señal se lee como un
+/// título suelto, no como contexto. Lo reformatea a
+/// "BTC: tendencial (ADX 27.50)".
+String formatBtcContext(String? raw) {
+  if (raw == null || raw.trim().isEmpty || raw == 'N/A') return '—';
+  final trimmed = raw.trim();
+  final match = RegExp(r'^(.+?)\s*\(([\d.]+)\)$').firstMatch(trimmed);
+  if (match == null) return 'BTC: $trimmed';
+  final regime = match.group(1)!.toLowerCase();
+  final adx = match.group(2)!;
+  return 'BTC: $regime (ADX $adx)';
+}
+
 /// Sección 4 del documento de diseño: "el vencimiento se calcula en la app
 /// desde la hora de la señal (vence a los 60 min); se pinta en `warning`
 /// cuando quedan menos de 15 min".

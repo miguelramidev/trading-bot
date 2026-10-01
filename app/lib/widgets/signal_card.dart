@@ -14,14 +14,18 @@ import 'app_buttons.dart';
 /// hacia el objetivo, la tarjeta avisa que "se llegó tarde".
 const double kSignalLateThreshold = 0.30;
 
-/// Tarjeta de señal pendiente (sección 4, "Inicio"): símbolo, dirección,
-/// estrategia, tiempo hasta vencer, niveles, riesgo:premio, contexto de BTC
-/// y el aviso de desplazamiento si el precio ya recorrió buena parte del
-/// camino al objetivo desde que se generó la señal.
+/// Tarjeta de señal pendiente (sección 4, "Inicio"). Orden fijo (de arriba
+/// a abajo): símbolo y dirección; estrategia con el motivo en texto simple;
+/// los números (entrada, stop, objetivo, riesgo:premio); advertencias (en
+/// recuadro); contexto de BTC y desplazamiento (texto simple, salvo
+/// "llegás tarde"); botones, siempre al fondo.
 class SignalCard extends StatelessWidget {
   final String symbol;
   final bool isLong;
   final String strategy;
+  /// Motivo corto de la estrategia (ej. "MACD Zero-Cross a favor de EMA
+  /// 200") — texto simple junto a la estrategia, no es una advertencia.
+  final String? motivo;
   final String expiresLabel;
   final bool expiresSoon;
   final double entry;
@@ -33,18 +37,26 @@ class SignalCard extends StatelessWidget {
   final double? currentPrice;
   final String btcContext;
   /// Riesgo macro, reversa de estrategia, alertas de caída/rebote — bien
-  /// visibles, antes que cualquier otra cosa de la tarjeta.
+  /// visibles, antes del contexto. Se les suma automáticamente la de
+  /// "Stop demasiado ajustado" (Regla 5) si corresponde.
   final List<SignalWarning> warnings;
   final bool canTrade;
   final String? cannotTradeReason;
   final VoidCallback? onDiscard;
   final VoidCallback? onTrade;
+  /// `true` en una grilla de escritorio donde varias tarjetas comparten fila
+  /// con la misma altura (ver `desktop_dashboard.dart`, `IntrinsicHeight` +
+  /// `CrossAxisAlignment.stretch`): empuja los botones al fondo con un
+  /// `Spacer`. `false` (default) para una lista vertical de alto natural
+  /// (Inicio en celular) — un `Spacer` ahí rompe el layout (alto no acotado).
+  final bool fillHeight;
 
   const SignalCard({
     super.key,
     required this.symbol,
     required this.isLong,
     required this.strategy,
+    this.motivo,
     required this.expiresLabel,
     this.expiresSoon = false,
     required this.entry,
@@ -57,6 +69,7 @@ class SignalCard extends StatelessWidget {
     this.cannotTradeReason,
     this.onDiscard,
     this.onTrade,
+    this.fillHeight = false,
   });
 
   @override
@@ -71,6 +84,15 @@ class SignalCard extends StatelessWidget {
     final priceChangePct = price != null && entry != 0 ? ((price - entry) / entry) * 100 : null;
     final effectiveRR = price != null ? computeEffectiveRiskReward(stop: stop, price: price, target: target) : null;
 
+    // Regla 5: mismo umbral que `Trader.executeTrade` — si el stop queda
+    // demasiado cerca de la entrada, Binance va a rechazar la orden. Se
+    // avisa y se deshabilita el botón ANTES de que el usuario lo intente,
+    // igual que con el margen insuficiente.
+    final stopTooTight = isStopTooTight(entry: entry, stop: stop);
+    final effectiveCanTrade = canTrade && !stopTooTight;
+    final effectiveCannotTradeReason = stopTooTight ? 'Stop demasiado ajustado' : cannotTradeReason;
+    final displayWarnings = sortSignalWarnings(stopTooTight ? [...warnings, buildStopTooTightWarning()] : warnings);
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
@@ -80,24 +102,18 @@ class SignalCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: fillHeight ? MainAxisSize.max : MainAxisSize.min,
         children: [
+          // 1. Símbolo y dirección (+ vencimiento a la derecha).
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Text(symbol, style: AppTextStyles.symbol.copyWith(color: DsColors.textPrimary)),
-                      const SizedBox(width: AppSpacing.sm),
-                      DirectionTag(isLong: isLong),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xs + 2),
-                  Text(strategy, style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary)),
+                  Text(symbol, style: AppTextStyles.symbol.copyWith(color: DsColors.textPrimary)),
+                  const SizedBox(width: AppSpacing.sm),
+                  DirectionTag(isLong: isLong),
                 ],
               ),
               Row(
@@ -109,14 +125,14 @@ class SignalCard extends StatelessWidget {
               ),
             ],
           ),
-          if (warnings.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.lg),
-            for (final w in warnings) ...[
-              Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), message: w.text),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-          ],
+          const SizedBox(height: AppSpacing.xs + 2),
+          // 2. Estrategia + motivo, texto simple.
+          Text(
+            motivo != null && motivo!.isNotEmpty ? '$strategy · $motivo' : strategy,
+            style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.lg),
+          // 3. Números.
           Container(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
             decoration: const BoxDecoration(
@@ -131,7 +147,18 @@ class SignalCard extends StatelessWidget {
               ],
             ),
           ),
+          // 4. Advertencias.
+          if (displayWarnings.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            for (final w in displayWarnings) ...[
+              // Título corto + una sola línea de detalle (el texto completo
+              // va en el Detalle de señal, no acá).
+              Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), title: w.title, message: w.detail, maxLines: 1),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ],
           const SizedBox(height: AppSpacing.lg),
+          // 5. Contexto: texto simple, salvo "llegás tarde" (sigue en recuadro).
           Text(btcContext, style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary)),
           if (price != null) ...[
             const SizedBox(height: AppSpacing.md),
@@ -143,11 +170,14 @@ class SignalCard extends StatelessWidget {
                         ? 'El precio ya recorrió el ${(progress * 100).toStringAsFixed(0)}% hacia el objetivo. Si entrás ahora, la relación queda en 1 : ${effectiveRR.toStringAsFixed(1)}.'
                         : 'El precio ya recorrió el ${(progress * 100).toStringAsFixed(0)}% hacia el objetivo. Entrar ahora ya no tiene margen de riesgo.',
                   )
-                : Callout(
-                    message: 'Desde la señal: ${priceChangePct != null ? fmtPct(priceChangePct) : fmtMissing()}, un ${(progress! * 100).clamp(0, 100).toStringAsFixed(0)}% del camino al objetivo.',
+                : Text(
+                    'Desde la señal: ${priceChangePct != null ? fmtPct(priceChangePct) : fmtMissing()}, un ${(progress! * 100).clamp(0, 100).toStringAsFixed(0)}% del camino al objetivo.',
+                    style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
                   ),
           ],
           const SizedBox(height: AppSpacing.lg),
+          if (fillHeight) const Spacer(),
+          // 6. Botones, siempre al fondo.
           Row(
             children: [
               Expanded(child: SecondaryButton(label: 'Descartar', onPressed: onDiscard)),
@@ -156,8 +186,8 @@ class SignalCard extends StatelessWidget {
                 flex: 2,
                 child: PrimaryButton(
                   label: 'Revisar y operar',
-                  onPressed: canTrade ? onTrade : null,
-                  disabledReason: cannotTradeReason,
+                  onPressed: effectiveCanTrade ? onTrade : null,
+                  disabledReason: effectiveCannotTradeReason,
                 ),
               ),
             ],

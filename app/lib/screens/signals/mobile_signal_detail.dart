@@ -46,7 +46,8 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
   Widget build(BuildContext context) {
     final marginWarning = context.watch<DashboardProvider>().marginWarning;
     final insufficientMargin = marginWarning?['insufficient'] == true;
-    final canOperate = _controller.canOperate && !insufficientMargin;
+    final stopTooTight = _controller.stopTooTight;
+    final canOperate = _controller.canOperate && !insufficientMargin && !stopTooTight;
 
     return Scaffold(
       backgroundColor: DsColors.background,
@@ -105,7 +106,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           ],
         ),
       ),
-      bottomNavigationBar: _controller.canOperate ? _buildBottomBar(canOperate, insufficientMargin) : null,
+      bottomNavigationBar: _controller.canOperate ? _buildBottomBar(canOperate, insufficientMargin, stopTooTight) : null,
     );
   }
 
@@ -154,7 +155,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
     );
   }
 
-  Widget _buildBottomBar(bool canOperate, bool insufficientMargin) {
+  Widget _buildBottomBar(bool canOperate, bool insufficientMargin, bool stopTooTight) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -173,7 +174,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
               child: PrimaryButton(
                 label: 'Operar ${_controller.isLong ? 'LONG' : 'SHORT'} en ${fmtSymbol(_controller.symbol)}',
                 onPressed: (_controller.isExecuting || !canOperate) ? null : () => performTrade(context, _controller),
-                disabledReason: insufficientMargin ? 'Sin margen disponible' : null,
+                disabledReason: stopTooTight ? 'Stop demasiado ajustado' : (insufficientMargin ? 'Sin margen disponible' : null),
               ),
             ),
           ],

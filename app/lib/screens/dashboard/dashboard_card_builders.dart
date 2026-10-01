@@ -31,7 +31,10 @@ Widget buildPositionCard(BuildContext context, dynamic p) {
 }
 
 /// Arma un `SignalCard` a partir de la fila cruda de `pendingSignals[]`.
-Widget buildSignalCard(BuildContext context, DashboardProvider provider, dynamic s) {
+/// `fillHeight`: ver el parámetro homónimo de `SignalCard` — lo pasa
+/// `desktop_dashboard.dart` cuando varias tarjetas comparten fila con la
+/// misma altura, nunca `mobile_dashboard.dart` (lista vertical sin acotar).
+Widget buildSignalCard(BuildContext context, DashboardProvider provider, dynamic s, {bool fillHeight = false}) {
   final entry = double.tryParse(s['entry']?.toString() ?? '') ?? 0;
   final stop = double.tryParse(s['stopLoss']?.toString() ?? '') ?? entry;
   final target = double.tryParse(s['takeProfit']?.toString() ?? '') ?? entry;
@@ -40,21 +43,24 @@ Widget buildSignalCard(BuildContext context, DashboardProvider provider, dynamic
   final expiry = evaluatedAt != null ? computeSignalExpiry(evaluatedAt) : const SignalExpiry(label: '—', soon: false, expired: false);
   final id = s['id'];
   final insufficientMargin = provider.marginWarning?['insufficient'] == true;
+  final reason = s['reason']?.toString();
 
   return SignalCard(
     symbol: fmtSymbol(s['symbol']),
     isLong: isLongDirection(s['direction']),
     strategy: strategyName(s['strategy']?.toString() ?? s['regime']?.toString()),
+    motivo: extractMotivo(reason),
     expiresLabel: expiry.label,
     expiresSoon: expiry.soon,
     entry: entry,
     stop: stop,
     target: target,
     currentPrice: currentPrice,
-    btcContext: s['btcRegime']?.toString() ?? '—',
-    warnings: parseSignalWarnings(warningsJson: s['warnings'] as List<dynamic>?, reason: s['reason']?.toString()),
+    btcContext: formatBtcContext(s['btcRegime']?.toString()),
+    warnings: parseSignalWarnings(warningsJson: s['warnings'] as List<dynamic>?, reason: reason),
     canTrade: !insufficientMargin,
     cannotTradeReason: insufficientMargin ? 'Sin margen disponible' : null,
+    fillHeight: fillHeight,
     onDiscard: id == null
         ? null
         : () async {

@@ -13,6 +13,17 @@ import '../../providers/dashboard_provider.dart';
 import '../../widgets/widgets.dart';
 import 'dashboard_card_builders.dart';
 
+/// Parte una lista en sublistas de a `size` — para agrupar las señales
+/// pendientes en filas de a 3 y poder emparejar su altura con
+/// `IntrinsicHeight` (ver la sección "Señales pendientes" de `build()`).
+List<List<T>> _chunk<T>(List<T> items, int size) {
+  final rows = <List<T>>[];
+  for (var i = 0; i < items.length; i += size) {
+    rows.add(items.sublist(i, i + size > items.length ? items.length : i + size));
+  }
+  return rows;
+}
+
 class DesktopDashboard extends StatelessWidget {
   const DesktopDashboard({super.key});
 
@@ -85,17 +96,37 @@ class DesktopDashboard extends StatelessWidget {
                 if (provider.pendingSignals.isEmpty)
                   const EmptyState(message: 'No hay señales pendientes.')
                 else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      const columns = 3;
-                      const gap = AppSpacing.lg;
-                      final cardWidth = (constraints.maxWidth - gap * (columns - 1)) / columns;
-                      return Wrap(
-                        spacing: gap,
-                        runSpacing: gap,
-                        children: provider.pendingSignals
-                            .map((s) => SizedBox(width: cardWidth, child: buildSignalCard(context, provider, s)))
-                            .toList(),
+                  // `IntrinsicHeight` + `CrossAxisAlignment.stretch` por fila
+                  // (no un `Wrap`, que no empareja alturas entre hermanos):
+                  // todas las tarjetas de una fila quedan con la misma
+                  // altura, y cada una empuja sus botones al fondo
+                  // (`SignalCard.fillHeight`).
+                  Builder(
+                    builder: (context) {
+                      final rows = _chunk(provider.pendingSignals, 3);
+                      return Column(
+                        children: [
+                          for (var r = 0; r < rows.length; r++) ...[
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  for (var i = 0; i < rows[r].length; i++) ...[
+                                    if (i > 0) const SizedBox(width: AppSpacing.lg),
+                                    Expanded(child: buildSignalCard(context, provider, rows[r][i], fillHeight: true)),
+                                  ],
+                                  // Completa la fila si quedó incompleta, para
+                                  // que las tarjetas no se estiren de más.
+                                  for (var i = rows[r].length; i < 3; i++) ...[
+                                    const SizedBox(width: AppSpacing.lg),
+                                    const Expanded(child: SizedBox.shrink()),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (r < rows.length - 1) const SizedBox(height: AppSpacing.lg),
+                          ],
+                        ],
                       );
                     },
                   ),

@@ -51,7 +51,8 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
   Widget build(BuildContext context) {
     final marginWarning = context.watch<DashboardProvider>().marginWarning;
     final insufficientMargin = marginWarning?['insufficient'] == true;
-    final canOperate = _controller.canOperate && !insufficientMargin;
+    final stopTooTight = _controller.stopTooTight;
+    final canOperate = _controller.canOperate && !insufficientMargin && !stopTooTight;
 
     return Scaffold(
       backgroundColor: DsColors.background,
@@ -137,7 +138,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                               child: PrimaryButton(
                                 label: 'Operar ${_controller.isLong ? 'LONG' : 'SHORT'} en ${fmtSymbol(_controller.symbol)}',
                                 onPressed: (_controller.isExecuting || !canOperate) ? null : () => performTrade(context, _controller),
-                                disabledReason: insufficientMargin ? 'Sin margen disponible' : null,
+                                disabledReason: stopTooTight ? 'Stop demasiado ajustado' : (insufficientMargin ? 'Sin margen disponible' : null),
                               ),
                             ),
                           ],

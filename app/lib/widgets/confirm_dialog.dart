@@ -139,7 +139,7 @@ Future<bool> showExecuteConfirmDialog(
           // señal tiene advertencias de riesgo alto, esta es la última
           // chance de verlas antes de confirmar.
           for (final w in highSeverityWarnings) ...[
-            Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), message: w.text),
+            Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), title: w.title, message: w.detail),
             const SizedBox(height: AppSpacing.md),
           ],
           Row(children: [DirectionTag(isLong: isLong), const SizedBox(width: AppSpacing.sm), Text(symbol, style: AppTextStyles.body.copyWith(color: DsColors.textPrimary))]),

@@ -92,7 +92,17 @@ class SignalDetailController extends ChangeNotifier {
     );
   }
 
+  /// Si la señal todavía se puede operar en PRINCIPIO (estado "pendiente"):
+  /// gatea si se muestra la sección "Si operás ahora" y la barra de
+  /// botones. `stopTooTight`/margen insuficiente se manejan aparte, a nivel
+  /// de pantalla (mobile/desktop_signal_detail.dart) — igual que el margen,
+  /// deshabilitan el botón con un motivo, pero no esconden la sección.
   bool get canOperate => canOperateSignal(status);
+
+  /// Regla 5: mismo umbral que `Trader.executeTrade` — si el stop queda
+  /// demasiado cerca de la entrada, Binance va a rechazar la orden. Se
+  /// avisa y se bloquea ANTES de que el usuario lo intente.
+  bool get stopTooTight => isStopTooTight(entry: entry, stop: stop);
 
   /// La señal de verdad se ejecutó (se tomó y se operó), no solo se decidió
   /// descartar o todavía está pendiente — gatea la card de "Resultado de la
@@ -115,7 +125,10 @@ class SignalDetailController extends ChangeNotifier {
   /// emoji → severidad). Nunca dependen de `wasExecuted`: a diferencia de
   /// "Resultado de la ejecución", tienen que seguir viéndose después de
   /// ejecutar o descartar.
-  List<SignalWarning> get warnings => parseSignalWarnings(warningsJson: _resolved['warnings'] as List<dynamic>?, reason: reason);
+  List<SignalWarning> get warnings {
+    final base = parseSignalWarnings(warningsJson: _resolved['warnings'] as List<dynamic>?, reason: reason);
+    return stopTooTight ? sortSignalWarnings([...base, buildStopTooTightWarning()]) : base;
+  }
 
   /// Solo las "high" — para gatear el resumen en el diálogo de confirmación.
   List<SignalWarning> get highSeverityWarnings => warnings.where((w) => w.severity == SignalWarningSeverity.high).toList();

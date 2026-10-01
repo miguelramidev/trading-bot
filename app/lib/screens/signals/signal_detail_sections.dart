@@ -56,7 +56,8 @@ Widget? buildWarningsSection(SignalDetailController controller) {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       for (final w in warnings) ...[
-        Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), message: w.text),
+        // Detalle de señal: texto completo (título + detalle), sin límite de líneas.
+        Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), title: w.title, message: w.detail),
         const SizedBox(height: AppSpacing.sm),
       ],
     ],

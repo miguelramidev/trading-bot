@@ -1,276 +1,86 @@
-import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
-import '../../core/utils/symbol_formatter.dart';
-import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/ds_colors.dart';
+import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../widgets/widgets.dart';
+import 'history_controller.dart';
+import 'history_row_data.dart';
+import 'history_sections.dart';
 
-class MobileHistory extends StatefulWidget {
-  final Map<String, dynamic>? stats;
-  final List<dynamic> trades;
-  final Map<String, dynamic>? pagination;
-  final String currentFilter;
-  final VoidCallback? onRefresh;
-
-  const MobileHistory({super.key, required this.stats, required this.trades, this.pagination, this.currentFilter = 'Todos', this.onRefresh});
-
-  @override
-  State<MobileHistory> createState() => _MobileHistoryState();
-}
-
-class _MobileHistoryState extends State<MobileHistory> {
-  
+class MobileHistory extends StatelessWidget {
+  const MobileHistory({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final tradesList = widget.trades;
-
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: DsColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        title: const Text('Historial de Trades', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-        actions: [ IconButton(icon: const Icon(Icons.sync, color: AppColors.winGreen), onPressed: widget.onRefresh),
-           Container(
-             margin: const EdgeInsets.only(right: 16),
-             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-             decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-             child: const Text('SETTLED', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
-           )
+        backgroundColor: DsColors.background,
+        elevation: 0,
+        title: const Text('Historial'),
+        actions: [
+          Consumer<HistoryController>(
+            builder: (context, controller, _) => IconButton(icon: const Icon(Icons.refresh), onPressed: controller.fetch),
+          ),
         ],
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(child: _buildStatCard('WIN RATE (30D)', '${widget.stats?['winRate'] ?? '0.0'}%', '${widget.stats?['winningTrades'] ?? 0}/${widget.stats?['totalTrades'] ?? 0}', 'R:R ${widget.stats?['profitFactor'] ?? '0.0'}')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildStatCard('PNL NETO TOTAL', '\$${widget.stats?['totalPnl'] ?? '0.00'}', '● REALIZADO', '', isPnl: true)),
-                ],
-              ),
+      body: Consumer<HistoryController>(
+        builder: (context, controller, _) {
+          if (controller.isLoading && controller.stats == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.errorMessage != null && controller.stats == null) {
+            return ErrorState(message: controller.errorMessage!, actionLabel: 'Reintentar', onAction: controller.fetch);
+          }
+
+          final rawTrades = controller.trades.cast<Map<String, dynamic>>();
+          final rows = rawTrades.map(HistoryRowData.fromTrade).toList();
+
+          return RefreshIndicator(
+            onRefresh: controller.fetch,
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                buildHistoryMetrics(controller),
+                const SizedBox(height: AppSpacing.lg),
+                buildPeriodControl(controller),
+                const SizedBox(height: AppSpacing.md),
+                buildSearchFields(controller),
+                const SizedBox(height: AppSpacing.md),
+                buildTypeFilterChips(controller),
+                const SizedBox(height: AppSpacing.lg),
+                if (rows.isEmpty)
+                  const EmptyState(message: 'No hay operaciones con estos filtros.')
+                else
+                  for (var i = 0; i < rows.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: buildHistoryCard(rows[i], () => context.go('/history/trade/${rows[i].id}', extra: rawTrades[i])),
+                    ),
+                if (controller.pagination != null) _buildPagination(context, controller),
+              ],
             ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildFilterChip('Todos'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Tomadas'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Descartadas'),
-                ],
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                return _buildTradeCard(tradesList[index]);
-              },
-              childCount: tradesList.length,
-            ),
-          ),
-          SliverToBoxAdapter(child: _buildPagination()),
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, String badge1, String badge2, {bool isPnl = false}) {
-    final double pnlVal = isPnl ? double.tryParse(value.replaceAll('\$', '')) ?? 0 : 0;
-    final color = isPnl ? (pnlVal >= 0 ? AppColors.winGreen : AppColors.lossRed) : AppColors.textPrimary;
-    final sign = isPnl && pnlVal > 0 ? '+' : '';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(child: Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold))),
-              if (badge1.isNotEmpty && isPnl)
-                Text(badge1, style: const TextStyle(color: AppColors.winGreen, fontSize: 10, fontWeight: FontWeight.bold))
-              else if (badge1.isNotEmpty)
-                Text(badge1, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('$sign$value', style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
-              if (badge2.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                  child: Text(badge2, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                )
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label) {
-    final isSelected = widget.currentFilter == label;
-    return GestureDetector(
-      onTap: () => context.go('/history?page=1&filter=$label'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.winGreen.withValues(alpha: 0.2) : Colors.transparent,
-          border: Border.all(color: isSelected ? AppColors.winGreen : AppColors.border),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(label, style: TextStyle(color: isSelected ? AppColors.winGreen : AppColors.textSecondary, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-      ),
-    );
-  }
-
-  Widget _buildTradeCard(dynamic trade) {
-    return GestureDetector(
-      onTap: () => context.go('/history/trade/${trade['id']}', extra: trade as Map<String, dynamic>),
-      child:
-    Builder(builder: (context) {
-      final isLong = trade['direction'] == 'LONG';
-    final isShadow = trade['status'] == 'DESCARTADO';
-    final isTp = trade['status'] == 'TP HIT';
-    
-    Color statusColor = AppColors.textSecondary;
-    if (isTp) statusColor = AppColors.winGreen;
-    if (trade['status'] == 'SL HIT') statusColor = AppColors.lossRed;
-
-    final pnlVal = (trade['pnl'] as num?)?.toDouble() ?? 0.0;
-    final roiVal = (trade['roi'] as num?)?.toDouble();
-    
-    final pnlStr = pnlVal > 0 ? '+\$${pnlVal.toStringAsFixed(2)}' : (pnlVal < 0 ? '-\$${pnlVal.abs().toStringAsFixed(2)}' : '\$0.00');
-    final pnlColor = isShadow ? AppColors.textSecondary : (pnlVal > 0 ? AppColors.winGreen : AppColors.lossRed);
-
-    String dateStr = '';
-    if (trade['date'] != null) {
-      final date = DateTime.parse(trade['date']).toLocal();
-      dateStr = DateFormat('dd MMM, HH:mm').format(date);
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(child: Text(fmtSymbol(trade['symbol']), style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: (isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed)).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
-                    child: Text('${trade['direction']} ${trade['leverage'] != null ? "${trade['leverage']}x" : "—"}', style: TextStyle(color: isShadow ? AppColors.textSecondary : (isLong ? AppColors.winGreen : AppColors.lossRed), fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-              ),
-              Row(
-                children: [
-                  Text(pnlStr, style: TextStyle(color: pnlColor, fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
-                    child: Text(trade['status'], style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              )
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.access_time, size: 14, color: AppColors.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(dateStr, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                ],
-              ),
-              if (!isShadow) Text(roiVal != null ? 'ROI ${roiVal > 0 ? '+' : ''}${roiVal.toStringAsFixed(2)}%' : 'ROI —', style: TextStyle(color: pnlColor, fontSize: 12, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(color: AppColors.border, height: 1),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(width: 6, height: 6, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(trade['strategy'] ?? '', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                  ],
-                ),
-              ),
-              Text('ENT: \$${trade['entryPrice']} → SAL: \$${trade['exitPrice']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-            ],
-          ),
-        ],
-      ),
-    );
-    }));
-  }
-
-  Widget _buildPagination() {
-    if (widget.pagination == null) return const SizedBox();
-    final int currentPage = widget.pagination!['page'] ?? 1;
-    final int totalPages = widget.pagination!['totalPages'] ?? 1;
-
+  Widget _buildPagination(BuildContext context, HistoryController controller) {
+    final currentPage = controller.pagination!['page'] ?? 1;
+    final totalPages = controller.pagination!['totalPages'] ?? 1;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-            onPressed: currentPage > 1 ? () => context.go('/history?page=${currentPage - 1}&filter=${widget.currentFilter}') : null,
-          ),
-          Text('Página $currentPage de $totalPages', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-          IconButton(
-            icon: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-            onPressed: currentPage < totalPages ? () => context.go('/history?page=${currentPage + 1}&filter=${widget.currentFilter}') : null,
-          ),
+          IconButton(icon: const Icon(Icons.chevron_left), onPressed: currentPage > 1 ? () => controller.setPage(currentPage - 1) : null),
+          Text('Página $currentPage de $totalPages', style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary)),
+          IconButton(icon: const Icon(Icons.chevron_right), onPressed: currentPage < totalPages ? () => controller.setPage(currentPage + 1) : null),
         ],
       ),
     );
   }
-
 }
-
-

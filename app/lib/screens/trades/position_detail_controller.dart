@@ -116,6 +116,20 @@ class PositionDetailController extends ChangeNotifier {
     return computeTradeProjection(entry: entry, stop: stop, target: target, marginUsd: margin, leverage: lev, isLong: isLong);
   }
 
+  /// Resultado si el precio llega a `level` (stop u objetivo), a partir del
+  /// tamaño REAL de la posición — no depende de `leverage`/`marginUsd`, así
+  /// que sigue funcionando cuando esos dos faltan (ej. Binance no informó el
+  /// apalancamiento para esta posición, o no hay una señal activa en
+  /// `signal_history` que la enriquezca — ver `DashboardController.ts`,
+  /// `openPositions` solo suma `stopLoss`/`takeProfit`/`decision` cuando hay
+  /// una fila con `isActiveTrade=true` para ese símbolo; sin eso, igual
+  /// llegan `size`/`entryPrice` directo de Binance vía ccxt).
+  double? outcomeAt(double level) {
+    final qty = size;
+    if (qty == null || entry == 0) return null;
+    return computeOutcomeFromQuantity(quantity: qty, entry: entry, level: level, isLong: isLong);
+  }
+
   /// El SL real de Binance no coincide con el que la señal intentó poner.
   /// Tolera el redondeo de Binance al tick size del símbolo (si lo
   /// conocemos): hasta 2 ticks de diferencia no cuenta como mismatch. Sin

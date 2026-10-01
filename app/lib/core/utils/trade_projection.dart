@@ -47,3 +47,23 @@ TradeProjection computeTradeProjection({
     targetResultUsd: pnlAt(target),
   );
 }
+
+/// Resultado si el precio llega a `level`, a partir del tamaño REAL de la
+/// posición (contratos/unidades, el `size` que manda Binance vía ccxt) —
+/// a diferencia de [computeTradeProjection], no depende del margen ni del
+/// apalancamiento configurados. Hace falta para una posición abierta cuyo
+/// apalancamiento no llegó desde Binance (`PositionDetailController.leverage`
+/// null): antes esa falta tiraba abajo todo el cálculo de "si toca el stop/
+/// objetivo" aunque el tamaño real sí estuviera disponible.
+double computeOutcomeFromQuantity({
+  required double quantity,
+  required double entry,
+  required double level,
+  required bool isLong,
+  double feeRate = kRoundTripCommissionRate,
+}) {
+  final priceDiff = isLong ? (level - entry) : (entry - level);
+  final notionalUsd = quantity * entry;
+  final fee = notionalUsd * feeRate;
+  return quantity * priceDiff - fee;
+}

@@ -60,7 +60,6 @@ Widget buildResultSection(PositionDetailController controller) {
 Widget buildExitRangeSection(PositionDetailController controller) {
   if (controller.isClosed) return _buildCloseResultSection(controller);
 
-  final projection = controller.projection;
   final lastPrice = controller.lastPrice;
   double? distanceFromLast(double price) => lastPrice == 0 ? null : ((price - lastPrice) / lastPrice) * 100;
 
@@ -77,7 +76,7 @@ Widget buildExitRangeSection(PositionDetailController controller) {
             Expanded(
               child: OutcomeBlock(
                 label: 'Stop · ${fmtPrice(controller.stop)}',
-                amountUsd: projection?.stopResultUsd,
+                amountUsd: controller.outcomeAt(controller.stop),
                 price: controller.stop,
                 distancePct: distanceFromLast(controller.stop),
                 isPositive: false,
@@ -87,7 +86,7 @@ Widget buildExitRangeSection(PositionDetailController controller) {
             Expanded(
               child: OutcomeBlock(
                 label: 'Objetivo · ${fmtPrice(controller.target)}',
-                amountUsd: projection?.targetResultUsd,
+                amountUsd: controller.outcomeAt(controller.target),
                 price: controller.target,
                 distancePct: distanceFromLast(controller.target),
                 isPositive: true,
@@ -97,7 +96,12 @@ Widget buildExitRangeSection(PositionDetailController controller) {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Resultados si se ejecuta cada nivel, desde tu entrada y con comisión estimada.',
+          // Cada número sale de un lugar distinto: el monto en USDT es desde
+          // tu entrada (con comisión estimada incluida); el % al lado del
+          // precio es la distancia desde el ÚLTIMO precio, no desde la
+          // entrada (antes el texto decía "desde tu entrada" para los dos,
+          // y no era cierto para el %).
+          'El monto en USDT es desde tu entrada, con comisión estimada. El % junto al precio es la distancia desde el último precio.',
           style: AppTextStyles.caption.copyWith(color: DsColors.textTertiary),
         ),
       ],

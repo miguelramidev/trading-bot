@@ -138,6 +138,32 @@ void main() {
     });
   });
 
+  group('outcomeAt — no depende de margen/apalancamiento (bug real: NOM quedaba sin "si toca el stop/objetivo")', () {
+    test('posición abierta SIN leverage/initialMargin (el caso real de NOM: sin fila activa en signal_history que la enriquezca) igual calcula el resultado', () {
+      final c = PositionDetailController({
+        'symbol': 'NOM/USDT:USDT',
+        'side': 'short',
+        'entryPrice': '0.07',
+        'size': 500.0,
+        'stopLoss': '0.072',
+        'takeProfit': '0.065',
+        // sin 'leverage' ni 'initialMargin': dbTrade no matcheó en el backend.
+      }, isClosed: false);
+
+      expect(c.projection, isNull); // el cálculo viejo (con leverage) sigue sin poder — por eso hacía falta el nuevo.
+      expect(c.outcomeAt(c.target), isNotNull);
+      expect(c.outcomeAt(c.stop), isNotNull);
+      // SHORT: el objetivo (precio más bajo) da ganancia, el stop (más alto) da pérdida.
+      expect(c.outcomeAt(c.target), greaterThan(0));
+      expect(c.outcomeAt(c.stop), lessThan(0));
+    });
+
+    test('sin "size" (trade cerrado, no se guarda todavía) -> null, no revienta', () {
+      final c = PositionDetailController({'entryPrice': '100', 'stopLoss': '95'}, isClosed: true);
+      expect(c.outcomeAt(c.stop), isNull);
+    });
+  });
+
   group('marginModeLabel', () {
     test('traduce isolated/cross a Aislado/Cruzado', () {
       expect(PositionDetailController({'marginMode': 'isolated'}, isClosed: false).marginModeLabel, 'Aislado');

@@ -5,6 +5,7 @@ import '../../core/network/api_client.dart';
 import '../../core/utils/dashboard_mappers.dart';
 import '../../core/utils/signal_progress.dart';
 import '../../core/utils/signal_status.dart';
+import '../../core/utils/signal_warnings.dart';
 import '../../core/utils/strategy_name.dart';
 import '../../core/utils/trade_projection.dart';
 import '../../widgets/signal_card.dart' show kSignalLateThreshold;
@@ -107,6 +108,17 @@ class SignalDetailController extends ChangeNotifier {
   String? get triggerAdx => _resolved['triggerAdx']?.toString();
   double? get triggerAdxValue => double.tryParse(_resolved['triggerAdx']?.toString() ?? '');
   String? get reason => _resolved['reason']?.toString();
+
+  /// Advertencias de la señal (riesgo macro, reversa de estrategia, alertas
+  /// de caída/rebote) — desde `warnings` (señales nuevas) o, si falta,
+  /// parseadas de `reason` por viñetas (señales viejas, mismo criterio de
+  /// emoji → severidad). Nunca dependen de `wasExecuted`: a diferencia de
+  /// "Resultado de la ejecución", tienen que seguir viéndose después de
+  /// ejecutar o descartar.
+  List<SignalWarning> get warnings => parseSignalWarnings(warningsJson: _resolved['warnings'] as List<dynamic>?, reason: reason);
+
+  /// Solo las "high" — para gatear el resumen en el diálogo de confirmación.
+  List<SignalWarning> get highSeverityWarnings => warnings.where((w) => w.severity == SignalWarningSeverity.high).toList();
 
   double? get progress => currentPrice != null ? computeSignalProgress(entry: entry, target: target, price: currentPrice!) : null;
   bool get isLate => progress != null && progress! >= kSignalLateThreshold;

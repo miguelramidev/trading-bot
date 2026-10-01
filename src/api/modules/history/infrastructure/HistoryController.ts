@@ -105,6 +105,9 @@ historyRouter.get(
           btcCorrelation: t.btcCorrelation,
           triggerRsi: t.triggerRsi,
           triggerAdx: t.triggerAdx,
+          // Fase 1 (advertencias): null en señales viejas, la app cae a
+          // parsear `reason` por viñetas en ese caso.
+          warnings: t.warnings,
         };
       });
 
@@ -208,6 +211,7 @@ historyRouter.get(
         btcCorrelation: t.btcCorrelation,
         triggerRsi: t.triggerRsi,
         triggerAdx: t.triggerAdx,
+        warnings: t.warnings,
       });
 
     } catch (e: any) {

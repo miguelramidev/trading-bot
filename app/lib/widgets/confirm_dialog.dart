@@ -4,8 +4,10 @@ import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/theme/app_radius.dart';
 import '../core/utils/result_formatter.dart';
+import '../core/utils/signal_warnings.dart';
 import 'app_buttons.dart';
 import 'app_filter_chip.dart';
+import 'callout.dart';
 import 'direction_tag.dart';
 
 /// Motivos de descarte de un toque (sección "Descartar" del documento de
@@ -124,6 +126,7 @@ Future<bool> showExecuteConfirmDialog(
   required int leverageMax,
   required double stopResultUsd,
   required double targetResultUsd,
+  List<SignalWarning> highSeverityWarnings = const [],
 }) async {
   final confirmed = await showDialog<bool>(
     context: context,
@@ -132,6 +135,13 @@ Future<bool> showExecuteConfirmDialog(
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Arriba de todo, antes que cualquier otra cosa del resumen: si la
+          // señal tiene advertencias de riesgo alto, esta es la última
+          // chance de verlas antes de confirmar.
+          for (final w in highSeverityWarnings) ...[
+            Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), message: w.text),
+            const SizedBox(height: AppSpacing.md),
+          ],
           Row(children: [DirectionTag(isLong: isLong), const SizedBox(width: AppSpacing.sm), Text(symbol, style: AppTextStyles.body.copyWith(color: DsColors.textPrimary))]),
           const SizedBox(height: AppSpacing.lg),
           _summaryRow('Margen', fmtUsd(marginUsd, signed: false)),

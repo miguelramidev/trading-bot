@@ -15,6 +15,7 @@ import {
   type CloseReason,
 } from "./closeNotificationHelpers.js";
 import { reconcileActiveTrades, isReconciliationDryRun } from "./reconciliation.js";
+import { pushWarning, type SignalWarning } from "./signalWarnings.js";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
@@ -568,38 +569,55 @@ async function runAnalysis(timeframe: string) {
         signal.timeframe = timeframe;
         const signalId = inserted[0].id;
 
-        let strat4Warning = "";
+        // Fase 1 (2026-10-01): además de las strings de siempre (que siguen
+        // armando el mensaje de Telegram y `reason` tal cual), cada
+        // advertencia se guarda también en una lista estructurada
+        // (`signalWarnings`) con su propio tipo y severidad — para que la
+        // app pueda mostrarlas sin depender de pisar/truncar `reason` al
+        // ejecutar/descartar (ver `signalWarnings.ts`).
+        const signalWarnings: SignalWarning[] = [];
 
         let macroWarningStr = "";
         if (wasInverted) {
           macroWarningStr = `🔥 <b>ESTRATEGIA 3 (MACRO BREAKOUT):</b> El bot detectó un setup técnico en contra, pero como Bitcoin está fuertemente <b>${macroTrendWarning}</b> en 1D y 4H, ¡hemos <b>INVERTIDO</b> la señal para cazar la ruptura!\n\n`;
+          pushWarning(signalWarnings, "estrategia_invertida", "info", macroWarningStr);
         } else if (macroTrendWarning === "ALCISTA" && signal.direction === "SHORT") {
            if (btcCorrVal < 0) {
               macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está ALCISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el SHORT original.\n\n`;
+              pushWarning(signalWarnings, "riesgo_macro_mitigado", "warning", macroWarningStr);
            } else if (bias4h === "UP" && btcShortTermBias === "DOWN") {
               macroWarningStr = `🛑 <b>VETO DE PROTECCIÓN:</b> BTC es Alcista (1D) y la moneda (4H) también, pero BTC está CAYENDO a corto plazo (15m). Se cancela la Inversión a LONG para no atrapar el cuchillo cayendo.\n\n`;
+              pushWarning(signalWarnings, "veto_proteccion", "warning", macroWarningStr);
            } else {
               macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está ALCISTA en 1D, pero no hay fuerza en 4H. No se invirtió la señal. Hacer SHORT es riesgoso.\n\n`;
+              pushWarning(signalWarnings, "riesgo_macro", "high", macroWarningStr);
            }
         } else if (macroTrendWarning === "BAJISTA" && signal.direction === "LONG") {
            if (btcCorrVal < 0) {
               macroWarningStr = `⚠️ <b>Riesgo Macro mitigado:</b> BTC está BAJISTA, pero esta moneda tiene CORRELACIÓN NEGATIVA (${btcCorrStr}). Se respeta el LONG original.\n\n`;
+              pushWarning(signalWarnings, "riesgo_macro_mitigado", "warning", macroWarningStr);
            } else if (bias4h === "DOWN" && btcShortTermBias === "UP") {
               macroWarningStr = `🛑 <b>VETO DE PROTECCIÓN:</b> BTC es Bajista (1D) y la moneda (4H) también, pero BTC está SUBIENDO a corto plazo (15m). Se cancela la Inversión a SHORT para evitar un rebote fuerte.\n\n`;
+              pushWarning(signalWarnings, "veto_proteccion", "warning", macroWarningStr);
            } else {
               macroWarningStr = `⚠️ <b>Riesgo Macro (VETO):</b> BTC está BAJISTA en 1D, pero no hay debilidad en 4H. No se invirtió la señal. Hacer LONG es riesgoso.\n\n`;
+              pushWarning(signalWarnings, "riesgo_macro", "high", macroWarningStr);
            }
         } else if (macroTrendWarning === "ALCISTA" && signal.direction === "LONG") {
           macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente ALCISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
+          pushWarning(signalWarnings, "alineacion_macro", "positive", macroWarningStr);
         } else if (macroTrendWarning === "BAJISTA" && signal.direction === "SHORT") {
           macroWarningStr = `✅ <b>Alineación Macro:</b> BTC está fuertemente BAJISTA en el gráfico diario. ¡Esta operación sigue la tendencia a favor de las ballenas!\n\n`;
+          pushWarning(signalWarnings, "alineacion_macro", "positive", macroWarningStr);
         }
-        
+
         let machetazoWarning = "";
         if (signal.direction === "LONG" && btcShortTermBias === "DOWN" && !wasInverted) {
             machetazoWarning = `🚨 <b>ALERTA DE CAÍDA BRUSCA:</b> Bitcoin está retrocediendo con fuerza en 15m. Entrar en LONG ahora tiene altísimo riesgo de atrapar un cuchillo cayendo.\n\n`;
+            pushWarning(signalWarnings, "alerta_caida_brusca", "high", machetazoWarning);
         } else if (signal.direction === "SHORT" && btcShortTermBias === "UP" && !wasInverted) {
             machetazoWarning = `🚨 <b>ALERTA DE REBOTE:</b> Bitcoin está subiendo con fuerza en 15m. Entrar en SHORT ahora es riesgoso contra el impulso del mercado.\n\n`;
+            pushWarning(signalWarnings, "alerta_rebote", "high", machetazoWarning);
         }
 
         const cleanSymbolTV = symbol.split(":")[0].replace("/", "");
@@ -609,13 +627,19 @@ async function runAnalysis(timeframe: string) {
           signal.reason ? `Motivo: ${signal.reason}` : "",
           macroWarningStr.trim(),
           machetazoWarning.trim(),
-          strat4Warning.trim()
         ].filter(Boolean);
         const finalReasonStr = rawWarnings.map(w => "• " + w.replace(/<[^>]*>/g, '')).join('\n\n');
 
         await db.update(signalHistory)
-          .set({ reason: finalReasonStr })
+          .set({ reason: finalReasonStr, warnings: signalWarnings })
           .where(eq(signalHistory.id, signalId));
+
+        // Para el push de "nueva señal": solo las "high" (antes el push no
+        // llevaba ninguna advertencia, a diferencia de Telegram).
+        const highSeverityPushText = signalWarnings
+          .filter(w => w.severity === "high")
+          .map(w => w.text)
+          .join(" — ");
 
         for (const user of activeUsers) {
           // Permitir que usuarios sin API Keys reciban la notificación de la señal como teaser
@@ -685,7 +709,6 @@ async function runAnalysis(timeframe: string) {
             (btcCorrStr !== "N/A" ? `🔗 <b>Corr BTC:</b> ${btcCorrStr} | 👑 <b>BTC:</b> ${btcRegimeStr}\n\n` : "\n\n") +
             macroWarningStr +
             machetazoWarning +
-            strat4Warning +
             `💡 <i>Motivo: ${signal.reason}</i>\n` +
             `📊 <b>Ver Gráfico:</b> <a href="${tvLink}">Abrir ${cleanSymbolTV} en TradingView</a>\n\n` +
             `⏱ <b>Acción:</b> Tienes ~3 min para analizar. Si apruebas, el bot ejecutará el Sniper a mercado.`;
@@ -696,7 +719,8 @@ async function runAnalysis(timeframe: string) {
                 await sendPushNotification(
                   t,
                   `Nueva Señal: ${signal.direction} en ${signal.symbol}`,
-                  `Estrategia: ${signal.strategy} | SL: ${signal.stopLoss} | TP: ${signal.takeProfit}`,
+                  `Estrategia: ${signal.strategy} | SL: ${signal.stopLoss} | TP: ${signal.takeProfit}` +
+                    (highSeverityPushText ? ` | ⚠️ ${highSeverityPushText}` : ""),
                   { signalId: String(signalId), symbol: signal.symbol }
                 );
               } catch(e: any) {

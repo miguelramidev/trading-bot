@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/utils/dashboard_mappers.dart';
+import '../../core/utils/signal_warnings.dart';
 import '../../core/utils/strategy_name.dart';
 import '../../core/utils/symbol_formatter.dart';
 import '../../providers/dashboard_provider.dart';
@@ -51,6 +52,7 @@ Widget buildSignalCard(BuildContext context, DashboardProvider provider, dynamic
     target: target,
     currentPrice: currentPrice,
     btcContext: s['btcRegime']?.toString() ?? '—',
+    warnings: parseSignalWarnings(warningsJson: s['warnings'] as List<dynamic>?, reason: s['reason']?.toString()),
     canTrade: !insufficientMargin,
     cannotTradeReason: insufficientMargin ? 'Sin margen disponible' : null,
     onDiscard: id == null

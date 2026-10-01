@@ -97,6 +97,10 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                 ),
               ],
             ),
+            if (buildWarningsSection(_controller) != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              buildWarningsSection(_controller)!,
+            ],
             const SizedBox(height: AppSpacing.xl),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,

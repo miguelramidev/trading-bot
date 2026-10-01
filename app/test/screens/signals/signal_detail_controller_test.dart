@@ -159,4 +159,43 @@ void main() {
       expect(c.isLate, isFalse);
     });
   });
+
+  group('warnings — Fase 1 (bug real: se escondían detrás de "wasExecuted")', () {
+    test('una señal pendiente con "warnings" estructurado las expone', () {
+      final c = SignalDetailController({
+        'warnings': [
+          {'type': 'riesgo_macro', 'severity': 'high', 'text': 'Riesgo Macro (VETO)'},
+        ],
+      });
+      expect(c.warnings, hasLength(1));
+      expect(c.highSeverityWarnings, hasLength(1));
+    });
+
+    test('sin "warnings" pero con "reason" (señal vieja) cae a parsearlo por viñetas', () {
+      final c = SignalDetailController({'reason': '• 🚨 ALERTA DE CAÍDA BRUSCA: texto'});
+      expect(c.warnings, hasLength(1));
+      expect(c.highSeverityWarnings, hasLength(1));
+    });
+
+    test('la advertencia se conserva después de "ejecutar" (decision pasa a Tomada): no depende de wasExecuted', () {
+      // Simula el shape que llega una vez que la señal ya se ejecutó
+      // (`decision` empieza con "Tomada") — antes de este fix, la única
+      // sección que mostraba el `reason` quedaba gateada por `wasExecuted`,
+      // así que las advertencias desaparecían exactamente en este caso.
+      final c = SignalDetailController({
+        'decision': 'Tomada',
+        'warnings': [
+          {'type': 'alerta_caida_brusca', 'severity': 'high', 'text': 'Alerta de caída'},
+        ],
+      });
+      expect(c.wasExecuted, isTrue);
+      expect(c.warnings, hasLength(1)); // sigue ahí, "warnings" no se gatea por wasExecuted
+    });
+
+    test('sin advertencias de ningún tipo -> lista vacía, no revienta', () {
+      final c = SignalDetailController({});
+      expect(c.warnings, isEmpty);
+      expect(c.highSeverityWarnings, isEmpty);
+    });
+  });
 }

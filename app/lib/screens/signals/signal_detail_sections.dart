@@ -6,6 +6,7 @@ import '../../core/utils/result_formatter.dart';
 import '../../core/utils/price_formatter.dart';
 import '../../core/utils/dashboard_mappers.dart';
 import '../../core/utils/signal_status.dart';
+import '../../core/utils/signal_warnings.dart';
 import '../../widgets/widgets.dart';
 import 'signal_detail_controller.dart';
 
@@ -41,6 +42,25 @@ Widget buildStatusPill(SignalDetailController controller) {
       if (decision != null && decision.contains('SL Tocado')) return const StatusPill(StatusPillVariant.stop);
       return const StatusPill(StatusPillVariant.desactivada, label: 'Terminada');
   }
+}
+
+/// Advertencias de la señal (riesgo macro, reversa de estrategia, alertas
+/// de caída/rebote) — arriba de todo, antes que cualquier otra sección.
+/// Nunca depende de `wasExecuted`: a diferencia de "Resultado de la
+/// ejecución" (ver `_buildReasonCard` en cada pantalla), tienen que seguir
+/// viéndose después de ejecutar o descartar la señal.
+Widget? buildWarningsSection(SignalDetailController controller) {
+  final warnings = controller.warnings;
+  if (warnings.isEmpty) return null;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final w in warnings) ...[
+        Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), message: w.text),
+        const SizedBox(height: AppSpacing.sm),
+      ],
+    ],
+  );
 }
 
 /// "Último precio" + desplazamiento desde la señal. Si ya "llegás tarde"
@@ -174,15 +194,17 @@ Widget buildContextSection(SignalDetailController controller) {
         Text('Contexto de la señal', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
         const SizedBox(height: AppSpacing.md),
         Wrap(
+          spacing: AppSpacing.xl,
           runSpacing: AppSpacing.md,
           children: [
             for (final (label, value, color) in rows)
               SizedBox(
-                width: 220,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                width: 150,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(label, style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary)),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(value, style: AppTextStyles.numXS.copyWith(color: color)),
                   ],
                 ),

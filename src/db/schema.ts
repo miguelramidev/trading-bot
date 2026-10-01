@@ -1,4 +1,5 @@
-import { pgTable, text, boolean, timestamp, serial, integer, bigint, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, serial, integer, bigint, unique, jsonb } from "drizzle-orm/pg-core";
+import type { SignalWarning } from "../cron/signalWarnings.js";
 
 // Guardamos la configuración de cada chat
 export const userConfig = pgTable("user_config", {
@@ -54,6 +55,14 @@ export const signalHistory = pgTable("signal_history", {
   btcRegime: text("btc_regime"),
   decision: text("decision"), // "Tomada", "Descartada", null (pendiente)
   reason: text("reason"), // Por qué se tomó/descartó
+  // Aditivo (Fase 1, 2026-10-01): las advertencias de riesgo macro/reversa de
+  // estrategia que antes solo vivían mezcladas dentro de `reason` (y que se
+  // perdían al ejecutar/descartar, porque ese mismo campo se pisa con el
+  // resultado de la ejecución, truncado a 100 caracteres — ver
+  // `recordExecutionResult` en `cron/tradeExecution.ts`). `null` en señales
+  // viejas: la app cae a parsear `reason` por viñetas en ese caso (ver
+  // `app/lib/core/utils/signal_warnings.dart`).
+  warnings: jsonb("warnings").$type<SignalWarning[]>(),
   // --- Nuevos campos exclusivos para Grid Trading ---
   accountBalance: text("account_balance"), // Saldo de Binance al emitir señal
   numGrids: integer("num_grids"), // Cantidad de grillas calculadas

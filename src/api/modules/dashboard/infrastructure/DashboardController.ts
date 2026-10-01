@@ -149,6 +149,7 @@ dashboardRouter.get("/", async (c) => {
       // cuando se abre desde una posición activa (no solo desde Historial).
       decision: dbTrade?.decision ?? null,
       isActiveTrade: dbTrade?.isActiveTrade ?? null,
+      warnings: dbTrade?.warnings ?? null,
     };
     });
 

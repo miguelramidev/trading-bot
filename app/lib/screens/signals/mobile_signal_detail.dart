@@ -70,6 +70,10 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildHeader(),
+            if (buildWarningsSection(_controller) != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              buildWarningsSection(_controller)!,
+            ],
             const SizedBox(height: AppSpacing.lg),
             buildPriceSection(_controller),
             if (_controller.canOperate) ...[

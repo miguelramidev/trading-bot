@@ -5,6 +5,7 @@ import '../core/theme/app_spacing.dart';
 import '../core/theme/app_radius.dart';
 import '../core/utils/result_formatter.dart';
 import '../core/utils/signal_progress.dart';
+import '../core/utils/signal_warnings.dart';
 import 'direction_tag.dart';
 import 'callout.dart';
 import 'app_buttons.dart';
@@ -31,6 +32,9 @@ class SignalCard extends StatelessWidget {
   /// inventa uno).
   final double? currentPrice;
   final String btcContext;
+  /// Riesgo macro, reversa de estrategia, alertas de caída/rebote — bien
+  /// visibles, antes que cualquier otra cosa de la tarjeta.
+  final List<SignalWarning> warnings;
   final bool canTrade;
   final String? cannotTradeReason;
   final VoidCallback? onDiscard;
@@ -48,6 +52,7 @@ class SignalCard extends StatelessWidget {
     required this.target,
     this.currentPrice,
     required this.btcContext,
+    this.warnings = const [],
     this.canTrade = true,
     this.cannotTradeReason,
     this.onDiscard,
@@ -104,6 +109,13 @@ class SignalCard extends StatelessWidget {
               ),
             ],
           ),
+          if (warnings.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            for (final w in warnings) ...[
+              Callout(variant: calloutVariantFor(w.severity), icon: calloutIconFor(w.severity), message: w.text),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ],
           const SizedBox(height: AppSpacing.lg),
           Container(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),

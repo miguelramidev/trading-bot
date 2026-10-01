@@ -55,6 +55,7 @@ Future<void> performTrade(BuildContext context, SignalDetailController controlle
     leverageMax: controller.leverageMax,
     stopResultUsd: projection.stopResultUsd,
     targetResultUsd: projection.targetResultUsd,
+    highSeverityWarnings: controller.highSeverityWarnings,
   );
   if (!confirmed || !context.mounted) return;
 

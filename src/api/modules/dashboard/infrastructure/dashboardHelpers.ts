@@ -10,9 +10,13 @@ export type StatusVariant = "objetivo" | "stop" | "enCurso" | "pendiente" | "des
  */
 export function mapDecisionToStatus(decision: string | null, isActiveTrade: boolean): StatusVariant {
   if (decision === null) return "pendiente";
+  // La decisión manda: si la señal se descartó, el resultado que el monitor de
+  // analyze.ts haya simulado después (TP/SL) no cambia que nunca se operó. Por
+  // eso este chequeo va ANTES que los de "TP/SL Tocado" — si no, "Descartada ->
+  // Cerrada (SL Tocado)" caía en la rama de "stop" en vez de "descartada".
+  if (decision.startsWith("Descartada")) return "descartada";
   if (decision.includes("TP Tocado")) return "objetivo";
   if (decision.includes("SL Tocado")) return "stop";
-  if (decision === "Descartada") return "descartada";
   if (decision === "Tomada") return isActiveTrade ? "enCurso" : "descartada";
   return "descartada";
 }

@@ -83,3 +83,16 @@ const CCXT_SYMBOL_PATTERN = /^[A-Z0-9]{1,20}\/[A-Z0-9]{1,10}(:[A-Z0-9]{1,10})?$/
 export function isValidCcxtSymbol(symbol: string): boolean {
   return CCXT_SYMBOL_PATTERN.test(symbol);
 }
+
+/**
+ * Binance usa `precisionMode: TICK_SIZE` en ccxt (ver
+ * node_modules/ccxt/js/src/binance.js:1341 y la asignación real de
+ * `precision.price` desde el filtro `PRICE_FILTER.tickSize` de Binance,
+ * binance.js:3914-3924) — así que `market.precision.price` ES el tamaño del
+ * paso de precio (ej. `0.1`), no una cantidad de decimales como en otros
+ * exchanges/precisionModes de ccxt. Si no se puede determinar, `null`.
+ */
+export function extractTickSize(market: { precision?: { price?: number | null } } | undefined | null): number | null {
+  const tick = market?.precision?.price;
+  return typeof tick === "number" && tick > 0 ? tick : null;
+}

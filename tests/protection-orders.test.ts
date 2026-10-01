@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyProtectionOrders, isValidCcxtSymbol, type NormalizedOrder } from "../src/api/modules/dashboard/infrastructure/protectionOrders.js";
+import { classifyProtectionOrders, isValidCcxtSymbol, extractTickSize, type NormalizedOrder } from "../src/api/modules/dashboard/infrastructure/protectionOrders.js";
 
 // Fixtures con la forma real que arma `parseOrder` de ccxt 4.5.76 para
 // Binance USDM futures (node_modules/ccxt/js/src/binance.js:6864-6886):
@@ -105,5 +105,28 @@ describe("isValidCcxtSymbol", () => {
     expect(isValidCcxtSymbol("ena/usdt")).toBe(false); // ccxt unificado es mayúsculas
     expect(isValidCcxtSymbol("ENA/USDT; DROP TABLE users")).toBe(false);
     expect(isValidCcxtSymbol("../../etc/passwd")).toBe(false);
+  });
+});
+
+describe("extractTickSize", () => {
+  // Binance usa precisionMode TICK_SIZE en ccxt: `precision.price` es el
+  // tamaño del paso, no decimales (node_modules/ccxt/js/src/binance.js:1341,
+  // 3914-3924 — el valor real viene de PRICE_FILTER.tickSize). 0.1 es el
+  // ejemplo real documentado ahí mismo para varios pares USDM futures.
+  it("el tick size real de Binance (TICK_SIZE, ej. BTCUSDT futures) es el paso de precio", () => {
+    expect(extractTickSize({ precision: { price: 0.1 } })).toBe(0.1);
+  });
+
+  it("acepta valores chicos típicos de altcoins", () => {
+    expect(extractTickSize({ precision: { price: 0.0001 } })).toBe(0.0001);
+  });
+
+  it("sin mercado, sin precision, o tick 0/negativo -> null (nunca inventa una tolerancia)", () => {
+    expect(extractTickSize(undefined)).toBeNull();
+    expect(extractTickSize(null)).toBeNull();
+    expect(extractTickSize({})).toBeNull();
+    expect(extractTickSize({ precision: {} })).toBeNull();
+    expect(extractTickSize({ precision: { price: 0 } })).toBeNull();
+    expect(extractTickSize({ precision: { price: -0.1 } })).toBeNull();
   });
 });

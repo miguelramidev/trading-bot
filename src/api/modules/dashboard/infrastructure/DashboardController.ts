@@ -14,7 +14,7 @@ import {
   PENDING_SIGNALS_LIMIT,
   RECENT_ACTIVITY_LIMIT,
 } from "./dashboardHelpers.js";
-import { classifyProtectionOrders, isValidCcxtSymbol } from "./protectionOrders.js";
+import { classifyProtectionOrders, isValidCcxtSymbol, extractTickSize } from "./protectionOrders.js";
 
 export const dashboardRouter = new Hono<AuthEnv>();
 
@@ -252,10 +252,12 @@ dashboardRouter.get("/positions/protection", async (c) => {
 
     const orders = await binance.fetchOpenOrders(symbol, undefined, undefined, { trigger: true });
     const classification = classifyProtectionOrders({ orders: orders as any, isLong, entryPrice });
+    const tickSize = extractTickSize(binance.markets?.[symbol] as any);
 
     return c.json({
       symbol,
       verifiedAt: new Date().toISOString(),
+      tickSize,
       ...classification,
     });
   } catch (error: any) {

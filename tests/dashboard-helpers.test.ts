@@ -29,12 +29,12 @@ describe("mapDecisionToStatus", () => {
     expect(mapDecisionToStatus("Tomada -> Cerrada (SL Tocado)", false)).toBe("stop");
   });
 
-  it('Descartada -> Cerrada (TP Tocado) -> objetivo (el resultado manda sobre el descarte)', () => {
-    expect(mapDecisionToStatus("Descartada -> Cerrada (TP Tocado)", false)).toBe("objetivo");
+  it('Descartada -> Cerrada (TP Tocado) -> descartada (la decisión manda, no el resultado simulado)', () => {
+    expect(mapDecisionToStatus("Descartada -> Cerrada (TP Tocado)", false)).toBe("descartada");
   });
 
-  it('Descartada -> Cerrada (SL Tocado) -> stop', () => {
-    expect(mapDecisionToStatus("Descartada -> Cerrada (SL Tocado)", false)).toBe("stop");
+  it('Descartada -> Cerrada (SL Tocado) -> descartada (la decisión manda, no el resultado simulado)', () => {
+    expect(mapDecisionToStatus("Descartada -> Cerrada (SL Tocado)", false)).toBe("descartada");
   });
 
   it("Tomada sin isActiveTrade (caso raro / dato inconsistente) -> descartada, nunca enCurso fantasma", () => {

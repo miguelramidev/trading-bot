@@ -51,8 +51,9 @@ historyRouter.get(
 
       const mappedTrades = allSignals.map(t => {
         let statusStr: "DESCARTADO" | "TP HIT" | "SL HIT" = "DESCARTADO";
-        let roi = 0;
-        let pnl = 0;
+        // null, no 0: una descartada no tiene resultado, "0.00%" mentiría que sí lo tiene.
+        let roi: number | null = null;
+        let pnl: number | null = null;
 
         const pnlVal = parseFloat(t.realizedPnl || "0");
         const roiVal = parseFloat(t.realizedRoi || "0");
@@ -89,7 +90,14 @@ historyRouter.get(
           fundingRate: t.fundingRate || "0.0000",
           status: statusStr,
           date: t.evaluatedAt,
-          reason: t.reason
+          reason: t.reason,
+          // Contexto de la señal: faltaba acá, así que el Detalle de señal
+          // abierto desde Historial lo mostraba vacío.
+          btcRegime: t.btcRegime,
+          bias4h: t.bias4h,
+          btcCorrelation: t.btcCorrelation,
+          triggerRsi: t.triggerRsi,
+          triggerAdx: t.triggerAdx,
         };
       });
 
@@ -149,13 +157,14 @@ historyRouter.get(
 
       if (!t) return c.json({ error: "Trade not found" }, 404);
 
-      const pnlVal = parseFloat(t.realizedPnl || "0");
-      const roiVal = parseFloat(t.realizedRoi || "0");
       const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
+      // null, no 0: una descartada no tiene resultado.
+      const pnlVal = wasActuallyDiscarded ? null : parseFloat(t.realizedPnl || "0");
+      const roiVal = wasActuallyDiscarded ? null : parseFloat(t.realizedRoi || "0");
 
       let statusStr = "DESCARTADO";
       if (!wasActuallyDiscarded && t.decision?.includes("Cerrada")) {
-        statusStr = pnlVal > 0 || t.decision.includes("TP") ? "TP HIT" : "SL HIT";
+        statusStr = (pnlVal ?? 0) > 0 || t.decision.includes("TP") ? "TP HIT" : "SL HIT";
       } else if (t.isActiveTrade) {
         statusStr = "ACTIVA";
       }
@@ -176,7 +185,12 @@ historyRouter.get(
         fundingRate: t.fundingRate || "0.0000",
         status: statusStr,
         date: t.evaluatedAt,
-        reason: t.reason
+        reason: t.reason,
+        btcRegime: t.btcRegime,
+        bias4h: t.bias4h,
+        btcCorrelation: t.btcCorrelation,
+        triggerRsi: t.triggerRsi,
+        triggerAdx: t.triggerAdx,
       });
 
     } catch (e: any) {

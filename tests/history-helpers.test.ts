@@ -70,6 +70,12 @@ describe("computeHistoryStats", () => {
     expect(stats.totalPnl).toBe(0);
   });
 
+  it("una descartada con pnl null (el caso real, nunca tuvo resultado) no revienta y se ignora igual", () => {
+    const stats = computeHistoryStats([{ status: "DESCARTADO" as const, pnl: null }]);
+    expect(stats.totalTrades).toBe(0);
+    expect(stats.totalPnl).toBe(0);
+  });
+
   it("calcula winRate, profitFactor y totales sobre TP/SL", () => {
     const trades = [
       { status: "TP HIT" as const, pnl: 10 },

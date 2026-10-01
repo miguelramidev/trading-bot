@@ -34,7 +34,9 @@ export function filterTradesBySearch<T extends SearchableTrade>(
 
 interface StatusedTrade {
   status: "DESCARTADO" | "TP HIT" | "SL HIT";
-  pnl: number;
+  // null en las descartadas (nunca tuvieron resultado) — siempre se descartan
+  // antes de sumarse, pero el tipo lo refleja para no mentir con un 0.
+  pnl: number | null;
 }
 
 export interface HistoryStats {
@@ -58,14 +60,16 @@ export function computeHistoryStats<T extends StatusedTrade>(trades: T[]): Histo
 
   for (const t of trades) {
     if (t.status === "DESCARTADO") continue;
+    // No descartada: siempre tiene pnl real (ver mapeo del controller).
+    const pnl = t.pnl ?? 0;
     totalTrades++;
-    totalPnl += t.pnl;
+    totalPnl += pnl;
     if (t.status === "TP HIT") {
       winningTrades++;
-      grossProfit += t.pnl;
+      grossProfit += pnl;
     } else {
       losingTrades++;
-      grossLoss += Math.abs(t.pnl);
+      grossLoss += Math.abs(pnl);
     }
   }
 

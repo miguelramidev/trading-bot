@@ -157,7 +157,6 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                       strategy: _controller.strategy,
                       evaluatedAt: _controller.evaluatedAt,
                       triggerAdx: _controller.triggerAdxValue,
-                      onPriceLoaded: _controller.setCurrentPrice,
                     ),
                   ),
                 ),

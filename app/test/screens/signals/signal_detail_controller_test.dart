@@ -97,4 +97,66 @@ void main() {
       expect(c.wasExecuted, isFalse);
     });
   });
+
+  group('currentPrice — "Último precio" nunca sale del close de una vela', () {
+    test('si el mapa trae "currentPrice" (del Inicio, de fetchTickers), se usa de entrada, antes de cualquier red', () {
+      // Antes del fix, `currentPrice` arrancaba en null y solo se setaba
+      // cuando el gráfico terminaba de cargar la pestaña 15m con el close de
+      // la última vela CERRADA — para una señal recién generada esa vela es
+      // la MISMA que la originó, así que el desplazamiento daba 0% y
+      // "llegás tarde" nunca podía aparecer (bug real, confirmado con datos
+      // reales 2026-10-01). Ahora el controller ya no tiene ningún camino
+      // que dependa del gráfico para esto — lo prueba este mismo test: el
+      // valor está disponible de inmediato, de forma síncrona, sin esperar
+      // ningún gráfico ni ninguna pestaña.
+      final c = SignalDetailController({'currentPrice': 103.5});
+      expect(c.currentPrice, 103.5);
+    });
+
+    test('sin "currentPrice" en el mapa original, arranca en null (lo completa el ticker en vivo, async)', () {
+      final c = SignalDetailController({});
+      expect(c.currentPrice, isNull);
+    });
+
+    test('setCurrentPrice (usado por el ticker en vivo) actualiza el precio y la hora', () {
+      final c = SignalDetailController({});
+      c.setCurrentPrice(99.9);
+      expect(c.currentPrice, 99.9);
+      expect(c.priceUpdatedAt, isNotNull);
+    });
+  });
+
+  group('isExecuting — el estado de carga siempre se reinicia (lo usan los finally de performTrade/performDiscard)', () {
+    test('arranca en false', () {
+      final c = SignalDetailController({});
+      expect(c.isExecuting, isFalse);
+    });
+
+    test('se puede poner en true y volver a false (camino feliz y camino de error pasan por acá)', () {
+      final c = SignalDetailController({});
+      c.setExecuting(true);
+      expect(c.isExecuting, isTrue);
+      c.setExecuting(false);
+      expect(c.isExecuting, isFalse);
+    });
+  });
+
+  group('isLate — "llegás tarde" según el precio EN VIVO, al 30% del camino (kSignalLateThreshold)', () {
+    test('LONG: precio en vivo al 30% exacto del camino a el objetivo -> llegás tarde', () {
+      final c = SignalDetailController({'entry': '100', 'takeProfit': '110', 'direction': 'LONG'});
+      c.setCurrentPrice(103); // (103-100)/(110-100) = 0.30
+      expect(c.isLate, isTrue);
+    });
+
+    test('LONG: precio en vivo apenas por debajo del 30% -> todavía no', () {
+      final c = SignalDetailController({'entry': '100', 'takeProfit': '110', 'direction': 'LONG'});
+      c.setCurrentPrice(102);
+      expect(c.isLate, isFalse);
+    });
+
+    test('sin precio todavía (ni del Inicio ni del ticker resuelto) -> nunca "llegás tarde" en silencio', () {
+      final c = SignalDetailController({'entry': '100', 'takeProfit': '110', 'direction': 'LONG'});
+      expect(c.isLate, isFalse);
+    });
+  });
 }

@@ -87,6 +87,14 @@ class AppToast {
       borderRadius: BorderRadius.circular(12),
       showProgressBar: false,
       closeButtonShowType: closeButtonShowType,
+      // `pauseOnHover` por default del paquete es `true`: si el mouse queda
+      // apoyado arriba del toast (lo normal justo después de tocar
+      // "Confirmar" en un modal que cierra cerca de esa zona), el cierre
+      // automático nunca arranca — bug real reportado: el toast se queda
+      // pegado hasta recargar la página. `autoCloseDuration: null` (el caso
+      // "crítico") ya requiere cierre manual a propósito, así que esto no le
+      // cambia nada a ese caso.
+      pauseOnHover: false,
     );
   }
 }

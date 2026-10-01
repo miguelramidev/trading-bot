@@ -90,12 +90,6 @@ class SignalChartView extends StatefulWidget {
   /// confiar ciegamente en la fórmula (ver `findSignalCandleIndex`).
   final double? triggerAdx;
 
-  /// Se llama con el cierre de la última vela de 15m del símbolo operado
-  /// apenas se carga esa pestaña (la inicial) — así la pantalla que envuelve
-  /// el gráfico no tiene que pedir esas mismas velas por su cuenta solo
-  /// para saber el "último precio".
-  final ValueChanged<double>? onPriceLoaded;
-
   const SignalChartView({
     super.key,
     required this.symbol,
@@ -105,7 +99,6 @@ class SignalChartView extends StatefulWidget {
     required this.strategy,
     this.evaluatedAt,
     this.triggerAdx,
-    this.onPriceLoaded,
   });
 
   @override
@@ -120,8 +113,36 @@ class _SignalChartViewState extends State<SignalChartView> {
 
   /// Columna reservada a la derecha para el eje de precios (estilo
   /// TradingView): las velas terminan antes de ahí, y las etiquetas de
-  /// SL/entrada/TP viven en esa columna, sin cortarse contra el borde.
-  static const double _priceAxisWidth = 64;
+  /// SL/entrada/TP viven en esa columna, sin cortarse contra el borde. El
+  /// ancho se adapta al precio más largo que de verdad se va a mostrar — un
+  /// ancho fijo partía en dos renglones las etiquetas de pares de precio muy
+  /// bajo (ej. "0.00001234").
+  static const double _minPriceAxisWidth = 48;
+  static const double _maxPriceAxisWidth = 120;
+
+  double get _priceAxisWidth {
+    if (_tab.isBtc) return _minPriceAxisWidth; // BTC 1d no muestra niveles de precio.
+    return _computeAxisWidthForLabels([fmtPrice(widget.target), fmtPrice(widget.entry), fmtPrice(widget.stop)]);
+  }
+
+  /// Mismo estilo/padding que el badge de `_levelLabel`: el ancho tiene que
+  /// alcanzarle al texto REAL que ese badge va a dibujar, no a una
+  /// aproximación.
+  double _computeAxisWidthForLabels(List<String> labels) {
+    double maxTextWidth = 0;
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: AppTextStyles.micro.copyWith(fontWeight: FontWeight.w600)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      if (painter.width > maxTextWidth) maxTextWidth = painter.width;
+    }
+    const horizontalBadgePadding = 6.0 * 2; // Container padding del badge (_levelLabel)
+    const leftMargin = 4.0; // margin left del badge dentro de la columna
+    const breathingRoom = 8.0; // que no quede pegado al borde derecho
+    final computed = maxTextWidth + horizontalBadgePadding + leftMargin + breathingRoom;
+    return computed.clamp(_minPriceAxisWidth, _maxPriceAxisWidth);
+  }
 
   double _chartWidth(double totalWidth) => (totalWidth - _priceAxisWidth).clamp(0.0, totalWidth);
 
@@ -183,9 +204,6 @@ class _SignalChartViewState extends State<SignalChartView> {
         final tabData = _parseTabData(data);
         if (!mounted) return;
         setState(() => _cache[tab] = tabData);
-        if (tab == _ChartTab.m15 && tabData.candles.isNotEmpty) {
-          widget.onPriceLoaded?.call(tabData.candles.last.close);
-        }
       } else {
         if (!mounted) return;
         setState(() => _error = 'No se pudieron cargar las velas.');

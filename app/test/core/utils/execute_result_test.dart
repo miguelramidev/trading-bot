@@ -2,6 +2,7 @@
 // "status" para un backend viejo, un valor desconocido, y el caso de
 // timeout/error de red/respuesta no parseable.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toastification/toastification.dart';
@@ -108,6 +109,53 @@ void main() {
       await tester.tap(find.text('Entendido'));
       await tester.pumpAndSettle();
       expect(find.text('Alerta crítica'), findsNothing);
+    });
+  });
+
+  group('cierre automático del toast — bug real: se quedaba pegado con el mouse encima', () {
+    // `toastification` pausa el cierre automático mientras el mouse está
+    // arriba del toast por default (`pauseOnHover: true`) — justo después de
+    // tocar "Confirmar" en el modal de ejecutar, el mouse suele quedar cerca
+    // de donde aparece el toast, y si no se mueve, nunca se cerraba solo
+    // (había que recargar la página). `AppToast` ahora pasa
+    // `pauseOnHover: false` explícitamente: este test simula el mouse
+    // quedando apoyado arriba del toast y comprueba que igual se cierra solo.
+    testWidgets('con el mouse encima todo el tiempo, el toast de éxito igual se cierra solo', (tester) async {
+      await tester.pumpWidget(_harness((ctx) => showExecuteResult(ctx, ExecuteResult.ejecutado, 'listo')));
+      await tester.tap(find.text('go'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final toastFinder = find.text('listo', skipOffstage: false);
+      expect(toastFinder, findsOneWidget);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: tester.getCenter(toastFinder));
+      await tester.pump();
+
+      // autoCloseDuration de "ejecutado" es 4s — con margen de sobra.
+      await tester.pump(const Duration(seconds: 5));
+
+      expect(find.text('listo', skipOffstage: false), findsNothing);
+    });
+
+    testWidgets('con el mouse encima todo el tiempo, el toast de advertencia igual se cierra solo', (tester) async {
+      await tester.pumpWidget(_harness((ctx) => showExecuteResult(ctx, ExecuteResult.advertencia, 'ojo')));
+      await tester.tap(find.text('go'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final toastFinder = find.text('ojo', skipOffstage: false);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: tester.getCenter(toastFinder));
+      await tester.pump();
+
+      // autoCloseDuration de "advertencia" es 6s.
+      await tester.pump(const Duration(seconds: 7));
+
+      expect(find.text('ojo', skipOffstage: false), findsNothing);
     });
   });
 

@@ -92,7 +92,6 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                 strategy: _controller.strategy,
                 evaluatedAt: _controller.evaluatedAt,
                 triggerAdx: _controller.triggerAdxValue,
-                onPriceLoaded: _controller.setCurrentPrice,
               ),
             ),
             if (_controller.wasExecuted) ...[

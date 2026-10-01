@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/network/api_client.dart';
 import '../../core/utils/app_toast.dart';
 import '../../core/utils/execute_result.dart';
+import '../../providers/dashboard_provider.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'signal_detail_controller.dart';
 
@@ -19,6 +21,10 @@ Future<void> performDiscard(BuildContext context, SignalDetailController control
     if (res.statusCode == 200) {
       if (context.mounted) {
         AppToast.showInfo(context, 'Señal descartada');
+        // La señal ya no está pendiente: refrescar el Inicio ahora, sin
+        // esperar hasta el próximo poll de 60s, para no dejarla mostrada
+        // como si siguiera pendiente al volver.
+        context.read<DashboardProvider>().fetchDashboardData(forceRefresh: true);
         if (context.canPop()) {
           context.pop();
         } else {
@@ -63,6 +69,9 @@ Future<void> performTrade(BuildContext context, SignalDetailController controlle
         await showExecuteResult(context, result, messageForExecuteResult(result, data));
       }
       if (!context.mounted) return;
+      // La señal ya no está pendiente (se ejecutó, con el resultado que sea):
+      // refrescar el Inicio ahora, sin esperar el próximo poll de 60s.
+      context.read<DashboardProvider>().fetchDashboardData(forceRefresh: true);
       if (context.canPop()) {
         context.pop();
       } else {

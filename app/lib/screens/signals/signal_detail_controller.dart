@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../core/network/api_client.dart';
@@ -22,11 +23,33 @@ import '../../widgets/signal_card.dart' show kSignalLateThreshold;
 class SignalDetailController extends ChangeNotifier {
   final Map<String, dynamic> signal;
   late final Map<String, dynamic> _resolved;
+  Timer? _priceTimer;
+
+  /// Mismo intervalo que el polling de `DashboardProvider` — no hace falta
+  /// que coincidan exactamente, pero mantenerlos iguales evita que el precio
+  /// de esta pantalla se sienta más (o menos) "en vivo" que el del Inicio.
+  static const _priceRefreshInterval = Duration(seconds: 60);
 
   SignalDetailController(this.signal) {
     _resolved = Map<String, dynamic>.from(signal);
     _loadUserConfig();
     if (_resolved['btcRegime'] == null) _loadFullSignalIfNeeded();
+
+    // "Último precio" tiene que ser un precio EN VIVO, nunca el close de la
+    // última vela CERRADA que traía el gráfico (hasta acá, vía
+    // `SignalChartView.onPriceLoaded`): para una señal recién generada esa
+    // vela es la MISMA que la originó, así que el desplazamiento daba 0% y
+    // "llegás tarde" nunca podía aparecer — bug real, confirmado con datos
+    // reales (2026-10-01). `currentPrice` ya viaja en las señales pendientes
+    // del Inicio (`/api/dashboard`, de `fetchTickers`) — sirve de placeholder
+    // instantáneo mientras se confirma con un pedido directo al ticker.
+    final initialPrice = double.tryParse(_resolved['currentPrice']?.toString() ?? '');
+    if (initialPrice != null) {
+      currentPrice = initialPrice;
+      priceUpdatedAt = DateTime.now();
+    }
+    _loadLiveTicker();
+    _priceTimer = Timer.periodic(_priceRefreshInterval, (_) => _loadLiveTicker());
   }
 
   bool isLoadingConfig = true;
@@ -39,7 +62,9 @@ class SignalDetailController extends ChangeNotifier {
   bool isExecuting = false;
 
   String get symbol => _resolved['symbol']?.toString() ?? '';
+  String get _cleanSymbol => symbol.split(':').first.replaceAll('/', '');
   bool get isLong => isLongDirection(_resolved['direction']);
+  String? get decision => _resolved['decision'] as String?;
 
   /// La señal pendiente del dashboard manda `entry` (columna de la tabla);
   /// posiciones/historial mandan `entryPrice` (alias de la respuesta HTTP).
@@ -108,6 +133,30 @@ class SignalDetailController extends ChangeNotifier {
   void setExecuting(bool value) {
     isExecuting = value;
     notifyListeners();
+  }
+
+  /// Precio en vivo directo de Binance (`GET /api/market/ticker`), nunca el
+  /// close de una vela — se llama al abrir la pantalla y cada
+  /// `_priceRefreshInterval` mientras siga abierta.
+  Future<void> _loadLiveTicker() async {
+    if (symbol.isEmpty) return;
+    try {
+      final res = await ApiClient.get('/api/market/ticker?symbol=$_cleanSymbol');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final price = (data['price'] as num?)?.toDouble();
+        if (price != null) setCurrentPrice(price);
+      }
+    } catch (e) {
+      // Se queda con el precio que ya tenía (del Inicio o del ticker
+      // anterior) — nunca lo pisa con algo peor ni rompe la pantalla.
+    }
+  }
+
+  @override
+  void dispose() {
+    _priceTimer?.cancel();
+    super.dispose();
   }
 
   int? get _resolvableId {

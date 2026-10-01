@@ -15,7 +15,10 @@ import 'signal_detail_controller.dart';
 /// Pastilla de estado del encabezado — un solo lugar que decide la
 /// variante/etiqueta para los 5 estados posibles.
 Widget buildStatusPill(SignalDetailController controller) {
-  final decision = controller.signal['decision'] as String?;
+  // `controller.decision` (resuelto), no `controller.signal['decision']`: el
+  // mapa original no siempre trae `decision` — mismo bug ya corregido en el
+  // getter `status` del controller (ver caso real WIF, Tanda 3).
+  final decision = controller.decision;
   switch (controller.status) {
     case SignalDetailStatus.pendiente:
       final at = controller.evaluatedAt;
@@ -40,11 +43,17 @@ Widget buildStatusPill(SignalDetailController controller) {
   }
 }
 
-/// "Último precio" + desplazamiento desde la señal.
+/// "Último precio" + desplazamiento desde la señal. Si ya "llegás tarde"
+/// (mismo umbral del 30% que usa `SignalCard` en el Inicio, `isLate` del
+/// controller), lo avisa acá también — antes este aviso existía en el
+/// Inicio pero no en el Detalle de señal: alguien que entraba desde el
+/// Inicio ya avisado veía, adentro, el mismo texto neutro de siempre.
 Widget buildPriceSection(SignalDetailController controller) {
   final price = controller.currentPrice;
   final progress = controller.progress;
   final priceChangePct = price != null && controller.entry != 0 ? ((price - controller.entry) / controller.entry) * 100 : null;
+  final isLate = controller.isLate;
+  final effectiveRR = controller.effectiveRR;
 
   return AppCard(
     child: Column(
@@ -54,11 +63,21 @@ Widget buildPriceSection(SignalDetailController controller) {
         const SizedBox(height: AppSpacing.xs),
         Text(price != null ? fmtPrice(price) : fmtMissing(), style: AppTextStyles.numXL.copyWith(color: DsColors.textPrimary)),
         const SizedBox(height: AppSpacing.xs),
-        if (price != null && progress != null)
-          Text(
-            '${priceChangePct != null ? fmtPct(priceChangePct) : fmtMissing()} desde la señal (${fmtPrice(controller.entry)}): un ${(progress * 100).clamp(0, 100).toStringAsFixed(0)}% del camino al objetivo.',
-            style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
-          ),
+        if (price != null && progress != null) ...[
+          if (isLate)
+            Callout(
+              variant: CalloutVariant.warning,
+              icon: Icons.warning_amber_rounded,
+              message: effectiveRR != null
+                  ? 'El precio ya recorrió el ${(progress * 100).toStringAsFixed(0)}% hacia el objetivo. Si entrás ahora, la relación queda en 1 : ${effectiveRR.toStringAsFixed(1)}.'
+                  : 'El precio ya recorrió el ${(progress * 100).toStringAsFixed(0)}% hacia el objetivo. Entrar ahora ya no tiene margen de riesgo.',
+            )
+          else
+            Text(
+              '${priceChangePct != null ? fmtPct(priceChangePct) : fmtMissing()} desde la señal (${fmtPrice(controller.entry)}): un ${(progress * 100).clamp(0, 100).toStringAsFixed(0)}% del camino al objetivo.',
+              style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
+            ),
+        ],
       ],
     ),
   );

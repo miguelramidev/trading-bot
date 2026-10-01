@@ -11,6 +11,7 @@ class LabeledField extends StatelessWidget {
   final String? suffix;
   final TextInputType? keyboardType;
   final bool enabled;
+  final ValueChanged<String>? onChanged;
 
   const LabeledField({
     super.key,
@@ -19,6 +20,7 @@ class LabeledField extends StatelessWidget {
     this.suffix,
     this.keyboardType,
     this.enabled = true,
+    this.onChanged,
   });
 
   @override
@@ -33,6 +35,7 @@ class LabeledField extends StatelessWidget {
           controller: controller,
           enabled: enabled,
           keyboardType: keyboardType,
+          onChanged: onChanged,
           style: AppTextStyles.numS.copyWith(color: DsColors.textPrimary),
           decoration: InputDecoration(
             filled: true,

@@ -7,6 +7,7 @@ import ccxt from "ccxt";
 import { Resource } from "sst";
 import { Trader } from "../bot/trader.js";
 import { sendCriticalAlert } from "../bot/criticalAlert.js";
+import { recordExecutionResult } from "../cron/tradeExecution.js";
 import { decrypt } from "../api/core/utils/encryption.js";
 import { getSecretHeader, isValidWebhookSecret } from "./verifyWebhook.js";
 import { isAllowedChat } from "./allowlist.js";
@@ -264,24 +265,27 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
   } else if (user.binanceApiSecret) {
     userSecret = decrypt(user.binanceApiSecret);
   }
+  const configuredMargin = user.montoOperacion ? parseFloat(user.montoOperacion.toString()) : 25.0;
   const trader = new Trader(userKey, userSecret);
   const executionResult = await trader.executeTrade(
      signal.symbol,
      signal.direction!,
      parseFloat(signal.gridSL || "0"),
      parseFloat(signal.gridTP || "0"),
-     user.montoOperacion ? parseFloat(user.montoOperacion.toString()) : 25.0,
+     configuredMargin,
      user.leverageMin ?? 1,
      user.leverageMax ?? 2
   );
 
-  // "rechazado" es el único caso sin posición real abierta en Binance.
-  const finalDecision = executionResult.status === "rechazado" ? "Descartada" : "Tomada";
-  const reasonText = executionResult.mensaje.substring(0, 100);
-
-  await db.update(signalHistory)
-    .set({ decision: finalDecision, reason: reasonText, isActiveTrade: true })
-    .where(eq(signalHistory.id, signalId));
+  await recordExecutionResult({
+    signalId,
+    userId: user.id,
+    source: "telegram",
+    signal: { symbol: signal.symbol, direction: signal.direction as "LONG" | "SHORT" },
+    configuredMargin,
+    executionResult,
+    trader,
+  });
 
   const STATUS_HEADER: Record<typeof executionResult.status, string> = {
     ejecutado: "✅ <b>TRADE EJECUTADO REAL (Sniper)</b>",

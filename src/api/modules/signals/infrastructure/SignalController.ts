@@ -8,6 +8,7 @@ import { decrypt } from "../../../core/utils/encryption.js";
 import { Trader } from "../../../../bot/trader.js";
 import { sendCriticalAlert } from "../../../../bot/criticalAlert.js";
 import { internalError, newErrorId } from "../../../core/utils/errors.js";
+import { recordExecutionResult } from "../../../../cron/tradeExecution.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
 
 export const signalsRouter = new Hono<AuthEnv>();
@@ -36,24 +37,27 @@ signalsRouter.post(
       const apiKey = decrypt(user.binanceApiKey);
       const secret = user.rsaPrivateKey ? decrypt(user.rsaPrivateKey) : decrypt(user.binanceApiSecret!);
 
+      const configuredMargin = user.montoOperacion ?? 25.0;
       const trader = new Trader(apiKey, secret);
       const executionResult = await trader.executeTrade(
         signal.symbol,
         signal.direction!,
         parseFloat(signal.gridSL || signal.stopLoss || "0"),
         parseFloat(signal.gridTP || signal.takeProfit || "0"),
-        user.montoOperacion ?? 25.0,
+        configuredMargin,
         user.leverageMin ?? 1,
         user.leverageMax ?? 2
       );
 
-      // "rechazado" es el único caso sin posición real abierta en Binance.
-      const finalDecision = executionResult.status === "rechazado" ? "Descartada" : "Tomada";
-      const reasonText = executionResult.mensaje.substring(0, 100);
-
-      await db.update(signalHistory)
-        .set({ decision: finalDecision, reason: reasonText, isActiveTrade: true })
-        .where(eq(signalHistory.id, id));
+      await recordExecutionResult({
+        signalId: id,
+        userId: user.id,
+        source: "api",
+        signal: { symbol: signal.symbol, direction: signal.direction as "LONG" | "SHORT" },
+        configuredMargin,
+        executionResult,
+        trader,
+      });
 
       // Los rechazos de negocio (saldo, capital) se muestran tal cual; el detalle de un error fatal
       // (texto de Binance/ccxt) queda solo en el log, con una referencia para el cliente.

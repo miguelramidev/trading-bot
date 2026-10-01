@@ -24,58 +24,39 @@ Widget buildHistoryMetrics(HistoryController controller) {
   final periodSignalsCount = stats['periodSignalsCount'] ?? 0;
   final lowProfitFactor = profitFactor != null && profitFactor < 1;
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Wrap(
-        spacing: AppSpacing.md,
-        runSpacing: AppSpacing.md,
-        children: [
-          SizedBox(
-            width: 220,
-            child: AppCard(
-              child: MetricBlock(
-                label: 'Operaciones cerradas',
-                value: '$totalTrades',
-                secondaryLine: 'de $periodSignalsCount señales en el período',
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 220,
-            child: AppCard(
-              child: MetricBlock(
-                label: 'Aciertos',
-                value: winRate != null ? '${winRate.toStringAsFixed(1)}%' : fmtMissing(),
-                secondaryLine: '$winningTrades objetivos · $losingTrades stops',
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 220,
-            child: AppCard(
-              child: MetricBlock(
-                label: 'PnL neto',
-                value: fmtUsd(totalPnl),
-                secondaryLine: 'con comisiones · sin funding',
-                sign: (totalPnl ?? 0) > 0 ? MetricSign.positive : ((totalPnl ?? 0) < 0 ? MetricSign.negative : MetricSign.neutral),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 220,
-            child: AppCard(
-              child: MetricBlock(
-                label: 'Profit factor',
-                value: profitFactor != null ? profitFactor.toStringAsFixed(2) : fmtMissing(),
-                secondaryLine: lowProfitFactor ? 'menor a 1: las pérdidas superan las ganancias' : null,
-                sign: lowProfitFactor ? MetricSign.negative : MetricSign.neutral,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ],
+  Widget metricCard(Widget child) => Expanded(child: AppCard(child: child));
+
+  return IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        metricCard(MetricBlock(
+          label: 'Operaciones cerradas',
+          value: '$totalTrades',
+          secondaryLine: 'de $periodSignalsCount señales en el período',
+        )),
+        const SizedBox(width: AppSpacing.md),
+        metricCard(MetricBlock(
+          label: 'Aciertos',
+          value: winRate != null ? '${winRate.toStringAsFixed(1)}%' : fmtMissing(),
+          secondaryLine: '$winningTrades objetivos · $losingTrades stops',
+        )),
+        const SizedBox(width: AppSpacing.md),
+        metricCard(MetricBlock(
+          label: 'PnL neto',
+          value: fmtUsd(totalPnl),
+          secondaryLine: 'con comisiones · sin funding',
+          sign: (totalPnl ?? 0) > 0 ? MetricSign.positive : ((totalPnl ?? 0) < 0 ? MetricSign.negative : MetricSign.neutral),
+        )),
+        const SizedBox(width: AppSpacing.md),
+        metricCard(MetricBlock(
+          label: 'Profit factor',
+          value: profitFactor != null ? profitFactor.toStringAsFixed(2) : fmtMissing(),
+          secondaryLine: lowProfitFactor ? 'menor a 1: las pérdidas superan las ganancias' : null,
+          sign: lowProfitFactor ? MetricSign.negative : MetricSign.neutral,
+        )),
+      ],
+    ),
   );
 }
 
@@ -103,15 +84,55 @@ Widget buildTypeFilterChips(HistoryController controller) {
   );
 }
 
-/// Búsqueda por activo y estrategia.
+/// Búsqueda por activo (texto libre) y selector de estrategia (solo las que
+/// existen en el historial del período, no texto libre — ver `availableStrategies`).
 Widget buildSearchFields(HistoryController controller) {
   return Row(
     children: [
       Expanded(child: _SearchField(label: 'Buscar activo', onChanged: controller.setSymbolQuery)),
       const SizedBox(width: AppSpacing.md),
-      Expanded(child: _SearchField(label: 'Estrategia', onChanged: controller.setStrategyQuery)),
+      Expanded(child: _StrategySelector(controller: controller)),
     ],
   );
+}
+
+class _StrategySelector extends StatelessWidget {
+  final HistoryController controller;
+
+  const _StrategySelector({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final strategies = controller.availableStrategies;
+    // La estrategia elegida puede haber quedado fuera de las disponibles
+    // (cambió el período): el selector no debe fallar, solo no mostrarla
+    // seleccionada.
+    final value = controller.selectedStrategy != null && strategies.contains(controller.selectedStrategy) ? controller.selectedStrategy : null;
+
+    return DropdownButtonFormField<String?>(
+      initialValue: value,
+      isExpanded: true,
+      icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: DsColors.textSecondary),
+      dropdownColor: DsColors.surface,
+      style: AppTextStyles.body.copyWith(color: DsColors.textPrimary),
+      decoration: InputDecoration(
+        hintText: 'Estrategia',
+        hintStyle: AppTextStyles.body.copyWith(color: DsColors.textTertiary),
+        prefixIcon: const Icon(Icons.filter_list, size: 18, color: DsColors.textSecondary),
+        filled: true,
+        fillColor: DsColors.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: DsColors.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: DsColors.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: DsColors.accent)),
+      ),
+      items: [
+        const DropdownMenuItem<String?>(value: null, child: Text('Todas')),
+        for (final s in strategies) DropdownMenuItem<String?>(value: s, child: Text(s, overflow: TextOverflow.ellipsis)),
+      ],
+      onChanged: controller.setStrategy,
+    );
+  }
 }
 
 class _SearchField extends StatelessWidget {
@@ -145,7 +166,9 @@ class _SearchField extends StatelessWidget {
 const double kHistoryDateWidth = 100;
 const double kHistorySymbolWidth = 90;
 const double kHistoryDirectionWidth = 70;
-const double kHistoryStatusWidth = 120;
+// 140, no 120: "Objetivo tocado" (el label más largo que usa StatusPill acá)
+// con su padding horizontal no entraba en 120 y desbordaba la celda.
+const double kHistoryStatusWidth = 140;
 const double kHistoryPnlWidth = 90;
 const double kHistoryRoiWidth = 90;
 

@@ -104,7 +104,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                 SizedBox(
                   width: 420,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       buildPriceSection(_controller),
                       if (_controller.canOperate) ...[
@@ -139,8 +139,10 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                           ],
                         ),
                       ],
-                      const SizedBox(height: AppSpacing.lg),
-                      _buildReasonCard(),
+                      if (_controller.wasExecuted) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        _buildReasonCard(),
+                      ],
                     ],
                   ),
                 ),
@@ -154,6 +156,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                       target: _controller.target,
                       strategy: _controller.strategy,
                       evaluatedAt: _controller.evaluatedAt,
+                      triggerAdx: _controller.triggerAdxValue,
                       onPriceLoaded: _controller.setCurrentPrice,
                     ),
                   ),
@@ -172,7 +175,7 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Razón de la señal', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
+          Text('Resultado de la ejecución', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
           const SizedBox(height: AppSpacing.sm),
           Text(
             reason != null ? stripHtml(reason) : 'Sin detalle adicional.',

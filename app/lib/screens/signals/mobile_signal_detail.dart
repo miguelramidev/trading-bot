@@ -67,7 +67,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
       body: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, _controller.canOperate ? 96 : AppSpacing.lg),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildHeader(),
             const SizedBox(height: AppSpacing.lg),
@@ -91,11 +91,14 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
                 target: _controller.target,
                 strategy: _controller.strategy,
                 evaluatedAt: _controller.evaluatedAt,
+                triggerAdx: _controller.triggerAdxValue,
                 onPriceLoaded: _controller.setCurrentPrice,
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            _buildReasonCard(),
+            if (_controller.wasExecuted) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _buildReasonCard(),
+            ],
           ],
         ),
       ),
@@ -137,7 +140,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Razón de la señal', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
+          Text('Resultado de la ejecución', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
           const SizedBox(height: AppSpacing.sm),
           Text(
             reason != null ? stripHtml(reason) : 'Sin detalle adicional.',

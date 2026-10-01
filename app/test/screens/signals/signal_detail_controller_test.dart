@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/screens/signals/signal_detail_controller.dart';
+import 'package:app/core/utils/signal_status.dart';
 
 void main() {
   // La carga de config de usuario y el backfill de contexto llaman a
@@ -46,6 +47,54 @@ void main() {
     test('sin strategy ni regime -> —', () {
       final c = SignalDetailController({});
       expect(c.strategy, '—');
+    });
+  });
+
+  group('status — lee decision/isActiveTrade del shape que llegue (3 formatos de origen)', () {
+    test('caso real WIF: decision "Tomada -> Cerrada (TP Tocado)" ya en el mapa original -> terminada, no expirada', () {
+      // Los 3 orígenes (pendiente del Inicio, posición abierta, Historial)
+      // ahora mandan `decision`/`isActiveTrade` directamente (ver
+      // DashboardController/HistoryController) — el bug real era que el
+      // getter leía del mapa `signal` crudo en vez de `_resolved` (la copia
+      // que además se completa con el backfill de /api/history/:id);
+      // ambos deben coincidir apenas se construye el controller.
+      final c = SignalDetailController({
+        'decision': 'Tomada -> Cerrada (TP Tocado)',
+        'isActiveTrade': false,
+        'date': '2026-10-01T11:46:23.923Z',
+      });
+      expect(c.status, SignalDetailStatus.terminada);
+    });
+
+    test('posición activa (decision "Tomada", isActiveTrade true) -> activa', () {
+      final c = SignalDetailController({
+        'decision': 'Tomada',
+        'isActiveTrade': true,
+        'evaluatedAt': '2026-10-01T11:46:23.923Z',
+      });
+      expect(c.status, SignalDetailStatus.activa);
+    });
+
+    test('señal pendiente (sin decision) y reciente -> pendiente', () {
+      final c = SignalDetailController({'evaluatedAt': DateTime.now().toIso8601String()});
+      expect(c.status, SignalDetailStatus.pendiente);
+    });
+  });
+
+  group('wasExecuted', () {
+    test('decision empieza con "Tomada" -> true', () {
+      final c = SignalDetailController({'decision': 'Tomada -> Cerrada (TP Tocado)'});
+      expect(c.wasExecuted, isTrue);
+    });
+
+    test('decision "Descartada" -> false', () {
+      final c = SignalDetailController({'decision': 'Descartada'});
+      expect(c.wasExecuted, isFalse);
+    });
+
+    test('sin decision (pendiente) -> false', () {
+      final c = SignalDetailController({});
+      expect(c.wasExecuted, isFalse);
     });
   });
 }

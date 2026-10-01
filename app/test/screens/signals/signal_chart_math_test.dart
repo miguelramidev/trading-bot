@@ -57,28 +57,76 @@ void main() {
     const interval = 900000; // 15m en ms
     final openTimes = [0, 900000, 1800000, 2700000, 3600000]; // 5 velas de 15m
 
-    test('encuentra la vela que contiene el momento exacto de apertura', () {
-      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 1800000, intervalMs: interval), 2);
+    test('sin ADX para verificar: usa boundary - intervalMs (la última vela CERRADA al evaluar, no la que contiene el momento)', () {
+      // targetMs cae justo en la apertura del intervalo de 30m: la vela que lo
+      // "contiene" (índice 2) todavía está en curso en ese instante — la
+      // última CERRADA es la anterior (índice 1).
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 1800000, intervalMs: interval), 1);
     });
 
-    test('encuentra la vela cuando el momento cae en el medio, no en la apertura', () {
-      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 1800000 + 400000, intervalMs: interval), 2);
-    });
-
-    test('el final exacto del rango (última vela + su duración) ya no está adentro', () {
-      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 3600000 + interval, intervalMs: interval), isNull);
-    });
-
-    test('justo antes de que termine la última vela sí está adentro', () {
-      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 3600000 + interval - 1, intervalMs: interval), 4);
-    });
-
-    test('antes de la primera vela -> null (la señal no está en el rango visible)', () {
-      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: -1, intervalMs: interval), isNull);
+    test('sin ADX para verificar: funciona igual cuando el momento cae en el medio del intervalo', () {
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 1800000 + 400000, intervalMs: interval), 1);
     });
 
     test('lista vacía -> null', () {
       expect(findSignalCandleIndex(openTimesMs: [], targetMs: 100, intervalMs: interval), isNull);
+    });
+
+    test('el candidato cae antes de la primera vela conocida -> null (no hay dónde marcar)', () {
+      expect(findSignalCandleIndex(openTimesMs: openTimes, targetMs: 0, intervalMs: interval), isNull);
+    });
+
+    test('caso real WIF: el candidato principal coincide con triggerAdx y se usa directamente', () {
+      // Replica fetch_wif_signal.ts / debug_wif_marker.ts: evaluatedAt
+      // 2026-10-01T11:46:23.923Z, triggerAdx guardado 25.03. La vela
+      // correcta abre 11:30 UTC con ADX 25.03 (la que "contiene" el
+      // momento, que abre 11:45, tiene ADX 23.68 y NO debe marcarse).
+      final evaluatedAt = DateTime.utc(2026, 10, 1, 11, 46, 23, 923).millisecondsSinceEpoch;
+      final candleOpens = [
+        DateTime.utc(2026, 10, 1, 11, 0).millisecondsSinceEpoch,
+        DateTime.utc(2026, 10, 1, 11, 15).millisecondsSinceEpoch,
+        DateTime.utc(2026, 10, 1, 11, 30).millisecondsSinceEpoch,
+        DateTime.utc(2026, 10, 1, 11, 45).millisecondsSinceEpoch,
+        DateTime.utc(2026, 10, 1, 12, 0).millisecondsSinceEpoch,
+      ];
+      final adxValues = [20.0, 22.5, 25.03, 23.68, 24.0];
+
+      final index = findSignalCandleIndex(
+        openTimesMs: candleOpens,
+        targetMs: evaluatedAt,
+        intervalMs: interval,
+        adxValues: adxValues,
+        expectedAdx: 25.03,
+      );
+
+      expect(index, 2); // vela que abre 11:30, ADX 25.03 — NO la de 11:45 (índice 3)
+    });
+
+    test('evaluatedAt cae en el intervalo siguiente (lag del cron): el candidato principal no coincide y se usa la vela anterior', () {
+      // El candidato "boundary - intervalMs" da la vela de 30m (ADX 30, no
+      // coincide con el triggerAdx real de 20). La vela correcta, verificada
+      // por ADX, es una más atrás: la de 15m.
+      final adxValues = [10.0, 20.0, 30.0, 40.0, 50.0];
+      final index = findSignalCandleIndex(
+        openTimesMs: openTimes,
+        targetMs: 2700000 + 5000, // unos segundos dentro del intervalo de 45-60m
+        intervalMs: interval,
+        adxValues: adxValues,
+        expectedAdx: 20.0,
+      );
+      expect(index, 1); // vela de 15m (ADX 20), no la de 30m (ADX 30) que da la fórmula sola
+    });
+
+    test('ni el candidato principal ni el anterior coinciden con el ADX esperado -> null, nunca una marca incorrecta', () {
+      final adxValues = [10.0, 20.0, 30.0, 40.0, 50.0];
+      final index = findSignalCandleIndex(
+        openTimesMs: openTimes,
+        targetMs: 1800000,
+        intervalMs: interval,
+        adxValues: adxValues,
+        expectedAdx: 999.0,
+      );
+      expect(index, isNull);
     });
   });
 }

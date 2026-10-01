@@ -44,6 +44,22 @@ void main() {
       final status = computeSignalDetailStatus(decision: 'Descartada -> Cerrada (SL Tocado)', isActiveTrade: false, evaluatedAt: now, now: now);
       expect(status, SignalDetailStatus.terminada);
     });
+
+    test('caso real WIF (01/10 11:46, Tomada -> Cerrada con +\$0.50): terminada, nunca expirada', () {
+      // Antes del fix, el Detalle de señal abierto desde el Historial
+      // mostraba "Expirada" para esta señal ya ejecutada y cerrada, porque
+      // el controller leía `decision`/`isActiveTrade` del mapa original en
+      // vez de `_resolved` (ver signal_detail_controller.dart). Acá se
+      // prueba la función pura con la decisión real tal cual vino de la DB.
+      final evaluatedAt = DateTime.utc(2026, 10, 1, 11, 46, 23, 923);
+      final status = computeSignalDetailStatus(
+        decision: 'Tomada -> Cerrada (TP Tocado)',
+        isActiveTrade: false,
+        evaluatedAt: evaluatedAt,
+        now: evaluatedAt.add(const Duration(hours: 2)), // mucho después de los 60 min de "pendiente"
+      );
+      expect(status, SignalDetailStatus.terminada);
+    });
   });
 
   group('canOperateSignal', () {

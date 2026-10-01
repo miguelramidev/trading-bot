@@ -42,22 +42,46 @@ double priceToChartY(double price, {required double minY, required double maxY, 
   return y.clamp(0.0, height);
 }
 
-/// Índice de la vela que contiene `targetMs` (el momento de la señal), dado
-/// el `openTime` en ms de cada vela y la duración de cada una. `null` si
-/// `targetMs` cae antes de la primera vela o después de la última
-/// (la señal no está en el rango visible — no se dibuja ninguna marca).
+/// Índice de la vela que disparó la señal (la última CERRADA al momento de
+/// evaluar, como hace `analyze.ts` — nunca la que simplemente "contiene"
+/// `targetMs`, que suele ser la vela siguiente todavía en curso en ese
+/// momento). Punto de partida: `boundary - intervalMs`, donde `boundary` es
+/// el inicio del intervalo que contiene `targetMs`. Ese candidato se verifica
+/// contra `expectedAdx` (con `adxTolerance` por redondeo); si no coincide se
+/// prueba con la vela anterior; si ninguna de las dos coincide, se devuelve
+/// `null` en vez de arriesgarse a marcar la vela equivocada (nunca adivinar).
+///
+/// Si no hay `adxValues`/`expectedAdx` para verificar (dato no disponible),
+/// se usa el candidato principal sin verificación.
 int? findSignalCandleIndex({
   required List<int> openTimesMs,
   required int targetMs,
   required int intervalMs,
+  List<double>? adxValues,
+  double? expectedAdx,
+  double adxTolerance = 0.05,
 }) {
   if (openTimesMs.isEmpty) return null;
-  if (targetMs < openTimesMs.first) return null;
-  final lastCandleEnd = openTimesMs.last + intervalMs;
-  if (targetMs >= lastCandleEnd) return null;
 
-  for (var i = openTimesMs.length - 1; i >= 0; i--) {
-    if (openTimesMs[i] <= targetMs) return i;
+  final boundary = (targetMs ~/ intervalMs) * intervalMs;
+  final candidateMs = boundary - intervalMs;
+
+  int? indexOfOpen(int openMs) {
+    final idx = openTimesMs.indexOf(openMs);
+    return idx >= 0 ? idx : null;
   }
+
+  bool matchesAdx(int index) {
+    if (adxValues == null || expectedAdx == null) return true;
+    if (index < 0 || index >= adxValues.length) return false;
+    return (adxValues[index] - expectedAdx).abs() <= adxTolerance;
+  }
+
+  final primaryIndex = indexOfOpen(candidateMs);
+  if (primaryIndex != null && matchesAdx(primaryIndex)) return primaryIndex;
+
+  final fallbackIndex = indexOfOpen(candidateMs - intervalMs);
+  if (fallbackIndex != null && matchesAdx(fallbackIndex)) return fallbackIndex;
+
   return null;
 }

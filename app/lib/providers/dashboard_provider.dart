@@ -22,7 +22,10 @@ class DashboardProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool isLoading = true;
   bool setupRequired = false;
-  bool binanceConnected = false;
+  /// `null` = todavía no completó ningún fetch (estado "desconocido", no
+  /// debe mostrarse como desconectado/rojo); `true`/`false` una vez que hubo
+  /// al menos una respuesta real de `/api/dashboard`.
+  bool? binanceConnected;
   String? errorMessage;
   DateTime? lastUpdatedAt;
 

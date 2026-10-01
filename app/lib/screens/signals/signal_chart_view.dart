@@ -84,6 +84,12 @@ class SignalChartView extends StatefulWidget {
   final String strategy;
   final DateTime? evaluatedAt;
 
+  /// ADX guardado al generar la señal (`triggerAdx`): se usa para verificar
+  /// que la vela candidata a marcar en el gráfico (calculada a partir de
+  /// `evaluatedAt`) sea de verdad la que disparó la señal, en vez de
+  /// confiar ciegamente en la fórmula (ver `findSignalCandleIndex`).
+  final double? triggerAdx;
+
   /// Se llama con el cierre de la última vela de 15m del símbolo operado
   /// apenas se carga esa pestaña (la inicial) — así la pantalla que envuelve
   /// el gráfico no tiene que pedir esas mismas velas por su cuenta solo
@@ -98,6 +104,7 @@ class SignalChartView extends StatefulWidget {
     required this.target,
     required this.strategy,
     this.evaluatedAt,
+    this.triggerAdx,
     this.onPriceLoaded,
   });
 
@@ -279,7 +286,8 @@ class _SignalChartViewState extends State<SignalChartView> {
     }
 
     final candles = data.candles;
-    final hasOscillators = _tab == _ChartTab.m15 && (data.indicators.macdHistogram != null || data.indicators.adx != null);
+    final hasMacd = _tab == _ChartTab.m15 && data.indicators.macdHistogram != null;
+    final hasAdx = _tab == _ChartTab.m15 && data.indicators.adx != null;
 
     int? signalIndex;
     if (widget.evaluatedAt != null) {
@@ -287,6 +295,10 @@ class _SignalChartViewState extends State<SignalChartView> {
         openTimesMs: candles.map((c) => c.time).toList(),
         targetMs: widget.evaluatedAt!.millisecondsSinceEpoch,
         intervalMs: _tab.intervalMs,
+        // El ADX guardado (triggerAdx) corresponde a la vela de 15m que
+        // disparó la señal: solo sirve para verificar en esa pestaña.
+        adxValues: _tab == _ChartTab.m15 ? data.indicators.adx : null,
+        expectedAdx: _tab == _ChartTab.m15 ? widget.triggerAdx : null,
       );
     }
 
@@ -294,8 +306,12 @@ class _SignalChartViewState extends State<SignalChartView> {
       children: [
         _buildPricePanel(candles, data.indicators, showLevels, signalIndex),
         const SizedBox(height: AppSpacing.sm),
-        if (hasOscillators) ...[
-          _buildOscillatorPanel(candles, data.indicators, signalIndex),
+        if (hasMacd) ...[
+          _buildMacdPanel(candles, data.indicators, signalIndex),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        if (hasAdx) ...[
+          _buildAdxPanel(candles, data.indicators, signalIndex),
           const SizedBox(height: AppSpacing.sm),
         ],
         _buildVolumePanel(candles, signalIndex),
@@ -429,14 +445,46 @@ class _SignalChartViewState extends State<SignalChartView> {
     );
   }
 
-  /// MACD (histograma + línea) y ADX con el umbral de 25 que usa la
-  /// Estrategia 1/3 como filtro de régimen.
-  Widget _buildOscillatorPanel(List<_Candle> candles, _Indicators indicators, int? signalIndex) {
+  /// MACD (histograma + línea + señal), panel propio con su propia escala.
+  Widget _buildMacdPanel(List<_Candle> candles, _Indicators indicators, int? signalIndex) {
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final macdValues = [...?indicators.macdHistogram, ...?indicators.macdLine, ...?indicators.macdSignal];
+          final macdRange = macdValues.isNotEmpty
+              ? ChartYRange(
+                  minY: macdValues.reduce((a, b) => a < b ? a : b) * 1.1,
+                  maxY: macdValues.reduce((a, b) => a > b ? a : b) * 1.1,
+                )
+              : const ChartYRange(minY: -1, maxY: 1);
+
+          return Stack(
+            children: [
+              if (indicators.macdHistogram != null)
+                _histogramBars(indicators.macdHistogram!, macdRange, candles.length, constraints.maxWidth, constraints.maxHeight),
+              if (indicators.macdLine != null)
+                _priceLineOverlay(indicators.macdLine!, DsColors.textSecondary, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
+              if (indicators.macdSignal != null)
+                _priceLineOverlay(indicators.macdSignal!, DsColors.accentText, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
+              if (signalIndex != null) _signalMarker(signalIndex, candles.length, constraints.maxWidth, constraints.maxHeight),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// ADX con el umbral de 25 que usa la Estrategia 1/3 como filtro de
+  /// régimen, panel propio con su propia escala.
+  Widget _buildAdxPanel(List<_Candle> candles, _Indicators indicators, int? signalIndex) {
     final adxValues = indicators.adx;
     final adxAtSignal = (signalIndex != null && adxValues != null && signalIndex < adxValues.length) ? adxValues[signalIndex] : null;
 
     return Container(
-      height: 140,
+      height: 120,
       decoration: BoxDecoration(color: DsColors.surfaceSunken, borderRadius: BorderRadius.circular(AppRadius.md)),
       padding: const EdgeInsets.all(AppSpacing.sm),
       child: Column(
@@ -453,22 +501,9 @@ class _SignalChartViewState extends State<SignalChartView> {
                 final adxRange = adxValues != null
                     ? ChartYRange(minY: 0, maxY: [...adxValues, 25].reduce((a, b) => a > b ? a : b) * 1.1)
                     : const ChartYRange(minY: -1, maxY: 1);
-                final macdValues = [...?indicators.macdHistogram, ...?indicators.macdLine, ...?indicators.macdSignal];
-                final macdRange = macdValues.isNotEmpty
-                    ? ChartYRange(
-                        minY: macdValues.reduce((a, b) => a < b ? a : b) * 1.1,
-                        maxY: macdValues.reduce((a, b) => a > b ? a : b) * 1.1,
-                      )
-                    : const ChartYRange(minY: -1, maxY: 1);
 
                 return Stack(
                   children: [
-                    if (indicators.macdHistogram != null)
-                      _histogramBars(indicators.macdHistogram!, macdRange, candles.length, constraints.maxWidth, constraints.maxHeight),
-                    if (indicators.macdLine != null)
-                      _priceLineOverlay(indicators.macdLine!, DsColors.textSecondary, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
-                    if (indicators.macdSignal != null)
-                      _priceLineOverlay(indicators.macdSignal!, DsColors.accentText, candles.length, constraints.maxWidth, constraints.maxHeight, macdRange),
                     if (adxValues != null) ...[
                       _priceLineOverlay(adxValues, DsColors.warning, candles.length, constraints.maxWidth, constraints.maxHeight, adxRange),
                       _thresholdLine(25, adxRange, constraints.maxHeight, 'ADX 25'),

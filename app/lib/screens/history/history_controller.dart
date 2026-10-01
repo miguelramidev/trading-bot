@@ -19,6 +19,7 @@ class HistoryController extends ChangeNotifier {
   Map<String, dynamic>? stats;
   List<dynamic> trades = [];
   Map<String, dynamic>? pagination;
+  List<String> availableStrategies = [];
 
   String _typeFilter;
   String get typeFilter => _typeFilter;
@@ -30,7 +31,8 @@ class HistoryController extends ChangeNotifier {
   int get page => _page;
 
   String _symbolQuery = '';
-  String _strategyQuery = '';
+  String? _selectedStrategy;
+  String? get selectedStrategy => _selectedStrategy;
 
   Timer? _searchDebounce;
 
@@ -64,13 +66,13 @@ class HistoryController extends ChangeNotifier {
     });
   }
 
-  void setStrategyQuery(String value) {
-    _strategyQuery = value;
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
-      _page = 1;
-      fetch();
-    });
+  /// Selector de estrategia (match exacto contra `availableStrategies`), no
+  /// texto libre: no necesita debounce, `null` quita el filtro.
+  void setStrategy(String? value) {
+    if (_selectedStrategy == value) return;
+    _selectedStrategy = value;
+    _page = 1;
+    fetch();
   }
 
   Future<void> fetch() async {
@@ -83,7 +85,7 @@ class HistoryController extends ChangeNotifier {
       'filter': _typeFilter,
       'period': _period,
       if (_symbolQuery.trim().isNotEmpty) 'symbol': _symbolQuery.trim(),
-      if (_strategyQuery.trim().isNotEmpty) 'strategy': _strategyQuery.trim(),
+      if (_selectedStrategy != null) 'strategy': _selectedStrategy!,
     };
     final queryString = query.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
 
@@ -94,6 +96,7 @@ class HistoryController extends ChangeNotifier {
         stats = data['stats'];
         pagination = data['pagination'];
         trades = data['trades'] ?? [];
+        availableStrategies = (data['availableStrategies'] as List?)?.map((s) => s.toString()).toList() ?? availableStrategies;
         errorMessage = null;
       } else {
         errorMessage = 'No se pudo cargar el historial.';

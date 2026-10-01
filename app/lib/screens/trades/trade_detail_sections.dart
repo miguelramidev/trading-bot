@@ -5,6 +5,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/result_formatter.dart';
 import '../../core/utils/price_formatter.dart';
 import '../../widgets/widgets.dart';
+import '../history/history_mappers.dart';
 import 'position_detail_controller.dart';
 
 /// Secciones de Detalle de posición, compartidas entre mobile y desktop
@@ -52,9 +53,13 @@ Widget buildResultSection(PositionDetailController controller) {
   );
 }
 
-/// `SlTpRangeBar` grande + resultado si se ejecuta cada nivel, desde la
-/// entrada — reusa `trade_projection.dart` (mismo que Detalle de señal).
+/// Para una posición abierta: `SlTpRangeBar` + resultado hipotético si se
+/// ejecuta cada nivel (todavía no pasó). Para una ya cerrada, esos "si toca"
+/// no tienen sentido — se muestra en cambio qué se tocó de verdad y el
+/// resultado real (`_buildCloseResultSection`).
 Widget buildExitRangeSection(PositionDetailController controller) {
+  if (controller.isClosed) return _buildCloseResultSection(controller);
+
   final projection = controller.projection;
   final lastPrice = controller.lastPrice;
   double? distanceFromLast(double price) => lastPrice == 0 ? null : ((price - lastPrice) / lastPrice) * 100;
@@ -95,6 +100,35 @@ Widget buildExitRangeSection(PositionDetailController controller) {
           'Resultados si se ejecuta cada nivel, desde tu entrada y con comisión estimada.',
           style: AppTextStyles.caption.copyWith(color: DsColors.textTertiary),
         ),
+      ],
+    ),
+  );
+}
+
+/// "Cómo se cerró": qué se tocó de verdad (objetivo/stop/descartada — mismo
+/// mapeo y mismas etiquetas en español que `StatusPill` usa en todas partes,
+/// nunca el "TP HIT"/"SL HIT" crudo del backend) y el precio real de salida,
+/// ya marcado en la barra (`SlTpRangeBar` con `price: lastPrice`, que para
+/// un trade cerrado es el precio de salida real, ver `lastPrice` getter).
+Widget _buildCloseResultSection(PositionDetailController controller) {
+  final variant = statusPillVariantForHistory(controller.closeStatus);
+  final exitPrice = controller.lastPrice;
+
+  return AppCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Cómo se cerró', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
+            StatusPill(variant),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        SlTpRangeBar(stop: controller.stop, entry: controller.entry, target: controller.target, price: exitPrice, isShort: !controller.isLong, showLevelLabels: false),
+        const SizedBox(height: AppSpacing.sm),
+        Text('Precio de salida: ${fmtPrice(exitPrice)}', style: AppTextStyles.caption.copyWith(color: DsColors.textSecondary)),
       ],
     ),
   );
@@ -173,17 +207,20 @@ Widget _protectionRow(String label, double? price, bool active) {
 
 String _fmtTime(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-/// Tamaño, nocional, margen, apalancamiento, modo, liquidación, funding.
-/// "—" en lo que no hay dato (siempre el caso hoy en trades cerrados).
+/// Tamaño, nocional, margen, apalancamiento, modo, liquidación — solo las
+/// filas que de verdad tienen dato (nunca "Funding actual": no tiene sentido
+/// para una posición ya cerrada, y para una abierta ya se ve en otro lado).
+/// En un trade cerrado, tamaño/margen/apalancamiento no se registran
+/// todavía (ver ROADMAP.md, "Guardar el apalancamiento usado") — se explica
+/// en vez de mostrar una fila de "—" sin contexto.
 Widget buildDetailsSection(PositionDetailController controller) {
   final rows = <(String, String)>[
-    ('Tamaño', controller.size != null ? fmtPrice(controller.size) : fmtMissing()),
-    ('Nocional', controller.notionalUsd != null ? fmtUsd(controller.notionalUsd, signed: false) : fmtMissing()),
-    ('Margen', controller.marginUsd != null ? fmtUsd(controller.marginUsd, signed: false) : fmtMissing()),
-    ('Apalancamiento', controller.leverage != null ? 'x${controller.leverage}' : fmtMissing()),
-    ('Modo de margen', controller.marginModeLabel ?? fmtMissing()),
-    ('Liquidación', controller.liquidationPrice != null ? fmtPrice(controller.liquidationPrice) : fmtMissing()),
-    ('Funding actual', controller.fundingRate != null ? '${(controller.fundingRate! * 100).toStringAsFixed(4)}%' : fmtMissing()),
+    if (controller.size != null) ('Tamaño', fmtPrice(controller.size)),
+    if (controller.notionalUsd != null) ('Nocional', fmtUsd(controller.notionalUsd, signed: false)),
+    if (controller.marginUsd != null) ('Margen', fmtUsd(controller.marginUsd, signed: false)),
+    if (controller.leverage != null) ('Apalancamiento', 'x${controller.leverage}'),
+    if (controller.marginModeLabel != null) ('Modo de margen', controller.marginModeLabel!),
+    if (controller.liquidationPrice != null) ('Liquidación', fmtPrice(controller.liquidationPrice)),
   ];
 
   return AppCard(
@@ -191,6 +228,13 @@ Widget buildDetailsSection(PositionDetailController controller) {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Detalles', style: AppTextStyles.cardTitle.copyWith(color: DsColors.textPrimary)),
+        if (controller.isClosed) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Tamaño, margen y apalancamiento todavía no se registran para operaciones cerradas.',
+            style: AppTextStyles.caption.copyWith(color: DsColors.textTertiary),
+          ),
+        ],
         const SizedBox(height: AppSpacing.sm),
         for (final (label, value) in rows)
           Container(

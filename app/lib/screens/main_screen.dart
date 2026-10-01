@@ -100,12 +100,18 @@ class MainScreen extends StatelessWidget {
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: BoxDecoration(color: connected ? DsColors.positive : DsColors.negative, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: connected == null ? DsColors.textTertiary : (connected ? DsColors.positive : DsColors.negative),
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    connected ? 'Binance conectado' : 'Sin conexión con Binance',
-                    style: AppTextStyles.caption.copyWith(color: connected ? DsColors.positive : DsColors.negative, fontWeight: FontWeight.w600),
+                    connected == null ? 'Verificando conexión' : (connected ? 'Binance conectado' : 'Sin conexión con Binance'),
+                    style: AppTextStyles.caption.copyWith(
+                      color: connected == null ? DsColors.textTertiary : (connected ? DsColors.positive : DsColors.negative),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),

@@ -95,6 +95,12 @@ class PositionDetailController extends ChangeNotifier {
     return s * entry;
   }
 
+  /// Status crudo del cierre ("TP HIT" / "SL HIT" / "DESCARTADO", como lo
+  /// manda `GET /api/history/:id`) — solo tiene sentido para trades cerrados.
+  /// Traducir siempre con `statusPillVariantForHistory` (mismo mapeo que
+  /// `StatusPill` usa en toda la app), nunca mostrarlo crudo.
+  String? get closeStatus => trade['status']?.toString();
+
   int? get signalId {
     final raw = trade['signalId'] ?? trade['id'];
     if (raw is int) return raw;

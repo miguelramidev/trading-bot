@@ -54,14 +54,24 @@ class SignalDetailController extends ChangeNotifier {
   SignalDetailStatus get status {
     final at = evaluatedAt;
     if (at == null) return SignalDetailStatus.pendiente;
+    // `_resolved`, no `signal`: el mapa original no siempre trae decision/
+    // isActiveTrade (ninguno de los 3 formatos de origen los garantiza), pero
+    // `_resolved` se completa con el backfill de `/api/history/:id` cuando
+    // faltan — leer del original mostraba "Expirada" para señales ya
+    // ejecutadas/cerradas (ver caso real WIF).
     return computeSignalDetailStatus(
-      decision: signal['decision'] as String?,
-      isActiveTrade: signal['isActiveTrade'] == true,
+      decision: _resolved['decision'] as String?,
+      isActiveTrade: _resolved['isActiveTrade'] == true,
       evaluatedAt: at,
     );
   }
 
   bool get canOperate => canOperateSignal(status);
+
+  /// La señal de verdad se ejecutó (se tomó y se operó), no solo se decidió
+  /// descartar o todavía está pendiente — gatea la card de "Resultado de la
+  /// ejecución", que no tiene sentido mostrar si nunca se operó.
+  bool get wasExecuted => (_resolved['decision'] as String?)?.startsWith('Tomada') == true;
 
   String get strategy => strategyName(_resolved['strategy']?.toString() ?? _resolved['regime']?.toString());
   String? get btcRegime => _resolved['btcRegime']?.toString();
@@ -70,6 +80,7 @@ class SignalDetailController extends ChangeNotifier {
   String? get btcCorrelation => _resolved['btcCorrelation']?.toString();
   String? get triggerRsi => _resolved['triggerRsi']?.toString();
   String? get triggerAdx => _resolved['triggerAdx']?.toString();
+  double? get triggerAdxValue => double.tryParse(_resolved['triggerAdx']?.toString() ?? '');
   String? get reason => _resolved['reason']?.toString();
 
   double? get progress => currentPrice != null ? computeSignalProgress(entry: entry, target: target, price: currentPrice!) : null;
@@ -114,8 +125,9 @@ class SignalDetailController extends ChangeNotifier {
       final res = await ApiClient.get('/api/history/$id');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        // No pisa `decision`/`isActiveTrade` — ese endpoint no los manda, y
-        // son los que ya traía `signal` para calcular el estado correcto.
+        // `/api/history/:id` ya manda `decision`/`isActiveTrade`: el backfill
+        // los completa cuando el `signal` original no los traía (por venir
+        // de un formato de origen que no los incluye).
         _resolved.addAll(data);
       }
     } catch (e) {

@@ -126,13 +126,14 @@ class _SetupRequiredState extends StatelessWidget {
 }
 
 class _ConnectionPill extends StatelessWidget {
-  final bool connected;
+  final bool? connected;
 
   const _ConnectionPill({required this.connected});
 
   @override
   Widget build(BuildContext context) {
-    final color = connected ? DsColors.positive : DsColors.negative;
+    final color = connected == null ? DsColors.textTertiary : (connected! ? DsColors.positive : DsColors.negative);
+    final label = connected == null ? 'Verificando conexión' : (connected! ? 'Binance conectado' : 'Sin conexión con Binance');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
       decoration: BoxDecoration(color: DsColors.surface, border: Border.all(color: DsColors.border), borderRadius: BorderRadius.circular(AppRadius.pill)),
@@ -141,7 +142,7 @@ class _ConnectionPill extends StatelessWidget {
         children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: AppSpacing.sm),
-          Text(connected ? 'Binance conectado' : 'Sin conexión con Binance', style: AppTextStyles.caption.copyWith(color: DsColors.textPrimary)),
+          Text(label, style: AppTextStyles.caption.copyWith(color: DsColors.textPrimary)),
         ],
       ),
     );

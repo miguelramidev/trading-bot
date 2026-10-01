@@ -52,7 +52,11 @@ export default $config({
       job: {
         handler: "src/cron/analyze.handler15m",
         timeout: "120 seconds", // Le damos tiempo para descargar las 100 velas
-        link: [...ALL_SECRETS, ENCRYPTION_KEY]
+        link: [...ALL_SECRETS, ENCRYPTION_KEY],
+        // Conciliación con Binance (src/cron/reconciliation.ts): "true" = solo loguea lo que
+        // haría, sin escribir ni notificar. Pasar a "false" a mano cuando se confirme que el
+        // modo de solo registro viene reportando bien.
+        environment: { RECONCILIATION_DRY_RUN: "true" }
       }
     });
 

@@ -14,6 +14,7 @@ import {
   estimatePnlFromConfig,
   type CloseReason,
 } from "./closeNotificationHelpers.js";
+import { reconcileActiveTrades, isReconciliationDryRun } from "./reconciliation.js";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
@@ -46,14 +47,30 @@ async function runAnalysis(timeframe: string) {
   } catch(e: any) {
     console.error("Warning: Failed to clean orphan orders:", e.message);
   }
-  
+
+  // Conciliación con Binance (src/cron/reconciliation.ts). Mientras RECONCILIATION_DRY_RUN no
+  // sea exactamente "false" (default), corre en paralelo solo logueando y el monitor de velas de
+  // abajo sigue manejando TODO como hasta ahora, sin cambios. Al desactivarla, el monitor deja de
+  // tocar las filas "Tomada" (pasan a ser responsabilidad exclusiva de la conciliación) y sigue
+  // las "Descartada" por velas igual que siempre, porque esas nunca tuvieron una posición real.
+  try {
+    await reconcileActiveTrades();
+  } catch (e: any) {
+    console.error("Warning: Failed to reconcile active trades:", e.message);
+  }
+
   // --- MONITOR DE OPERACIONES ACTIVAS ---
   const activeTrades = await db.query.signalHistory.findMany({
     where: eq(signalHistory.isActiveTrade, true)
   });
-  
+
   for (const trade of activeTrades) {
     try {
+      if (trade.decision === "Tomada" && !isReconciliationDryRun()) {
+        // La conciliación ya es la autoridad para esta fila: no la toca el monitor por velas.
+        continue;
+      }
+
       const recentCandles = await dataFetcher.fetchOhlcv(trade.symbol, "15m", 2);
       if (!recentCandles || recentCandles.length === 0) continue;
       

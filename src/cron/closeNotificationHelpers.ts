@@ -2,12 +2,12 @@
 // analyze.ts para poder testearlas sin mockear Telegram/Firebase/ccxt (mismo
 // patrón que dashboardHelpers.ts/historyHelpers.ts).
 
-/** Mismo valor que ya usan los otros 3 valores posibles al cerrar el monitor de
- * analyze.ts ("Cerrada (TP Tocado)"/"Cerrada (SL Tocado)") — `"emergency"` está
- * en el tipo para que la función quede completa, pero HOY analyze.ts nunca lo
- * produce: el monitor de 15m solo distingue TP/SL por vela, nunca detecta un
- * cierre de emergencia (ver ROADMAP.md, hallazgo de prioridad alta). */
-export type CloseReason = "tp" | "sl" | "emergency";
+/** El monitor de velas de analyze.ts solo produce "tp"/"sl" (lo único que puede inferir del
+ * precio). "emergency" y "manual" los produce la conciliación con Binance
+ * (src/cron/reconciliationDecision.ts): "emergency" cuando `executeTrade` cerró la posición a
+ * mercado porque el Stop Loss no se pudo colocar, "manual" cuando la posición se cerró en
+ * Binance sin que ninguna de nuestras órdenes (SL/TP/cierre de emergencia) la haya disparado. */
+export type CloseReason = "tp" | "sl" | "emergency" | "manual";
 
 export interface CloseNotificationInput {
   symbol: string;
@@ -38,7 +38,7 @@ function formatSignedUsd(pnl: number): string {
   return `${sign}${pnl.toFixed(2)}`;
 }
 
-function closeReasonLabel(reason: CloseReason): string {
+export function closeReasonLabel(reason: CloseReason): string {
   switch (reason) {
     case "tp":
       return "Objetivo tocado";
@@ -46,6 +46,8 @@ function closeReasonLabel(reason: CloseReason): string {
       return "Stop tocado";
     case "emergency":
       return "Cierre de emergencia";
+    case "manual":
+      return "Cerrada manualmente";
   }
 }
 

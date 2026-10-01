@@ -7,9 +7,29 @@ import { DataFetcher } from "../bot/data.js";
 import { Trader } from "../bot/trader.js";
 import { decrypt } from "../api/core/utils/encryption.js";
 import { Resource } from "sst";
+import {
+  buildCloseTelegramMessage,
+  buildClosePushMessage,
+  estimatePnlFromOpeningFill,
+  estimatePnlFromConfig,
+  type CloseReason,
+} from "./closeNotificationHelpers.js";
 
 const telegramToken = process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN.value;
 const bot = new Telegraf(telegramToken);
+
+// Los fills de CIERRE a veces todavía no llegaron a fetchMyTrades en el mismo
+// tick del cron en que el monitor detecta el cruce de precio — unos pocos
+// reintentos cortos alcanzan casi siempre (mismo patrón que
+// EXIT_ORDER_RETRY_DELAY_MS en trader.ts, para el mismo tipo de demora de
+// Binance). Esto NO cambia cómo se calcula el PnL real: solo le da más
+// chances a la misma llamada antes de recurrir a un estimado.
+const PNL_FETCH_MAX_ATTEMPTS = 3;
+const PNL_FETCH_RETRY_DELAY_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function runAnalysis(timeframe: string) {
   console.log(`[${timeframe}] Iniciando análisis cron (Estrategia Paper Trading 15m)...`);
@@ -58,35 +78,72 @@ async function runAnalysis(timeframe: string) {
       
       if (closed) {
         const finalDecision = `${trade.decision || ''} -> ${closeReason}`;
-        
-        let pnlMsg = "";
+        const closeReasonKey: CloseReason = closeReason.includes("TP") ? "tp" : "sl";
+
         let finalPnl = null;
         let finalRoi = null;
         let entryP = null;
         let exitP = null;
 
+        // Para la notificación: el PnL real si los fills de cierre ya están
+        // (tras los reintentos), o un estimado si no — nunca se guarda en la
+        // BD (`finalPnl`/`finalRoi` de arriba, que sí se persisten, salen
+        // únicamente del cálculo real de siempre, sin tocar).
+        let notificationPnl: number | null = null;
+        let notificationIsEstimated = false;
+        let needsPerUserEstimate = false;
+
         if (trade.decision === "Tomada") {
           try {
              const sinceMs = trade.evaluatedAt.getTime();
-             const pnlData = await trader.getTradeRealizedPnl(trade.symbol, sinceMs);
+             const direction = trade.direction as "LONG" | "SHORT";
+
+             // Reintento corto: el fill de CIERRE a veces todavía no llegó a
+             // fetchMyTrades en el mismo tick que detectó el cruce de precio.
+             // `entryPrice !== undefined` (no `net !== 0`) es la señal real de
+             // "hay fills" — así un breakeven real no se confunde con "todavía
+             // no llegó" (antes de este fix, ambos casos mandaban el mensaje
+             // sin ningún monto, en silencio).
+             let pnlData = await trader.getTradeRealizedPnl(trade.symbol, sinceMs, direction);
+             let attempts = 1;
+             while (pnlData.entryPrice === undefined && attempts < PNL_FETCH_MAX_ATTEMPTS) {
+                await sleep(PNL_FETCH_RETRY_DELAY_MS);
+                pnlData = await trader.getTradeRealizedPnl(trade.symbol, sinceMs, direction);
+                attempts++;
+             }
+
+             const fillsFound = pnlData.entryPrice !== undefined;
              const net = pnlData.pnl - pnlData.fee;
-             if (net !== 0) {
+
+             if (fillsFound) {
                  finalPnl = net.toFixed(4);
-                 const sign = net > 0 ? "+" : "";
-                 
-                 // Aproximar el ROI basado en el 20% del balance que teníamos guardado
+                 // Aproximación de ROI ya conocida como poco confiable desde el
+                 // refactor multi-tenant (ver skill auditoria-trades) — se
+                 // sigue guardando igual que siempre (no se cambia cómo se
+                 // calcula/guarda), pero ya no se muestra en el mensaje.
                  if (trade.accountBalance) {
                      const margin = parseFloat(trade.accountBalance) * 0.20;
-                     if (margin > 0) {
-                        finalRoi = ((net / margin) * 100).toFixed(2);
-                        pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${finalPnl} USDT (${sign}${finalRoi}%)`;
-                     } else {
-                        pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${finalPnl} USDT`;
-                     }
-                 } else {
-                     pnlMsg = `\n💰 <b>PnL Neto:</b> ${sign}${finalPnl} USDT`;
+                     if (margin > 0) finalRoi = ((net / margin) * 100).toFixed(2);
                  }
+                 notificationPnl = net;
+                 notificationIsEstimated = false;
+             } else if (pnlData.openingFill) {
+                 // Sin fills de cierre todavía, pero los de APERTURA sí (lo
+                 // normal: la apertura fue hace rato) — estimado con la
+                 // cantidad y el precio de entrada reales de esos fills.
+                 notificationPnl = estimatePnlFromOpeningFill({
+                    direction,
+                    openingFill: pnlData.openingFill,
+                    exitPrice: currentPrice,
+                 });
+                 notificationIsEstimated = true;
+             } else {
+                 // Ni cierre ni apertura disponibles todavía: se estima por
+                 // usuario (cada uno con su propio margen/apalancamiento
+                 // configurado) en el loop de notificación, más abajo.
+                 needsPerUserEstimate = true;
              }
+
              if (pnlData.entryPrice) entryP = pnlData.entryPrice.toString();
              if (pnlData.exitPrice) exitP = pnlData.exitPrice.toString();
           } catch(e) {
@@ -96,8 +153,8 @@ async function runAnalysis(timeframe: string) {
 
         // Actualizamos la BD con todos los nuevos datos institucionales
         await db.update(signalHistory)
-          .set({ 
-             isActiveTrade: false, 
+          .set({
+             isActiveTrade: false,
              decision: finalDecision,
              realizedPnl: finalPnl,
              realizedRoi: finalRoi,
@@ -105,22 +162,41 @@ async function runAnalysis(timeframe: string) {
              executedExitPrice: exitP
           })
           .where(eq(signalHistory.id, trade.id));
-          
-        if (trade.decision === "Tomada") {
-          const emoji = closeReason.includes("TP") ? "✅🤑" : "❌🩸";
 
+        if (trade.decision === "Tomada") {
           for (const user of users) {
+            const userPnl = needsPerUserEstimate
+              ? estimatePnlFromConfig({
+                  direction: trade.direction as "LONG" | "SHORT",
+                  entryPrice: parseFloat(trade.entry || "0"),
+                  exitPrice: currentPrice,
+                  marginUsd: user.montoOperacion ? parseFloat(user.montoOperacion.toString()) : 25,
+                  leverage: user.leverageMin ?? 1,
+                })
+              : notificationPnl;
+            const userIsEstimated = needsPerUserEstimate || notificationIsEstimated;
+
+            const notificationInput = {
+              symbol: trade.symbol,
+              direction: trade.direction as "LONG" | "SHORT",
+              closeReason: closeReasonKey,
+              pnl: userPnl,
+              isEstimated: userIsEstimated,
+              entryPrice: entryP ? parseFloat(entryP) : parseFloat(trade.entry || "0") || null,
+              exitPrice: exitP ? parseFloat(exitP) : currentPrice,
+            };
+
             if ((user.notificationsMobile || user.notificationsWeb) && user.fcmTokens && user.fcmTokens.length > 0) {
+              const { title, body } = buildClosePushMessage(notificationInput);
               for (const t of user.fcmTokens) {
-                await sendPushNotification(
-                  t,
-                  `Trade Cerrado: ${trade.symbol}`,
-                  `Resultado: ${closeReason} | Salida: ${currentPrice}`,
-                  { tradeId: String(trade.id), symbol: trade.symbol }
-                );
+                await sendPushNotification(t, title, body, { tradeId: String(trade.id), symbol: trade.symbol });
               }
             }
-            if (user.chatId && user.notificationsTelegram) { try { await bot.telegram.sendMessage(user.chatId, `${emoji} <b>Trade Sniper Cerrado:</b> ${trade.symbol}\nResultado: ${closeReason}\nPrecio de salida: ${currentPrice}${pnlMsg}`, { parse_mode: "HTML" }); } catch(e:any) { console.error("Telegram error:", e.message); } }
+            if (user.chatId && user.notificationsTelegram) {
+              try {
+                await bot.telegram.sendMessage(user.chatId, buildCloseTelegramMessage(notificationInput), { parse_mode: "HTML" });
+              } catch(e:any) { console.error("Telegram error:", e.message); }
+            }
           }
         } else if (trade.decision === "Descartada") {
           const hitTP = closeReason.includes("TP");

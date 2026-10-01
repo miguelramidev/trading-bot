@@ -339,7 +339,27 @@ export class Trader {
     }
   }
 
-  async getTradeRealizedPnl(symbol: string, sinceMs: number): Promise<{ pnl: number, fee: number, entryPrice?: number, exitPrice?: number }> {
+  /**
+   * `direction` es opcional y aditivo: no cambia en nada el cálculo de
+   * `pnl`/`fee`/`entryPrice`/`exitPrice` de arriba (siguen siendo exactamente
+   * los mismos, para no tocar cómo se calcula/guarda el PnL real). Si se
+   * pasa, además clasifica los fills por lado (compra=apertura en LONG,
+   * venta=apertura en SHORT) y devuelve el agregado de los fills de
+   * APERTURA — sirve para estimar el cierre cuando los fills de salida
+   * todavía no llegaron a `fetchMyTrades` pero los de entrada sí (ver
+   * `closeNotificationHelpers.ts`, nunca para el PnL real que se guarda).
+   */
+  async getTradeRealizedPnl(
+    symbol: string,
+    sinceMs: number,
+    direction?: "LONG" | "SHORT"
+  ): Promise<{
+    pnl: number;
+    fee: number;
+    entryPrice?: number;
+    exitPrice?: number;
+    openingFill?: { quantity: number; avgPrice: number; fee: number };
+  }> {
     try {
       const trades = await this.exchange.fetchMyTrades(symbol.replace(":USDT", ""), sinceMs, 100);
       let totalPnl = 0;
@@ -356,7 +376,19 @@ export class Trader {
       const entryPrice = trades.length > 0 ? trades[0].price : undefined;
       const exitPrice = trades.length > 0 ? trades[trades.length - 1].price : undefined;
 
-      return { pnl: totalPnl, fee: totalFee, entryPrice, exitPrice };
+      let openingFill: { quantity: number; avgPrice: number; fee: number } | undefined;
+      if (direction) {
+        const openingSide = direction === "LONG" ? "buy" : "sell";
+        const openingTrades = trades.filter((t: any) => t.side === openingSide);
+        const quantity = openingTrades.reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
+        if (quantity > 0) {
+          const notional = openingTrades.reduce((sum: number, t: any) => sum + (t.amount ?? 0) * (t.price ?? 0), 0);
+          const fee = openingTrades.reduce((sum: number, t: any) => sum + (t.fee?.cost ?? 0), 0);
+          openingFill = { quantity, avgPrice: notional / quantity, fee };
+        }
+      }
+
+      return { pnl: totalPnl, fee: totalFee, entryPrice, exitPrice, openingFill };
     } catch(e) {
       console.error(`Error obteniendo PnL real para ${symbol}:`, e);
       return { pnl: 0, fee: 0 };

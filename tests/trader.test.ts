@@ -591,3 +591,89 @@ describe("executeTrade — A8 (confirmación del modo real de margen tras un fal
     expect(result.mensaje).toContain("Margin type cannot be changed if there exists position.");
   });
 });
+
+describe("getTradeRealizedPnl — sin 'direction' (comportamiento existente, sin cambios)", () => {
+  it("suma realizedPnl y fee de todos los fills, entryPrice/exitPrice del primero/último", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([
+      { side: "buy", price: 100, amount: 1, fee: { cost: 0.1 }, info: { realizedPnl: "0" } },
+      { side: "sell", price: 110, amount: 1, fee: { cost: 0.11 }, info: { realizedPnl: "10" } },
+    ]);
+
+    const result = await trader.getTradeRealizedPnl("BTC/USDT:USDT", Date.now());
+
+    expect(result.pnl).toBe(10);
+    expect(result.fee).toBeCloseTo(0.21);
+    expect(result.entryPrice).toBe(100);
+    expect(result.exitPrice).toBe(110);
+    expect(result.openingFill).toBeUndefined();
+  });
+
+  it("sin fills todavía -> entryPrice/exitPrice undefined (así se distingue de un breakeven real)", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([]);
+
+    const result = await trader.getTradeRealizedPnl("BTC/USDT:USDT", Date.now());
+
+    expect(result.pnl).toBe(0);
+    expect(result.entryPrice).toBeUndefined();
+    expect(result.exitPrice).toBeUndefined();
+  });
+
+  it("si fetchMyTrades falla, no lanza: devuelve {pnl:0, fee:0} sin entryPrice/exitPrice", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockRejectedValue(new Error("timeout de red"));
+
+    const result = await trader.getTradeRealizedPnl("BTC/USDT:USDT", Date.now());
+
+    expect(result).toEqual({ pnl: 0, fee: 0 });
+  });
+});
+
+describe("getTradeRealizedPnl — 'openingFill' (aditivo, para estimar el cierre cuando faltan los fills de salida)", () => {
+  it("LONG: clasifica 'buy' como apertura y agrega cantidad/precio promedio/comisión de esos fills, ignora los 'sell'", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([
+      { side: "buy", price: 100, amount: 1, fee: { cost: 0.1 }, info: {} },
+      { side: "buy", price: 102, amount: 1, fee: { cost: 0.102 }, info: {} },
+      // fill de salida ya posteado en este caso — igual el agregado de apertura solo mira los 'buy'.
+      { side: "sell", price: 110, amount: 2, fee: { cost: 0.22 }, info: { realizedPnl: "16" } },
+    ]);
+
+    const result = await trader.getTradeRealizedPnl("BTC/USDT:USDT", Date.now(), "LONG");
+
+    expect(result.openingFill).toBeDefined();
+    expect(result.openingFill!.quantity).toBeCloseTo(2);
+    expect(result.openingFill!.avgPrice).toBeCloseTo(101); // (100*1 + 102*1) / 2
+    expect(result.openingFill!.fee).toBeCloseTo(0.202);
+  });
+
+  it("SHORT: clasifica 'sell' como apertura, no 'buy'", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([
+      { side: "sell", price: 200, amount: 3, fee: { cost: 0.3 }, info: {} },
+    ]);
+
+    const result = await trader.getTradeRealizedPnl("BTC/USDT:USDT", Date.now(), "SHORT");
+
+    expect(result.openingFill).toEqual({ quantity: 3, avgPrice: 200, fee: 0.3 });
+  });
+
+  it("sin fills de apertura (nada llegó todavía) -> openingFill undefined", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([]);
+
+    const result = await trader.getTradeRealizedPnl("BTC/USDT:USDT", Date.now(), "LONG");
+
+    expect(result.openingFill).toBeUndefined();
+  });
+
+  it("no pasar 'direction' no calcula openingFill (compatibilidad con el llamador existente)", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([{ side: "buy", price: 100, amount: 1, fee: { cost: 0.1 }, info: {} }]);
+
+    const result = await trader.getTradeRealizedPnl("BTC/USDT:USDT", Date.now());
+
+    expect(result.openingFill).toBeUndefined();
+  });
+});

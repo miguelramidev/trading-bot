@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../../core/network/api_client.dart';
 import '../../core/utils/capital_risk_validation.dart';
 
@@ -20,6 +20,11 @@ class SettingsController extends ChangeNotifier {
   int maxTrades = 5;
   int leverageMin = 1;
   int leverageMax = 2;
+
+  final montoOperacionController = TextEditingController(text: '25.00');
+  final maxTradesController = TextEditingController(text: '5');
+  final leverageMinController = TextEditingController(text: '1');
+  final leverageMaxController = TextEditingController(text: '2');
   bool notificationsWeb = true;
   bool notificationsMobile = true;
   bool notificationsTelegram = true;
@@ -132,6 +137,10 @@ class SettingsController extends ChangeNotifier {
           maxTrades = data['maxTrades'] ?? 5;
           leverageMin = data['leverageMin'] ?? 1;
           leverageMax = data['leverageMax'] ?? 2;
+          montoOperacionController.text = montoOperacion.toStringAsFixed(2);
+          maxTradesController.text = '$maxTrades';
+          leverageMinController.text = '$leverageMin';
+          leverageMaxController.text = '$leverageMax';
           notificationsWeb = data['notificationsWeb'] ?? true;
           notificationsMobile = data['notificationsMobile'] ?? true;
           notificationsTelegram = data['notificationsTelegram'] ?? true;
@@ -236,6 +245,10 @@ class SettingsController extends ChangeNotifier {
     maxTrades = _original['maxTrades'];
     leverageMin = _original['leverageMin'];
     leverageMax = _original['leverageMax'];
+    montoOperacionController.text = montoOperacion.toStringAsFixed(2);
+    maxTradesController.text = '$maxTrades';
+    leverageMinController.text = '$leverageMin';
+    leverageMaxController.text = '$leverageMax';
     notificationsWeb = _original['notificationsWeb'];
     notificationsMobile = _original['notificationsMobile'];
     notificationsTelegram = _original['notificationsTelegram'];
@@ -243,5 +256,14 @@ class SettingsController extends ChangeNotifier {
     binanceApiSecretInput = '';
     replacingKeys = false;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    montoOperacionController.dispose();
+    maxTradesController.dispose();
+    leverageMinController.dispose();
+    leverageMaxController.dispose();
+    super.dispose();
   }
 }

@@ -57,7 +57,7 @@ Widget buildCapitalRiskSection(SettingsController controller, {required double? 
             Expanded(
               child: LabeledField(
                 label: 'Margen por operación',
-                controller: TextEditingController(text: controller.montoOperacion.toStringAsFixed(2))..selection = TextSelection.collapsed(offset: controller.montoOperacion.toStringAsFixed(2).length),
+                controller: controller.montoOperacionController,
                 suffix: 'USDT',
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (v) => controller.setMontoOperacion(double.tryParse(v) ?? controller.montoOperacion),
@@ -67,7 +67,7 @@ Widget buildCapitalRiskSection(SettingsController controller, {required double? 
             Expanded(
               child: LabeledField(
                 label: 'Operaciones simultáneas',
-                controller: TextEditingController(text: '${controller.maxTrades}')..selection = TextSelection.collapsed(offset: '${controller.maxTrades}'.length),
+                controller: controller.maxTradesController,
                 suffix: 'máximo',
                 keyboardType: TextInputType.number,
                 onChanged: (v) => controller.setMaxTrades(int.tryParse(v) ?? controller.maxTrades),
@@ -83,7 +83,7 @@ Widget buildCapitalRiskSection(SettingsController controller, {required double? 
             Expanded(
               child: LabeledField(
                 label: 'Mínimo',
-                controller: TextEditingController(text: '${controller.leverageMin}')..selection = TextSelection.collapsed(offset: '${controller.leverageMin}'.length),
+                controller: controller.leverageMinController,
                 suffix: 'x',
                 keyboardType: TextInputType.number,
                 onChanged: (v) => controller.setLeverageMin(int.tryParse(v) ?? controller.leverageMin),
@@ -93,7 +93,7 @@ Widget buildCapitalRiskSection(SettingsController controller, {required double? 
             Expanded(
               child: LabeledField(
                 label: 'Máximo',
-                controller: TextEditingController(text: '${controller.leverageMax}')..selection = TextSelection.collapsed(offset: '${controller.leverageMax}'.length),
+                controller: controller.leverageMaxController,
                 suffix: 'x',
                 keyboardType: TextInputType.number,
                 onChanged: (v) => controller.setLeverageMax(int.tryParse(v) ?? controller.leverageMax),

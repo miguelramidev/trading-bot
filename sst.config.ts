@@ -56,7 +56,7 @@ export default $config({
         // Conciliación con Binance (src/cron/reconciliation.ts): "true" = solo loguea lo que
         // haría, sin escribir ni notificar. Pasar a "false" a mano cuando se confirme que el
         // modo de solo registro viene reportando bien.
-        environment: { RECONCILIATION_DRY_RUN: "false" }
+        environment: { RECONCILIATION_DRY_RUN: "true" }
       }
     });
 

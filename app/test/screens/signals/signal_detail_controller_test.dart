@@ -141,21 +141,28 @@ void main() {
     });
   });
 
-  group('isLate — "llegás tarde" según el precio EN VIVO, al 30% del camino (kSignalLateThreshold)', () {
-    test('LONG: precio en vivo al 30% exacto del camino a el objetivo -> llegás tarde', () {
-      final c = SignalDetailController({'entry': '100', 'takeProfit': '110', 'direction': 'LONG'});
-      c.setCurrentPrice(103); // (103-100)/(110-100) = 0.30
+  group('isLate — "llegás tarde" según la relación riesgo/premio EN VIVO (Regla 7, kMinEffectiveRR=1.5, no un % fijo)', () {
+    test('LONG: relación efectiva por debajo de 1.5 -> llegás tarde', () {
+      final c = SignalDetailController({'entry': '100', 'stopLoss': '95', 'takeProfit': '110', 'direction': 'LONG'});
+      c.setCurrentPrice(103); // riesgo=8, premio=7, relación=0.875
       expect(c.isLate, isTrue);
     });
 
-    test('LONG: precio en vivo apenas por debajo del 30% -> todavía no', () {
-      final c = SignalDetailController({'entry': '100', 'takeProfit': '110', 'direction': 'LONG'});
-      c.setCurrentPrice(102);
+    test('LONG: relación efectiva exactamente 1.5 (límite exacto) -> todavía no', () {
+      final c = SignalDetailController({'entry': '100', 'stopLoss': '95', 'takeProfit': '110', 'direction': 'LONG'});
+      c.setCurrentPrice(101); // riesgo=6, premio=9, relación=1.5 exacto
       expect(c.isLate, isFalse);
     });
 
+    test('LONG: precio en vivo ya cruzó el Stop Loss o el Take Profit (Regla 6) -> no es "llegás tarde", es otro rechazo', () {
+      final c = SignalDetailController({'entry': '100', 'stopLoss': '95', 'takeProfit': '110', 'direction': 'LONG'});
+      c.setCurrentPrice(94); // ya por debajo del SL
+      expect(c.isLate, isFalse);
+      expect(c.entryBeyondLevels, isTrue);
+    });
+
     test('sin precio todavía (ni del Inicio ni del ticker resuelto) -> nunca "llegás tarde" en silencio', () {
-      final c = SignalDetailController({'entry': '100', 'takeProfit': '110', 'direction': 'LONG'});
+      final c = SignalDetailController({'entry': '100', 'stopLoss': '95', 'takeProfit': '110', 'direction': 'LONG'});
       expect(c.isLate, isFalse);
     });
   });

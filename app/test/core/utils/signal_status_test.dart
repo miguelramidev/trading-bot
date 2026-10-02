@@ -25,6 +25,32 @@ void main() {
       expect(status, SignalDetailStatus.descartada);
     });
 
+    test('Rechazada (protección de executeTrade) -> descartada (mismo estado, no se puede volver a operar)', () {
+      final status = computeSignalDetailStatus(decision: 'Rechazada', isActiveTrade: false, evaluatedAt: now, now: now);
+      expect(status, SignalDetailStatus.descartada);
+      expect(canOperateSignal(status), isFalse);
+    });
+
+    // Regla 8 de RULES.md (maxSignalAgeMinutes de GET /api/users/config): el botón de operar
+    // se deshabilita con el umbral que mande el backend, no solo con el default de 60 min.
+    test('window configurable (Regla 8): 61 min es "reciente" con una ventana de 90, "vencida" con la de 60 (default)', () {
+      final evaluatedAt = now.subtract(const Duration(minutes: 61));
+
+      final withDefaultWindow = computeSignalDetailStatus(decision: null, isActiveTrade: false, evaluatedAt: evaluatedAt, now: now);
+      expect(withDefaultWindow, SignalDetailStatus.expirada);
+      expect(canOperateSignal(withDefaultWindow), isFalse);
+
+      final withWiderWindow = computeSignalDetailStatus(
+        decision: null,
+        isActiveTrade: false,
+        evaluatedAt: evaluatedAt,
+        now: now,
+        window: const Duration(minutes: 90),
+      );
+      expect(withWiderWindow, SignalDetailStatus.pendiente);
+      expect(canOperateSignal(withWiderWindow), isTrue);
+    });
+
     test('Tomada y todavía activa -> activa', () {
       final status = computeSignalDetailStatus(decision: 'Tomada', isActiveTrade: true, evaluatedAt: now, now: now);
       expect(status, SignalDetailStatus.activa);

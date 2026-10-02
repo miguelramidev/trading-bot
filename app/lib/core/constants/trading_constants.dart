@@ -11,4 +11,20 @@ const double kRoundTripCommissionRate = 0.0010;
 /// que el usuario intente operar, no para decidir nada del lado del cliente
 /// — la autoridad sigue siendo el backend. Si `MIN_SL_DISTANCE_PCT` cambia
 /// en `trader.ts`, cambiar también acá.
+///
+/// Estos tres umbrales (Reglas 5/7/8) viajan en `GET /api/users/config`
+/// (`minSlDistancePct`/`minEffectiveRR`/`maxSignalAgeMinutes`) — las
+/// constantes de acá son solo el respaldo para cuando ese dato no llegó
+/// todavía (o falló la carga), nunca la fuente de verdad.
 const double kMinStopDistancePct = 0.005;
+
+/// Regla 7: relación riesgo/premio mínima para operar, calculada con el
+/// precio EN VIVO — por debajo de esto, `executeTrade` (`MIN_EFFECTIVE_RR`)
+/// rechaza la orden. Reemplaza al viejo umbral fijo de "30% de avance hacia
+/// el objetivo" para el aviso de "llegás tarde": ahora se basa en la
+/// relación real, no en cuánto camino se recorrió.
+const double kMinEffectiveRR = 1.5;
+
+/// Regla 8: antigüedad máxima de la señal para poder ejecutarla —
+/// `executeTrade` (`MAX_SIGNAL_AGE_MS`) rechaza por encima de esto.
+const int kMaxSignalAgeMinutes = 60;

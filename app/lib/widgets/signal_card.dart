@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/constants/trading_constants.dart';
 import '../core/theme/ds_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_spacing.dart';
@@ -9,10 +10,6 @@ import '../core/utils/signal_warnings.dart';
 import 'direction_tag.dart';
 import 'callout.dart';
 import 'app_buttons.dart';
-
-/// Umbral de la sección 4.4 del documento de diseño: a partir de este avance
-/// hacia el objetivo, la tarjeta avisa que "se llegó tarde".
-const double kSignalLateThreshold = 0.30;
 
 /// Tarjeta de señal pendiente (sección 4, "Inicio"). Orden fijo (de arriba
 /// a abajo): símbolo y dirección; estrategia con el motivo en texto simple;
@@ -80,17 +77,26 @@ class SignalCard extends StatelessWidget {
 
     final price = currentPrice;
     final progress = price != null ? computeSignalProgress(entry: entry, target: target, price: price) : null;
-    final isLate = progress != null && progress >= kSignalLateThreshold;
     final priceChangePct = price != null && entry != 0 ? ((price - entry) / entry) * 100 : null;
     final effectiveRR = price != null ? computeEffectiveRiskReward(stop: stop, price: price, target: target) : null;
+
+    // Regla 6: el precio en vivo ya cruzó el SL/TP de la señal — esos niveles ya no tienen
+    // sentido, `executeTrade` rechazaría la orden.
+    final entryBeyondLevels = price != null && isEntryBeyondLevels(isLong: isLong, stop: stop, target: target, price: price);
+    // Regla 7: antes se basaba en un 30% fijo de avance hacia el objetivo; ahora en la misma
+    // relación riesgo/premio mínima que usa `executeTrade` para rechazar — "llegás tarde"
+    // significa que entrar AHORA ya no cumple esa relación, no un % arbitrario de camino.
+    final isLate = !entryBeyondLevels && effectiveRR != null && effectiveRR < kMinEffectiveRR;
 
     // Regla 5: mismo umbral que `Trader.executeTrade` — si el stop queda
     // demasiado cerca de la entrada, Binance va a rechazar la orden. Se
     // avisa y se deshabilita el botón ANTES de que el usuario lo intente,
     // igual que con el margen insuficiente.
     final stopTooTight = isStopTooTight(entry: entry, stop: stop);
-    final effectiveCanTrade = canTrade && !stopTooTight;
-    final effectiveCannotTradeReason = stopTooTight ? 'Stop demasiado ajustado' : cannotTradeReason;
+    final effectiveCanTrade = canTrade && !stopTooTight && !entryBeyondLevels && !isLate;
+    final effectiveCannotTradeReason = entryBeyondLevels
+        ? 'El precio ya cruzó el SL/TP'
+        : (stopTooTight ? 'Stop demasiado ajustado' : (isLate ? 'Relación riesgo/premio muy baja' : cannotTradeReason));
     final displayWarnings = sortSignalWarnings(stopTooTight ? [...warnings, buildStopTooTightWarning()] : warnings);
 
     return Container(
@@ -162,18 +168,22 @@ class SignalCard extends StatelessWidget {
           Text(btcContext, style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary)),
           if (price != null) ...[
             const SizedBox(height: AppSpacing.md),
-            isLate
-                ? Callout(
+            entryBeyondLevels
+                ? const Callout(
                     variant: CalloutVariant.warning,
                     icon: Icons.warning_amber_rounded,
-                    message: effectiveRR != null
-                        ? 'El precio ya recorrió el ${(progress * 100).toStringAsFixed(0)}% hacia el objetivo. Si entrás ahora, la relación queda en 1 : ${effectiveRR.toStringAsFixed(1)}.'
-                        : 'El precio ya recorrió el ${(progress * 100).toStringAsFixed(0)}% hacia el objetivo. Entrar ahora ya no tiene margen de riesgo.',
+                    message: 'El precio ya cruzó el Stop Loss o el Take Profit de la señal. El bot va a rechazar esta operación.',
                   )
-                : Text(
-                    'Desde la señal: ${priceChangePct != null ? fmtPct(priceChangePct) : fmtMissing()}, un ${(progress! * 100).clamp(0, 100).toStringAsFixed(0)}% del camino al objetivo.',
-                    style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
-                  ),
+                : isLate
+                    ? Callout(
+                        variant: CalloutVariant.warning,
+                        icon: Icons.warning_amber_rounded,
+                        message: 'El precio ya recorrió el ${(progress! * 100).toStringAsFixed(0)}% hacia el objetivo. Si entrás ahora, la relación queda en 1 : ${effectiveRR.toStringAsFixed(1)}.',
+                      )
+                    : Text(
+                        'Desde la señal: ${priceChangePct != null ? fmtPct(priceChangePct) : fmtMissing()}, un ${(progress! * 100).clamp(0, 100).toStringAsFixed(0)}% del camino al objetivo.',
+                        style: AppTextStyles.bodySmall.copyWith(color: DsColors.textSecondary),
+                      ),
           ],
           const SizedBox(height: AppSpacing.lg),
           if (fillHeight) const Spacer(),

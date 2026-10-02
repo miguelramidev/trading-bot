@@ -43,8 +43,8 @@ void main() {
     expect(find.textContaining('ya recorrió'), findsNothing);
   });
 
-  testWidgets('avance menor al 30%: aviso informativo, no de advertencia', (tester) async {
-    // entrada 100, objetivo 110, precio 102 -> avance 20%
+  testWidgets('relación efectiva en 1.5 o por encima: aviso informativo, no de advertencia (Regla 7)', (tester) async {
+    // entrada 100, stop 95, objetivo 120, precio 102 -> riesgo=7, premio=18, relación=2.57 (>=1.5)
     await tester.pumpWidget(wrap(const SignalCard(
       symbol: 'ENA',
       isLong: true,
@@ -52,13 +52,13 @@ void main() {
       expiresLabel: 'vence en 57 min',
       entry: 100,
       stop: 95,
-      target: 110,
+      target: 120,
       currentPrice: 102,
       btcContext: 'BTC en rango',
     )));
 
     expect(find.textContaining('Desde la señal'), findsOneWidget);
-    expect(find.textContaining('20% del camino al objetivo'), findsOneWidget);
+    expect(find.textContaining('10% del camino al objetivo'), findsOneWidget);
     expect(find.textContaining('ya recorrió'), findsNothing);
   });
 

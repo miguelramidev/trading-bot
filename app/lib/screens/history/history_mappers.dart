@@ -10,6 +10,8 @@ StatusPillVariant statusPillVariantForHistory(String? status) {
       return StatusPillVariant.objetivo;
     case 'SL HIT':
       return StatusPillVariant.stop;
+    case 'RECHAZADO':
+      return StatusPillVariant.rechazada;
     case 'DESCARTADO':
     default:
       return StatusPillVariant.descartada;

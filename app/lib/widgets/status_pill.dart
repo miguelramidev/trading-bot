@@ -17,6 +17,7 @@ enum StatusPillVariant {
   activa,
   desactivada,
   retirada,
+  rechazada,
 }
 
 class _PillStyle {
@@ -46,6 +47,10 @@ _PillStyle _styleFor(StatusPillVariant variant) {
       return _PillStyle('Desactivada', DsColors.textSecondary, DsColors.surfaceRaised);
     case StatusPillVariant.retirada:
       return _PillStyle('Retirada', DsColors.textTertiary, DsColors.surfaceRaised);
+    // Distinta de "Descartada" (decisión manual del usuario): esta la bloqueó el sistema
+    // antes de arriesgar dinero real (Reglas 5/6/7/8 de RULES.md), nunca la eligió el usuario.
+    case StatusPillVariant.rechazada:
+      return _PillStyle('Rechazada', DsColors.warning, DsColors.warningTint);
   }
 }
 

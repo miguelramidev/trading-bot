@@ -125,14 +125,18 @@ String? extractMotivo(String? reason) {
 /// sintética (ej. la de Regla 5, abajo) sin reimplementar el criterio.
 List<SignalWarning> sortSignalWarnings(List<SignalWarning> warnings) => _sorted(warnings);
 
-/// Regla 5: si la distancia del stop al precio de entrada es menor a
-/// `kMinStopDistancePct`, el bot va a rechazar la operación —
-/// `Trader.executeTrade` (`src/bot/trader.ts`, `MIN_SL_DISTANCE_PCT`) la
-/// corta antes de colocar ninguna orden. Se avisa ANTES de que el usuario
-/// intente, en vez de dejarlo descubrirlo con un rechazo de Binance.
-bool isStopTooTight({required double entry, required double stop}) {
+/// Regla 5: si la distancia del stop al precio de entrada es menor al
+/// umbral, el bot va a rechazar la operación — `Trader.executeTrade`
+/// (`src/bot/trader.ts`, `MIN_SL_DISTANCE_PCT`) la corta antes de colocar
+/// ninguna orden. Se avisa ANTES de que el usuario intente, en vez de
+/// dejarlo descubrirlo con un rechazo de Binance.
+///
+/// [threshold] es `kMinStopDistancePct` por default (respaldo local), pero
+/// el llamador puede pasar el valor real de `GET /api/users/config`
+/// (`minSlDistancePct`) cuando ya se cargó.
+bool isStopTooTight({required double entry, required double stop, double threshold = kMinStopDistancePct}) {
   if (entry == 0) return false;
-  return (stop - entry).abs() / entry < kMinStopDistancePct;
+  return (stop - entry).abs() / entry < threshold;
 }
 
 /// Advertencia sintética (no viene del backend) para el caso de arriba —

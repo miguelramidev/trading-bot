@@ -52,7 +52,9 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
     final marginWarning = context.watch<DashboardProvider>().marginWarning;
     final insufficientMargin = marginWarning?['insufficient'] == true;
     final stopTooTight = _controller.stopTooTight;
-    final canOperate = _controller.canOperate && !insufficientMargin && !stopTooTight;
+    final entryBeyondLevels = _controller.entryBeyondLevels;
+    final rrTooLow = _controller.isLate;
+    final canOperate = _controller.canOperate && !insufficientMargin && !stopTooTight && !entryBeyondLevels && !rrTooLow;
 
     return Scaffold(
       backgroundColor: DsColors.background,
@@ -138,7 +140,9 @@ class _DesktopSignalDetailState extends State<DesktopSignalDetail> {
                               child: PrimaryButton(
                                 label: 'Operar ${_controller.isLong ? 'LONG' : 'SHORT'} en ${fmtSymbol(_controller.symbol)}',
                                 onPressed: (_controller.isExecuting || !canOperate) ? null : () => performTrade(context, _controller),
-                                disabledReason: stopTooTight ? 'Stop demasiado ajustado' : (insufficientMargin ? 'Sin margen disponible' : null),
+                                disabledReason: entryBeyondLevels
+                                    ? 'El precio ya cruzó el SL/TP'
+                                    : (stopTooTight ? 'Stop demasiado ajustado' : (rrTooLow ? 'Relación riesgo/premio muy baja' : (insufficientMargin ? 'Sin margen disponible' : null))),
                               ),
                             ),
                           ],

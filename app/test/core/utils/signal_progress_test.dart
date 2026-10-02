@@ -55,4 +55,39 @@ void main() {
       expect(v, isNull);
     });
   });
+
+  // Regla 6 de RULES.md: mismo chequeo que `Trader.executeTrade` antes de operar.
+  group('isEntryBeyondLevels', () {
+    test('LONG: precio por debajo del Stop Loss -> true', () {
+      expect(isEntryBeyondLevels(isLong: true, stop: 90, target: 110, price: 88), isTrue);
+    });
+
+    test('LONG: precio por encima del Take Profit -> true', () {
+      expect(isEntryBeyondLevels(isLong: true, stop: 90, target: 110, price: 112), isTrue);
+    });
+
+    test('LONG: precio exactamente en el Stop Loss (límite exacto) -> true (inclusivo)', () {
+      expect(isEntryBeyondLevels(isLong: true, stop: 90, target: 110, price: 90), isTrue);
+    });
+
+    test('LONG: precio entre los niveles -> false', () {
+      expect(isEntryBeyondLevels(isLong: true, stop: 90, target: 110, price: 100), isFalse);
+    });
+
+    test('SHORT: precio por encima del Stop Loss -> true', () {
+      expect(isEntryBeyondLevels(isLong: false, stop: 110, target: 90, price: 112), isTrue);
+    });
+
+    test('SHORT: precio por debajo del Take Profit -> true', () {
+      expect(isEntryBeyondLevels(isLong: false, stop: 110, target: 90, price: 88), isTrue);
+    });
+
+    test('SHORT: precio exactamente en el Stop Loss (límite exacto) -> true (inclusivo)', () {
+      expect(isEntryBeyondLevels(isLong: false, stop: 110, target: 90, price: 110), isTrue);
+    });
+
+    test('SHORT: precio entre los niveles -> false', () {
+      expect(isEntryBeyondLevels(isLong: false, stop: 110, target: 90, price: 100), isFalse);
+    });
+  });
 }

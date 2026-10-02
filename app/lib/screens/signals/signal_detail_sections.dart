@@ -28,6 +28,10 @@ Widget buildStatusPill(SignalDetailController controller) {
     case SignalDetailStatus.activa:
       return const StatusPill(StatusPillVariant.activa);
     case SignalDetailStatus.descartada:
+      // "Rechazada" (protección de executeTrade, Reglas 5/6/7/8 de RULES.md) comparte el
+      // estado "descartada" (no se puede volver a operar) pero no el texto/color del pill —
+      // es distinta de "Descartada" (decisión manual del usuario).
+      if (decision == 'Rechazada') return const StatusPill(StatusPillVariant.rechazada);
       return const StatusPill(StatusPillVariant.descartada);
     case SignalDetailStatus.expirada:
       return const StatusPill(StatusPillVariant.expirada);

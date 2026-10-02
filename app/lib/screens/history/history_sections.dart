@@ -71,10 +71,12 @@ Widget buildPeriodControl(HistoryController controller) {
   );
 }
 
-/// Chips Todas / Ejecutadas / Descartadas.
+/// Chips Todas / Ejecutadas / Descartadas / Rechazadas. "Rechazadas" (protección de
+/// `executeTrade`, Reglas 5/6/7/8 de RULES.md) tiene su propio filtro — no se mezcla con
+/// "Descartadas" (decisión manual del usuario), aunque comparten el mismo StatusPill de color.
 Widget buildTypeFilterChips(HistoryController controller) {
-  const types = ['Todos', 'Tomadas', 'Descartadas'];
-  const labels = ['Todas', 'Ejecutadas', 'Descartadas'];
+  const types = ['Todos', 'Tomadas', 'Descartadas', 'Rechazadas'];
+  const labels = ['Todas', 'Ejecutadas', 'Descartadas', 'Rechazadas'];
   return Wrap(
     spacing: AppSpacing.sm,
     children: [

@@ -13,6 +13,8 @@ StatusPillVariant statusPillVariantFromKey(String? key) {
       return StatusPillVariant.enCurso;
     case 'pendiente':
       return StatusPillVariant.pendiente;
+    case 'rechazada':
+      return StatusPillVariant.rechazada;
     case 'descartada':
     default:
       return StatusPillVariant.descartada;
@@ -50,10 +52,13 @@ class SignalExpiry {
 }
 
 /// [now] es opcional para poder testear sin depender del reloj real (mismo
-/// patrón que `DataTimestamp`).
-SignalExpiry computeSignalExpiry(DateTime evaluatedAt, {DateTime? now}) {
+/// patrón que `DataTimestamp`). [window] es `kSignalExpiryWindow` (60 min)
+/// por default (respaldo local); el llamador puede pasar
+/// `maxSignalAgeMinutes` de `GET /api/users/config` cuando ya se cargó —
+/// Regla 8 de RULES.md usa el mismo umbral del lado del backend.
+SignalExpiry computeSignalExpiry(DateTime evaluatedAt, {DateTime? now, Duration window = kSignalExpiryWindow}) {
   final reference = now ?? DateTime.now();
-  final remaining = kSignalExpiryWindow - reference.difference(evaluatedAt);
+  final remaining = window - reference.difference(evaluatedAt);
 
   if (remaining.inSeconds <= 0) {
     return const SignalExpiry(label: 'Vencida', soon: false, expired: true);

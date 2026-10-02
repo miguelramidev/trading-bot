@@ -14,13 +14,18 @@ SignalDetailStatus computeSignalDetailStatus({
   required bool isActiveTrade,
   required DateTime evaluatedAt,
   DateTime? now,
+  Duration window = kSignalExpiryWindow,
 }) {
   if (decision == null) {
-    final expiry = computeSignalExpiry(evaluatedAt, now: now);
+    final expiry = computeSignalExpiry(evaluatedAt, now: now, window: window);
     return expiry.expired ? SignalDetailStatus.expirada : SignalDetailStatus.pendiente;
   }
   if (decision.contains('->')) return SignalDetailStatus.terminada;
   if (decision == 'Descartada') return SignalDetailStatus.descartada;
+  // "Rechazada" (protección de executeTrade, Reglas 5/6/7/8) nunca encadena con "->": no hubo
+  // posición real que el monitor pudiera cerrar después. Se agrupa con "descartada" a nivel de
+  // estado (no se puede volver a operar); `buildStatusPill` distingue el texto/color.
+  if (decision == 'Rechazada') return SignalDetailStatus.descartada;
   if (decision == 'Tomada') return isActiveTrade ? SignalDetailStatus.activa : SignalDetailStatus.terminada;
   return SignalDetailStatus.terminada;
 }

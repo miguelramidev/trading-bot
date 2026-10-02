@@ -47,7 +47,9 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
     final marginWarning = context.watch<DashboardProvider>().marginWarning;
     final insufficientMargin = marginWarning?['insufficient'] == true;
     final stopTooTight = _controller.stopTooTight;
-    final canOperate = _controller.canOperate && !insufficientMargin && !stopTooTight;
+    final entryBeyondLevels = _controller.entryBeyondLevels;
+    final rrTooLow = _controller.isLate;
+    final canOperate = _controller.canOperate && !insufficientMargin && !stopTooTight && !entryBeyondLevels && !rrTooLow;
 
     return Scaffold(
       backgroundColor: DsColors.background,
@@ -106,7 +108,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
           ],
         ),
       ),
-      bottomNavigationBar: _controller.canOperate ? _buildBottomBar(canOperate, insufficientMargin, stopTooTight) : null,
+      bottomNavigationBar: _controller.canOperate ? _buildBottomBar(canOperate, insufficientMargin, stopTooTight, entryBeyondLevels, rrTooLow) : null,
     );
   }
 
@@ -155,7 +157,7 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
     );
   }
 
-  Widget _buildBottomBar(bool canOperate, bool insufficientMargin, bool stopTooTight) {
+  Widget _buildBottomBar(bool canOperate, bool insufficientMargin, bool stopTooTight, bool entryBeyondLevels, bool rrTooLow) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -174,7 +176,9 @@ class _MobileSignalDetailState extends State<MobileSignalDetail> {
               child: PrimaryButton(
                 label: 'Operar ${_controller.isLong ? 'LONG' : 'SHORT'} en ${fmtSymbol(_controller.symbol)}',
                 onPressed: (_controller.isExecuting || !canOperate) ? null : () => performTrade(context, _controller),
-                disabledReason: stopTooTight ? 'Stop demasiado ajustado' : (insufficientMargin ? 'Sin margen disponible' : null),
+                disabledReason: entryBeyondLevels
+                    ? 'El precio ya cruzó el SL/TP'
+                    : (stopTooTight ? 'Stop demasiado ajustado' : (rrTooLow ? 'Relación riesgo/premio muy baja' : (insufficientMargin ? 'Sin margen disponible' : null))),
               ),
             ),
           ],

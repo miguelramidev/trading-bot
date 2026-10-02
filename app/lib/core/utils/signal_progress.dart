@@ -39,3 +39,17 @@ double? computeEffectiveRiskReward({
   final reward = (target - price).abs();
   return reward / risk;
 }
+
+/// Regla 6: si el precio en vivo ya cruzó el Stop Loss o el Take Profit de
+/// la señal, `Trader.executeTrade` rechaza la orden (los niveles ya no
+/// tienen sentido contra ese precio — hallazgo del backtest de breakeven,
+/// 2026-10-01). Se avisa y se bloquea el botón ANTES de que el usuario
+/// intente, igual que con el resto de las reglas de protección.
+bool isEntryBeyondLevels({
+  required bool isLong,
+  required double stop,
+  required double target,
+  required double price,
+}) {
+  return isLong ? (price <= stop || price >= target) : (price >= stop || price <= target);
+}

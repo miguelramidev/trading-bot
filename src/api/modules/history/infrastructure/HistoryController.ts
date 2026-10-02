@@ -6,7 +6,7 @@ import { signalHistory, userConfig } from "../../../../db/schema.js";
 import { desc, eq, and, isNotNull, gte, type SQL } from "drizzle-orm";
 import { internalError } from "../../../core/utils/errors.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
-import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats, computeAvailableStrategies } from "./historyHelpers.js";
+import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats, computeAvailableStrategies, classifyTradeStatus } from "./historyHelpers.js";
 
 export const historyRouter = new Hono<AuthEnv>();
 
@@ -50,37 +50,17 @@ historyRouter.get(
       });
 
       const mappedTrades = allSignals.map(t => {
-        let statusStr: "DESCARTADO" | "RECHAZADO" | "TP HIT" | "SL HIT" = "DESCARTADO";
-        // null, no 0: una descartada no tiene resultado, "0.00%" mentiría que sí lo tiene.
-        let roi: number | null = null;
-        let pnl: number | null = null;
-
-        // null, no 0: `realized_roi` puede venir null incluso en una señal YA
-        // EJECUTADA (hallazgo de la skill auditoria-trades: roto desde el
-        // refactor multi-tenant del 25/09) — "|| '0'" lo disfrazaba de 0.00%.
+        // null, no 0: `realized_roi`/`realized_pnl` pueden venir null incluso en una señal YA
+        // EJECUTADA (hallazgo de la skill auditoria-trades: roto desde el refactor multi-tenant
+        // del 25/09) — "|| '0'" lo disfrazaba de 0.00%.
         const pnlVal = t.realizedPnl != null ? parseFloat(t.realizedPnl) : null;
         const roiVal = t.realizedRoi != null ? parseFloat(t.realizedRoi) : null;
 
-        // The bug made some discarded trades look like "Cerrada (SL Tocado)". We can heuristically fix them for display:
-        // If entryPrice is null or 0 and it was closed, it was likely discarded by mistake.
-        const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
-        // "Rechazada": `executeTrade` la rechazó (Reglas 1/2/5/6/7/8, balance, leverage) —
-        // nunca hubo posición real, distinto de un descarte manual del usuario.
-        const wasRejected = t.decision === "Rechazada";
-
-        if (wasRejected) {
-          statusStr = "RECHAZADO";
-        } else if (wasActuallyDiscarded) {
-          statusStr = "DESCARTADO";
-        } else if (t.decision?.includes("Cerrada")) {
-          if ((pnlVal ?? 0) > 0 || t.decision.includes("TP")) {
-            statusStr = "TP HIT";
-          } else {
-            statusStr = "SL HIT";
-          }
-          roi = roiVal;
-          pnl = pnlVal;
-        }
+        // El query de arriba ya filtra isActiveTrade=false, así que nunca sale "ACTIVA" acá.
+        const statusStr = classifyTradeStatus({ decision: t.decision, pnl: pnlVal, isActiveTrade: false }) as "DESCARTADO" | "RECHAZADO" | "TP HIT" | "SL HIT";
+        // null, no 0: una descartada/rechazada no tiene resultado, "0.00%" mentiría que sí lo tiene.
+        const roi = statusStr === "TP HIT" || statusStr === "SL HIT" ? roiVal : null;
+        const pnl = statusStr === "TP HIT" || statusStr === "SL HIT" ? pnlVal : null;
 
         return {
           id: t.id,
@@ -178,22 +158,16 @@ historyRouter.get(
 
       if (!t) return c.json({ error: "Trade not found" }, 404);
 
-      const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
-      const wasRejected = t.decision === "Rechazada";
-      // null, no 0: una descartada/rechazada no tiene resultado, y `realized_roi`/`realized_pnl`
-      // pueden venir null incluso en una señal YA EJECUTADA (ver historyHelpers:
-      // roto desde el refactor multi-tenant del 25/09) — "|| '0'" lo disfrazaba de 0.
-      const pnlVal = wasActuallyDiscarded || wasRejected || t.realizedPnl == null ? null : parseFloat(t.realizedPnl);
-      const roiVal = wasActuallyDiscarded || wasRejected || t.realizedRoi == null ? null : parseFloat(t.realizedRoi);
+      // null, no 0: `realized_roi`/`realized_pnl` pueden venir null incluso en una señal YA
+      // EJECUTADA (ver historyHelpers: roto desde el refactor multi-tenant del 25/09) — "|| '0'"
+      // lo disfrazaba de 0.
+      const rawPnl = t.realizedPnl != null ? parseFloat(t.realizedPnl) : null;
+      const rawRoi = t.realizedRoi != null ? parseFloat(t.realizedRoi) : null;
 
-      let statusStr = "DESCARTADO";
-      if (wasRejected) {
-        statusStr = "RECHAZADO";
-      } else if (!wasActuallyDiscarded && t.decision?.includes("Cerrada")) {
-        statusStr = (pnlVal ?? 0) > 0 || t.decision.includes("TP") ? "TP HIT" : "SL HIT";
-      } else if (t.isActiveTrade) {
-        statusStr = "ACTIVA";
-      }
+      const statusStr = classifyTradeStatus({ decision: t.decision, pnl: rawPnl, isActiveTrade: t.isActiveTrade });
+      // null, no 0: una descartada/rechazada/activa no tiene resultado todavía.
+      const pnlVal = statusStr === "TP HIT" || statusStr === "SL HIT" ? rawPnl : null;
+      const roiVal = statusStr === "TP HIT" || statusStr === "SL HIT" ? rawRoi : null;
 
       return c.json({
         id: t.id,

@@ -7,6 +7,31 @@ export function periodCutoff(period: string, now: Date = new Date()): Date | nul
   return null;
 }
 
+export type TradeStatus = "DESCARTADO" | "RECHAZADO" | "TP HIT" | "SL HIT" | "ACTIVA";
+
+/**
+ * Se ejecutó si la DECISIÓN lo dice ("Tomada" o "Tomada -> Cerrada (...)"), nunca por si
+ * `executedEntryPrice` está completo — ese campo puede faltar en una operación real (incidente
+ * QNT, 2026-10-02: `executeTrade` no devolvía el fill de entrada, y una heurística acá mostraba
+ * una posición real como descartada solo porque ese campo estaba en null).
+ */
+export function classifyTradeStatus(input: { decision: string | null; pnl: number | null; isActiveTrade: boolean }): TradeStatus {
+  const { decision, pnl, isActiveTrade } = input;
+  const wasExecuted = decision?.startsWith("Tomada") ?? false;
+  const wasDiscarded = decision === "Descartada" || decision === "Ignorada";
+  // "Rechazada": `executeTrade` la rechazó (Reglas 1/2/5/6/7/8, balance, leverage) — nunca hubo
+  // posición real, distinto de un descarte manual del usuario.
+  const wasRejected = decision === "Rechazada";
+
+  if (wasRejected) return "RECHAZADO";
+  if (wasDiscarded) return "DESCARTADO";
+  if (wasExecuted && decision!.includes("Cerrada")) {
+    return (pnl ?? 0) > 0 || decision!.includes("TP") ? "TP HIT" : "SL HIT";
+  }
+  if (isActiveTrade) return "ACTIVA";
+  return "DESCARTADO";
+}
+
 interface SearchableTrade {
   symbol: string;
   strategy: string;

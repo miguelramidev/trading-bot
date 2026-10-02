@@ -1,5 +1,51 @@
 import { describe, it, expect } from "vitest";
-import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats, computeAvailableStrategies } from "../src/api/modules/history/infrastructure/historyHelpers.js";
+import { periodCutoff, filterTradesBySearch, filterTradesByType, computeHistoryStats, computeAvailableStrategies, classifyTradeStatus } from "../src/api/modules/history/infrastructure/historyHelpers.js";
+
+// Incidente QNT (2026-10-02): una operación REAL (posición y PnL reales en Binance) se mostraba
+// como "Descartada" en el historial porque `executedEntryPrice` había quedado en null (bug
+// aparte en executeTrade, ya arreglado) — la clasificación nunca debe depender de ese campo.
+describe("classifyTradeStatus", () => {
+  it('"Tomada -> Cerrada (...)" con executedEntryPrice en null SIGUE siendo TP/SL HIT, no DESCARTADO', () => {
+    const status = classifyTradeStatus({ decision: "Tomada -> Cerrada (Stop tocado)", pnl: -0.66, isActiveTrade: false });
+    expect(status).toBe("SL HIT");
+  });
+
+  it('PnL positivo -> "TP HIT"', () => {
+    expect(classifyTradeStatus({ decision: "Tomada -> Cerrada (Objetivo tocado)", pnl: 5, isActiveTrade: false })).toBe("TP HIT");
+  });
+
+  it('decision incluye "TP" aunque el PnL neto haya dado negativo (comisiones) -> igual "TP HIT"', () => {
+    expect(classifyTradeStatus({ decision: "Tomada -> Cerrada (TP Tocado)", pnl: -0.1, isActiveTrade: false })).toBe("TP HIT");
+  });
+
+  it('PnL negativo y sin "TP" en la decisión -> "SL HIT"', () => {
+    expect(classifyTradeStatus({ decision: "Tomada -> Cerrada (SL Tocado)", pnl: -5, isActiveTrade: false })).toBe("SL HIT");
+  });
+
+  it('"Descartada" (descarte manual) -> "DESCARTADO"', () => {
+    expect(classifyTradeStatus({ decision: "Descartada", pnl: null, isActiveTrade: false })).toBe("DESCARTADO");
+  });
+
+  it('"Ignorada" (expiró sin responder) -> "DESCARTADO"', () => {
+    expect(classifyTradeStatus({ decision: "Ignorada", pnl: null, isActiveTrade: false })).toBe("DESCARTADO");
+  });
+
+  it('"Rechazada" (executeTrade la rechazó) -> "RECHAZADO", nunca se confunde con descarte manual', () => {
+    expect(classifyTradeStatus({ decision: "Rechazada", pnl: null, isActiveTrade: false })).toBe("RECHAZADO");
+  });
+
+  it('"Tomada" sola (todavía abierta) con isActiveTrade=true -> "ACTIVA"', () => {
+    expect(classifyTradeStatus({ decision: "Tomada", pnl: null, isActiveTrade: true })).toBe("ACTIVA");
+  });
+
+  it("decision null (señal pendiente, nunca respondida) -> DESCARTADO por defecto", () => {
+    expect(classifyTradeStatus({ decision: null, pnl: null, isActiveTrade: false })).toBe("DESCARTADO");
+  });
+
+  it('"Ejecutando" (reserva en curso, no debería llegar acá en la práctica) no revienta: cae al default', () => {
+    expect(classifyTradeStatus({ decision: "Ejecutando", pnl: null, isActiveTrade: false })).toBe("DESCARTADO");
+  });
+});
 
 describe("periodCutoff", () => {
   const now = new Date("2026-10-01T00:00:00Z");

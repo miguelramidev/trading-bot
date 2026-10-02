@@ -62,7 +62,9 @@ Future<void> performTrade(BuildContext context, SignalDetailController controlle
   controller.setExecuting(true);
   try {
     final id = controller.signal['id'];
-    final res = await ApiClient.post('/api/signals/$id/execute');
+    // allowRetry: false — ejecutar una señal no es idempotente; un reintento automático de red
+    // nunca debe repetir este POST solo (ver incidente QNT, 2026-10-02).
+    final res = await ApiClient.post('/api/signals/$id/execute', allowRetry: false);
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final result = parseExecuteResult(data);
@@ -79,7 +81,10 @@ Future<void> performTrade(BuildContext context, SignalDetailController controlle
         context.go('/dashboard');
       }
     } else if (context.mounted) {
-      AppToast.showError(context, 'Error al ejecutar');
+      AppToast.showError(
+        context,
+        res.statusCode == 409 ? 'Esta señal ya se está ejecutando' : 'Error al ejecutar',
+      );
     }
   } catch (e) {
     // Timeout, error de red o respuesta no parseable: no sabemos si la orden llegó a Binance.

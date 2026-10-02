@@ -12,6 +12,12 @@ export interface TradeResult {
    * cualquier otro caso: el llamador debe asumir que la posición sigue abierta salvo que esto
    * diga explícitamente `false` (ver la conciliación en `src/cron/reconciliation.ts`). */
   positionOpen?: boolean;
+  /** Id real de la orden a mercado que abrió la posición (de `createMarketOrder`), para que
+   * `captureEntryFill` (tradeExecution.ts) busque el fill de entrada por esta orden puntual en
+   * vez de por una ventana de tiempo — no depende de ningún margen y no puede confundirse con un
+   * fill de otra operación del mismo símbolo. `undefined` solo si el status es "rechazado"
+   * (nunca se llegó a crear la orden). */
+  entryOrderId?: string;
 }
 
 const EXIT_ORDER_MAX_ATTEMPTS = 3; // 1 intento + 2 reintentos
@@ -332,7 +338,8 @@ export class Trader {
 
       // 8. EJECUTAR ORDEN PRINCIPAL A MERCADO
       const side = direction === "LONG" ? "buy" : "sell";
-      await this.exchange.createMarketOrder(symbol, side, amount);
+      const marketOrder = await this.exchange.createMarketOrder(symbol, side, amount);
+      const entryOrderId: string | undefined = marketOrder?.id;
 
       // 9. COLOCAR ORDENES DE SALIDA (STOP LOSS Y TAKE PROFIT), con reintentos.
       const oppositeSide = side === "buy" ? "sell" : "buy";
@@ -352,11 +359,13 @@ export class Trader {
             status: "advertencia",
             mensaje: `⚠️ POSICIÓN CERRADA POR FALLA DE PROTECCIÓN\nNo se pudo colocar el Stop Loss tras varios intentos, así que la posición se cerró a mercado por seguridad. No queda exposición abierta, pero hay que revisar por qué falló el Stop Loss.\n${resumen}`,
             positionOpen: false,
+            entryOrderId,
           };
         }
         return {
           status: "critico",
           mensaje: `🚨 POSICIÓN ABIERTA SIN PROTECCIÓN — ACCIÓN MANUAL URGENTE\nNo se pudo colocar el Stop Loss ni cerrar la posición a mercado. Hay ${amount} de ${symbol} abierto sin ningún stop. Cerrala manualmente en Binance ahora mismo.\n${resumen}`,
+          entryOrderId,
         };
       }
 
@@ -368,10 +377,11 @@ export class Trader {
         return {
           status: "advertencia",
           mensaje: `⚠️ TRADE EJECUTADO SIN TAKE PROFIT\nEl Take Profit no se pudo colocar tras varios intentos. La posición sigue protegida por el Stop Loss. Hay que colocar el TP manualmente.\n${resumen}`,
+          entryOrderId,
         };
       }
 
-      return { status: "ejecutado", mensaje: `✅ TRADE EJECUTADO EN BINANCE\n${resumen}` };
+      return { status: "ejecutado", mensaje: `✅ TRADE EJECUTADO EN BINANCE\n${resumen}`, entryOrderId };
 
     } catch (error: any) {
       console.error("Execute Trade Error:", error);
@@ -417,11 +427,14 @@ export class Trader {
     return this.exchange.fetchPositions();
   }
 
-  /** Todas las órdenes de protección (SL/TP) vivas de la cuenta. Son algo orders en Binance
-   * Futures (confirmado contra la cuenta real: `fetchOpenOrders` sin `trigger:true` siempre
-   * devuelve vacío para un SL/TP nuestro) — sin el flag, la conciliación nunca vería el SL. */
-  async fetchAllOpenOrders(): Promise<any[]> {
-    return this.exchange.fetchOpenOrders(undefined, undefined, undefined, { trigger: true });
+  /** Órdenes de protección (SL/TP) vivas de UN símbolo. Son algo orders en Binance Futures, hace
+   * falta `{trigger:true}` para verlas — pero además, confirmado contra la cuenta real
+   * (incidente QNT, 2026-10-02): la variante EN BLOQUE (`fetchOpenOrders` sin símbolo con
+   * `{trigger:true}`) devuelve SIEMPRE vacío para esta cuenta, aunque haya órdenes algo vivas de
+   * verdad (reproducido con una posición de MAGMA que sí tenía SL/TP reales). Por eso la
+   * conciliación consulta símbolo por símbolo, nunca en bloque, pese al costo extra de llamadas. */
+  async fetchOpenOrdersForSymbol(symbol: string): Promise<any[]> {
+    return this.exchange.fetchOpenOrders(symbol, undefined, undefined, { trigger: true });
   }
 
   /** Tick size de precio del símbolo (ver `extractTickSize`), para la tolerancia de
@@ -473,6 +486,38 @@ export class Trader {
     } catch (e) {
       console.error(`Error obteniendo el fill de cierre para ${symbol}:`, e);
       return { fillsFound: false };
+    }
+  }
+
+  /**
+   * Fill(s) de una orden puntual, por su `orderId` real — usado para el fill de ENTRADA
+   * (`captureEntryFill` en tradeExecution.ts): a diferencia de `getClosingFill` (que no tiene
+   * forma de saber de antemano qué orden va a cerrar la posición, así que identifica por
+   * lado+tiempo), acá `executeTrade` ya nos da el id exacto de la orden a mercado que abrió la
+   * posición, así que no hace falta ninguna ventana de tiempo ni filtro por lado: nunca puede
+   * confundirse con un fill de otra operación del mismo símbolo. Si la entrada quedó repartida en
+   * varios fills de la misma orden, se agregan todos.
+   */
+  async getFillsForOrder(symbol: string, orderId: string, sinceMs: number): Promise<{ quantity: number; avgPrice: number; fee: number } | null> {
+    try {
+      const trades = await this.exchange.fetchMyTrades(symbol.replace(":USDT", ""), sinceMs, 100);
+      const matching = trades.filter((t: any) => String(t.order) === String(orderId));
+      if (matching.length === 0) return null;
+
+      let quantity = 0;
+      let notional = 0;
+      let fee = 0;
+      for (const t of matching) {
+        const amount = t.amount ?? 0;
+        quantity += amount;
+        notional += amount * (t.price ?? 0);
+        if (t.fee?.cost) fee += t.fee.cost;
+      }
+
+      return { quantity, avgPrice: quantity > 0 ? notional / quantity : 0, fee };
+    } catch (e) {
+      console.error(`Error obteniendo los fills de la orden ${orderId} de ${symbol}:`, e);
+      return null;
     }
   }
 

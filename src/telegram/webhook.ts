@@ -5,9 +5,9 @@ import { userConfig, signalHistory, telegramUpdates } from "../db/schema.js";
 import { eq, lt } from "drizzle-orm";
 import ccxt from "ccxt";
 import { Resource } from "sst";
-import { Trader } from "../bot/trader.js";
+import { Trader, type TradeResult } from "../bot/trader.js";
 import { sendCriticalAlert } from "../bot/criticalAlert.js";
-import { recordExecutionResult } from "../cron/tradeExecution.js";
+import { recordExecutionResult, reserveSignalForExecution, markReservationFailed } from "../cron/tradeExecution.js";
 import { decrypt } from "../api/core/utils/encryption.js";
 import { getSecretHeader, isValidWebhookSecret } from "./verifyWebhook.js";
 import { isAllowedChat } from "./allowlist.js";
@@ -256,6 +256,16 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
     return;
   }
 
+  // Reserva atómica (ROADMAP.md A1): un UPDATE condicional (decision IS NULL) es lo único que de
+  // verdad protege contra dos pedidos casi simultáneos (Telegram + app, doble toque, reintento de
+  // red) — el chequeo de `signal.decision` de arriba es solo una salida rápida, no una garantía.
+  const reserved = await reserveSignalForExecution(signalId, user.id);
+  console.log(`[execute] signalId=${signalId} source=telegram reserved=${reserved}`);
+  if (!reserved) {
+    await ctx.answerCbQuery("❌ Esta señal ya se está ejecutando (otro pedido llegó primero).");
+    return;
+  }
+
   await ctx.answerCbQuery("⏳ Ejecutando orden en Binance...");
 
   const userKey = decrypt(user.binanceApiKey);
@@ -267,26 +277,45 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
   }
   const configuredMargin = user.montoOperacion ? parseFloat(user.montoOperacion.toString()) : 25.0;
   const trader = new Trader(userKey, userSecret);
-  const executionResult = await trader.executeTrade(
-     signal.symbol,
-     signal.direction!,
-     parseFloat(signal.gridSL || "0"),
-     parseFloat(signal.gridTP || "0"),
-     configuredMargin,
-     user.leverageMin ?? 1,
-     user.leverageMax ?? 2,
-     signal.evaluatedAt
-  );
 
-  await recordExecutionResult({
-    signalId,
-    userId: user.id,
-    source: "telegram",
-    signal: { symbol: signal.symbol, direction: signal.direction as "LONG" | "SHORT" },
-    configuredMargin,
-    executionResult,
-    trader,
-  });
+  let executionResult: TradeResult;
+  try {
+    executionResult = await trader.executeTrade(
+       signal.symbol,
+       signal.direction!,
+       parseFloat(signal.gridSL || "0"),
+       parseFloat(signal.gridTP || "0"),
+       configuredMargin,
+       user.leverageMin ?? 1,
+       user.leverageMax ?? 2,
+       signal.evaluatedAt
+    );
+
+    await recordExecutionResult({
+      signalId,
+      userId: user.id,
+      source: "telegram",
+      signal: { symbol: signal.symbol, direction: signal.direction as "LONG" | "SHORT" },
+      configuredMargin,
+      executionResult,
+      trader,
+    });
+  } catch (e: any) {
+    console.error(`[execute] signalId=${signalId} source=telegram resultado=excepcion: ${e.message}`);
+    // No se libera la reserva: no sabemos si la orden llegó a abrirse en Binance. Mejor que quede
+    // bloqueada para revisión manual que arriesgar una segunda posición real por un reintento.
+    await markReservationFailed(signalId, e.message);
+    await sendCriticalAlert(
+      user.id,
+      user.chatId,
+      user.fcmTokens,
+      `🚨 Error inesperado ejecutando la señal ${signalId} (${signal.symbol}). Revisá tu posición en Binance manualmente antes de reintentar.\nDetalle: ${e.message}`
+    );
+    await ctx.answerCbQuery("❌ Error inesperado. Revisá Binance manualmente.");
+    return;
+  }
+
+  console.log(`[execute] signalId=${signalId} source=telegram resultado=${executionResult.status}`);
 
   const STATUS_HEADER: Record<typeof executionResult.status, string> = {
     ejecutado: "✅ <b>TRADE EJECUTADO REAL (Sniper)</b>",
@@ -317,7 +346,7 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
   }
 
   if (executionResult.status === "critico") {
-    await sendCriticalAlert(user.chatId, user.fcmTokens, executionResult.mensaje);
+    await sendCriticalAlert(user.id, user.chatId, user.fcmTokens, executionResult.mensaje);
   }
 });
 

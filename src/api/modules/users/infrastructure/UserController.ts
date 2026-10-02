@@ -237,10 +237,16 @@ usersRouter.post(
   "/fcm-token",
   zValidator("json", z.object({
     token: z.string(),
+    // Aditivo: el token que este MISMO dispositivo había registrado antes (si lo tiene guardado
+    // localmente). Con esto se reemplaza en vez de acumular — sin esto (apps viejas, o primer
+    // registro del dispositivo) se sigue agregando como antes. Ver incidente QNT (2026-10-02):
+    // sin reemplazo, los tokens de reinstalaciones/dispositivos viejos se acumulaban sin límite
+    // (6 tokens para un solo usuario) y una sola alerta terminaba mandando un push por cada uno.
+    previousToken: z.string().optional(),
   })),
   async (c) => {
     const firebaseUid = c.get("uid");
-    const { token } = c.req.valid("json");
+    const { token, previousToken } = c.req.valid("json");
 
     try {
       const user = await db.query.userConfig.findFirst({
@@ -248,10 +254,17 @@ usersRouter.post(
       });
       if (user) {
         let tokens = user.fcmTokens || [];
-        if (!tokens.includes(token)) {
-          tokens.push(token);
+        const withoutPrevious = previousToken ? tokens.filter((t) => t !== previousToken) : tokens;
+        const changed = withoutPrevious.length !== tokens.length;
+        if (!withoutPrevious.includes(token)) {
+          tokens = [...withoutPrevious, token];
           await db.update(userConfig)
             .set({ fcmTokens: tokens, updatedAt: new Date() })
+            .where(eq(userConfig.firebaseUid, firebaseUid));
+        } else if (changed) {
+          // El nuevo token ya estaba (ej. no rotó), pero igual había que sacar el viejo.
+          await db.update(userConfig)
+            .set({ fcmTokens: withoutPrevious, updatedAt: new Date() })
             .where(eq(userConfig.firebaseUid, firebaseUid));
         }
       }

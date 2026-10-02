@@ -1,20 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Orquestación de la conciliación (src/cron/reconciliation.ts): una sola llamada a
-// fetchAllPositions/fetchAllOpenOrders por usuario y por ciclo, aplica la decisión pura de
-// reconciliationDecision.ts (ya testeada en tests/reconciliation-decision.test.ts) o solo la
-// loguea en modo de solo registro, e idempotencia en el cierre (update condicional con
-// isActive=true en el WHERE). Nada toca red/DB real: db, Trader, Telegram y los envíos de
-// notificación están mockeados.
+// Orquestación de la conciliación (src/cron/reconciliation.ts): una sola consulta de posiciones
+// por usuario y por ciclo (las órdenes de protección se piden par por par, ver más abajo), aplica
+// la decisión pura de reconciliationDecision.ts (ya testeada en tests/reconciliation-decision.test.ts)
+// o solo la loguea en modo de solo registro; idempotencia en el cierre (update condicional);
+// resuelve reservas trabadas en "Ejecutando" (punto 2). Nada toca red/DB real: db, Trader,
+// Telegram y los envíos de notificación están mockeados.
 const mocks = vi.hoisted(() => ({
   tradeExecFindMany: vi.fn(),
   userFindFirst: vi.fn(),
   signalFindFirst: vi.fn(),
+  signalFindMany: vi.fn(),
   tradeExecSet: vi.fn(),
   tradeExecReturning: vi.fn(),
   signalHistorySet: vi.fn(),
+  signalHistoryReturning: vi.fn(),
+  tradeExecInsertValues: vi.fn(),
+  insertOnConflict: vi.fn(),
   fetchAllPositions: vi.fn(),
-  fetchAllOpenOrders: vi.fn(),
+  fetchOpenOrdersForSymbol: vi.fn(),
   getClosingFill: vi.fn(),
   getOrderClientId: vi.fn(),
   getTickSize: vi.fn(),
@@ -32,7 +36,7 @@ vi.mock("telegraf", () => ({
     sendMessage = mocks.telegramSendMessage;
   },
 }));
-vi.mock("../src/firebase.js", () => ({ sendPushNotification: mocks.sendPushNotification }));
+vi.mock("../src/firebase.js", () => ({ sendPushNotificationAndPrune: mocks.sendPushNotification }));
 vi.mock("../src/bot/criticalAlert.js", () => ({ sendCriticalAlert: mocks.sendCriticalAlert }));
 vi.mock("../src/api/core/utils/encryption.js", () => ({ decrypt: (v: string) => `decrypted(${v})` }));
 vi.mock("../src/bot/trader.js", () => ({
@@ -41,7 +45,7 @@ vi.mock("../src/bot/trader.js", () => ({
       mocks.traderConstructions.push({ apiKey, apiSecret });
     }
     fetchAllPositions = mocks.fetchAllPositions;
-    fetchAllOpenOrders = mocks.fetchAllOpenOrders;
+    fetchOpenOrdersForSymbol = mocks.fetchOpenOrdersForSymbol;
     getClosingFill = mocks.getClosingFill;
     getOrderClientId = mocks.getOrderClientId;
     getTickSize = mocks.getTickSize;
@@ -49,8 +53,8 @@ vi.mock("../src/bot/trader.js", () => ({
   },
 }));
 
-function makeWhereResult(returningMock?: any) {
-  const result: any = { returning: returningMock ?? vi.fn().mockResolvedValue([{ id: 1 }]) };
+function makeWhereResult(returningMock: any) {
+  const result: any = { returning: returningMock };
   result.then = (resolve: any) => resolve(undefined);
   return result;
 }
@@ -62,19 +66,20 @@ vi.mock("../src/db/index.js", async () => {
       query: {
         tradeExecutions: { findMany: mocks.tradeExecFindMany },
         userConfig: { findFirst: mocks.userFindFirst },
-        signalHistory: { findFirst: mocks.signalFindFirst },
+        signalHistory: { findFirst: mocks.signalFindFirst, findMany: mocks.signalFindMany },
       },
       update: vi.fn((table: any) => {
         if (table === schema.tradeExecutions) {
           return { set: vi.fn((vals: any) => { mocks.tradeExecSet(vals); return { where: vi.fn(() => makeWhereResult(mocks.tradeExecReturning)) }; }) };
         }
-        return { set: vi.fn((vals: any) => { mocks.signalHistorySet(vals); return { where: vi.fn(() => makeWhereResult()) }; }) };
+        return { set: vi.fn((vals: any) => { mocks.signalHistorySet(vals); return { where: vi.fn(() => makeWhereResult(mocks.signalHistoryReturning)) }; }) };
       }),
+      insert: vi.fn(() => ({ values: vi.fn((vals: any) => { mocks.tradeExecInsertValues(vals); return { onConflictDoNothing: mocks.insertOnConflict }; }) })),
     },
   };
 });
 
-const { reconcileActiveTrades, isReconciliationDryRun } = await import("../src/cron/reconciliation.js");
+const { reconcileActiveTrades, resolveStuckReservations, isReconciliationDryRun } = await import("../src/cron/reconciliation.js");
 
 const baseUser = {
   id: 2,
@@ -86,6 +91,7 @@ const baseUser = {
   notificationsTelegram: true,
   notificationsMobile: true,
   notificationsWeb: true,
+  montoOperacion: 25,
 };
 
 const baseSignal = {
@@ -116,14 +122,18 @@ function makeTradeExecution(overrides: Partial<any> = {}) {
 
 beforeEach(() => {
   mocks.traderConstructions.length = 0;
-  mocks.tradeExecFindMany.mockReset();
+  mocks.tradeExecFindMany.mockReset().mockResolvedValue([]);
   mocks.userFindFirst.mockReset().mockResolvedValue(baseUser);
   mocks.signalFindFirst.mockReset().mockResolvedValue(baseSignal);
+  mocks.signalFindMany.mockReset().mockResolvedValue([]); // resolveStuckReservations: sin filas trabadas por defecto
   mocks.tradeExecSet.mockReset();
   mocks.tradeExecReturning.mockReset().mockResolvedValue([{ id: 1 }]);
   mocks.signalHistorySet.mockReset();
+  mocks.signalHistoryReturning.mockReset().mockResolvedValue([{ id: 1 }]);
+  mocks.tradeExecInsertValues.mockReset();
+  mocks.insertOnConflict.mockReset().mockResolvedValue(undefined);
   mocks.fetchAllPositions.mockReset().mockResolvedValue([]);
-  mocks.fetchAllOpenOrders.mockReset().mockResolvedValue([]);
+  mocks.fetchOpenOrdersForSymbol.mockReset().mockResolvedValue([]);
   mocks.getClosingFill.mockReset().mockResolvedValue({ fillsFound: false });
   mocks.getOrderClientId.mockReset().mockResolvedValue(undefined);
   mocks.getTickSize.mockReset().mockResolvedValue(1);
@@ -160,28 +170,71 @@ describe("reconcileActiveTrades — sin filas activas", () => {
   });
 });
 
-describe("reconcileActiveTrades — una sola llamada por usuario y por ciclo", () => {
-  it("con 2 operaciones activas del mismo usuario, fetchAllPositions/fetchAllOpenOrders se llaman una sola vez", async () => {
+describe("reconcileActiveTrades — un solo Trader y una sola consulta de posiciones por usuario y por ciclo", () => {
+  it("con 2 operaciones activas del mismo usuario: un solo Trader, fetchAllPositions se llama una sola vez (no una por operación)", async () => {
     vi.stubEnv("RECONCILIATION_DRY_RUN", "false");
     mocks.tradeExecFindMany.mockResolvedValue([
       makeTradeExecution({ id: 1, signalId: 100 }),
       makeTradeExecution({ id: 2, signalId: 101 }),
     ]);
     mocks.signalFindFirst.mockImplementation(async () => baseSignal); // misma señal simplificada para ambas
-    // Ambas "cerradas" (sin posición): evita 3 reintentos reales de 1.5s cada uno por operación.
+    // Ambas "cerradas" (sin posición): evita 3 reintentos reales de 1.5s cada uno por operación,
+    // y confirma que sin posición abierta ni siquiera se consultan las órdenes de protección.
     mocks.getClosingFill.mockResolvedValue({ fillsFound: true, orderId: "9", quantity: 0.01, avgPrice: 51000, pnl: 10, fee: 0.5 });
 
     await reconcileActiveTrades();
 
     expect(mocks.traderConstructions).toHaveLength(1); // un solo Trader para el usuario, no uno por operación
     expect(mocks.fetchAllPositions).toHaveBeenCalledTimes(1);
-    expect(mocks.fetchAllOpenOrders).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchOpenOrdersForSymbol).not.toHaveBeenCalled(); // ninguna posición sigue abierta
   });
 
   it("usa las llaves descifradas del usuario para instanciar el Trader", async () => {
     mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
     await reconcileActiveTrades();
     expect(mocks.traderConstructions[0]).toEqual({ apiKey: "decrypted(clave-cifrada)", apiSecret: "decrypted(secreto-cifrado)" });
+  });
+});
+
+describe("reconcileActiveTrades — las órdenes de protección se consultan par por par, nunca en bloque", () => {
+  beforeEach(() => vi.stubEnv("RECONCILIATION_DRY_RUN", "false"));
+
+  it("posición abierta: consulta fetchOpenOrdersForSymbol con el símbolo puntual, no una consulta en bloque", async () => {
+    mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "BTC/USDT:USDT", contracts: 0.01, entryPrice: 50000 }]);
+    mocks.fetchOpenOrdersForSymbol.mockResolvedValue([
+      { symbol: "BTC/USDT:USDT", side: "sell", reduceOnly: true, triggerPrice: 49000, status: "open" },
+      { symbol: "BTC/USDT:USDT", side: "sell", reduceOnly: true, triggerPrice: 51000, status: "open" },
+    ]);
+
+    await reconcileActiveTrades();
+
+    expect(mocks.fetchOpenOrdersForSymbol).toHaveBeenCalledWith("BTC/USDT:USDT");
+  });
+
+  it("una respuesta vacía nunca dispara la alarma sola: confirma con una segunda consulta puntual antes de alertar", async () => {
+    mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "BTC/USDT:USDT", contracts: 0.01, entryPrice: 50000 }]);
+    // Primera consulta vacía (el hueco transitorio del incidente QNT); la segunda SÍ encuentra el SL.
+    mocks.fetchOpenOrdersForSymbol
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ symbol: "BTC/USDT:USDT", side: "sell", reduceOnly: true, triggerPrice: 49000, status: "open" }]);
+
+    await reconcileActiveTrades();
+
+    expect(mocks.fetchOpenOrdersForSymbol).toHaveBeenCalledTimes(2);
+    expect(mocks.sendCriticalAlert).not.toHaveBeenCalled(); // la segunda consulta encontró el SL: no era real
+  });
+
+  it("si las DOS consultas vienen vacías, recién ahí se confirma que falta el SL", async () => {
+    mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "BTC/USDT:USDT", contracts: 0.01, entryPrice: 50000 }]);
+    mocks.fetchOpenOrdersForSymbol.mockResolvedValue([]); // ambas llamadas vacías
+
+    await reconcileActiveTrades();
+
+    expect(mocks.fetchOpenOrdersForSymbol).toHaveBeenCalledTimes(2);
+    expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -288,7 +341,7 @@ describe("reconcileActiveTrades — sin Stop Loss (modo activo)", () => {
   it("primera vez (sin alerta previa): alerta crítica y guarda lastMissingSlAlertAt", async () => {
     mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution({ lastMissingSlAlertAt: null })]);
     mocks.fetchAllPositions.mockResolvedValue([{ symbol: "BTC/USDT:USDT", contracts: 0.01, entryPrice: 50000 }]);
-    mocks.fetchAllOpenOrders.mockResolvedValue([]); // sin ninguna orden de protección
+    mocks.fetchOpenOrdersForSymbol.mockResolvedValue([]); // sin ninguna orden de protección
 
     await reconcileActiveTrades();
 
@@ -299,7 +352,7 @@ describe("reconcileActiveTrades — sin Stop Loss (modo activo)", () => {
   it("ya se alertó hace poco: no repite la alerta (throttle)", async () => {
     mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution({ lastMissingSlAlertAt: new Date() })]);
     mocks.fetchAllPositions.mockResolvedValue([{ symbol: "BTC/USDT:USDT", contracts: 0.01, entryPrice: 50000 }]);
-    mocks.fetchAllOpenOrders.mockResolvedValue([]);
+    mocks.fetchOpenOrdersForSymbol.mockResolvedValue([]);
 
     await reconcileActiveTrades();
 
@@ -313,7 +366,7 @@ describe("reconcileActiveTrades — SL que no coincide (modo activo)", () => {
     vi.stubEnv("RECONCILIATION_DRY_RUN", "false");
     mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]);
     mocks.fetchAllPositions.mockResolvedValue([{ symbol: "BTC/USDT:USDT", contracts: 0.01, entryPrice: 50000 }]);
-    mocks.fetchAllOpenOrders.mockResolvedValue([
+    mocks.fetchOpenOrdersForSymbol.mockResolvedValue([
       { symbol: "BTC/USDT:USDT", side: "sell", reduceOnly: true, triggerPrice: 48000, status: "open" }, // señal pedía 49000
       { symbol: "BTC/USDT:USDT", side: "sell", reduceOnly: true, triggerPrice: 51000, status: "open" },
     ]);
@@ -323,5 +376,79 @@ describe("reconcileActiveTrades — SL que no coincide (modo activo)", () => {
     expect(mocks.telegramSendMessage).toHaveBeenCalledTimes(1);
     expect(mocks.telegramSendMessage.mock.calls[0][1]).toContain("48000");
     expect(mocks.tradeExecSet).not.toHaveBeenCalled();
+  });
+});
+
+// Punto 2 del incidente QNT (2026-10-02): si la Lambda se corta a mitad de executeTrade, la
+// reserva atómica deja la fila en "Ejecutando" para siempre.
+describe("resolveStuckReservations", () => {
+  function makeStuckSignal(overrides: Partial<any> = {}) {
+    return {
+      id: 50,
+      symbol: "ETH/USDT:USDT",
+      decision: "Ejecutando",
+      reservedByUserId: 2,
+      reservedAt: new Date(Date.now() - 10 * 60 * 1000), // hace 10 min, más allá del umbral de 5
+      ...overrides,
+    };
+  }
+
+  it("posición real encontrada en Binance: la marca Tomada con datos reales e inserta trade_executions", async () => {
+    mocks.signalFindMany.mockResolvedValue([makeStuckSignal()]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "ETH/USDT:USDT", contracts: 0.5, entryPrice: 2500 }]);
+
+    await resolveStuckReservations(false);
+
+    expect(mocks.signalHistorySet).toHaveBeenCalledWith(expect.objectContaining({ decision: "Tomada", isActiveTrade: true, executedEntryPrice: "2500" }));
+    expect(mocks.tradeExecInsertValues).toHaveBeenCalledWith(expect.objectContaining({ signalId: 50, userId: 2, entryPrice: "2500", quantity: "0.5", isActive: true }));
+  });
+
+  it("sin posición en Binance: la marca Rechazada, sin insertar en trade_executions", async () => {
+    mocks.signalFindMany.mockResolvedValue([makeStuckSignal()]);
+    mocks.fetchAllPositions.mockResolvedValue([]); // no se llegó a abrir
+
+    await resolveStuckReservations(false);
+
+    expect(mocks.signalHistorySet).toHaveBeenCalledWith(expect.objectContaining({ decision: "Rechazada" }));
+    expect(mocks.tradeExecInsertValues).not.toHaveBeenCalled();
+  });
+
+  it("modo de solo registro: no escribe nada, solo loguea", async () => {
+    mocks.signalFindMany.mockResolvedValue([makeStuckSignal()]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "ETH/USDT:USDT", contracts: 0.5, entryPrice: 2500 }]);
+
+    await resolveStuckReservations(true);
+
+    expect(mocks.signalHistorySet).not.toHaveBeenCalled();
+    expect(mocks.tradeExecInsertValues).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalled();
+  });
+
+  it("idempotencia: si el UPDATE condicional (decision='Ejecutando') no afecta nada, no inserta en trade_executions", async () => {
+    mocks.signalFindMany.mockResolvedValue([makeStuckSignal()]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "ETH/USDT:USDT", contracts: 0.5, entryPrice: 2500 }]);
+    mocks.signalHistoryReturning.mockResolvedValue([]); // otro ciclo ya la resolvió
+
+    await resolveStuckReservations(false);
+
+    expect(mocks.tradeExecInsertValues).not.toHaveBeenCalled();
+  });
+
+  it("sin reservedByUserId: no se puede chequear Binance, se omite sin lanzar", async () => {
+    mocks.signalFindMany.mockResolvedValue([makeStuckSignal({ reservedByUserId: null })]);
+
+    await expect(resolveStuckReservations(false)).resolves.toBeUndefined();
+    expect(mocks.traderConstructions).toHaveLength(0);
+    expect(mocks.signalHistorySet).not.toHaveBeenCalled();
+  });
+
+  it("reconcileActiveTrades llama a resolveStuckReservations antes de procesar las filas activas", async () => {
+    mocks.signalFindMany.mockResolvedValue([makeStuckSignal()]);
+    mocks.fetchAllPositions.mockResolvedValue([]);
+    mocks.tradeExecFindMany.mockResolvedValue([]);
+
+    await reconcileActiveTrades();
+
+    expect(mocks.signalFindMany).toHaveBeenCalled();
   });
 });

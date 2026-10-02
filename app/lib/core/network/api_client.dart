@@ -27,14 +27,18 @@ class ApiClient {
     return headers;
   }
 
-  // Envía la request; si el backend responde 401 (token vencido o revocado; la request no se ejecutó)
-  // reintenta una sola vez con un token nuevo.
+  // Envía la request; si el backend responde 401 (token vencido o revocado; la request no se
+  // ejecutó porque el middleware de auth corre antes de cualquier lógica de negocio) reintenta
+  // una sola vez con un token nuevo. `allowRetry: false` lo desactiva para operaciones que NO son
+  // idempotentes (ej. ejecutar una señal): un reintento automático de un POST que escribe plata
+  // real nunca debe depender de que el 401 siga significando "no se ejecutó nada" para siempre.
   static Future<http.Response> _send(
     Future<http.Response> Function(Map<String, String> headers) request,
-    Map<String, String>? extraHeaders,
-  ) async {
+    Map<String, String>? extraHeaders, {
+    bool allowRetry = true,
+  }) async {
     final response = await request(await _getHeaders(extraHeaders));
-    if (response.statusCode != 401) return response;
+    if (!allowRetry || response.statusCode != 401) return response;
     return await request(await _getHeaders(extraHeaders, forceRefresh: true));
   }
 
@@ -43,11 +47,17 @@ class ApiClient {
     return await _send((h) => http.get(uri, headers: h), headers);
   }
 
-  static Future<http.Response> post(String endpoint, {Map<String, dynamic>? body, Map<String, String>? headers}) async {
+  static Future<http.Response> post(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+    bool allowRetry = true,
+  }) async {
     final uri = Uri.parse('$baseUrl$endpoint');
     return await _send(
       (h) => http.post(uri, headers: h, body: body != null ? jsonEncode(body) : null),
       headers,
+      allowRetry: allowRetry,
     );
   }
 

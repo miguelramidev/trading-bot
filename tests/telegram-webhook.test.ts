@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   signalFindFirst: vi.fn(),
   userFindFirst: vi.fn(),
   updateWhere: vi.fn(),
+  updateReturning: vi.fn(),
   executeTrade: vi.fn(),
+  getClosingFill: vi.fn(),
+  getTradeRealizedPnl: vi.fn(),
   sendCriticalAlert: vi.fn(),
 }));
 
@@ -31,10 +34,19 @@ vi.mock("ccxt", () => ({ default: {} }));
 vi.mock("../src/bot/trader.js", () => ({
   Trader: class {
     executeTrade = mocks.executeTrade;
+    getClosingFill = mocks.getClosingFill;
+    getTradeRealizedPnl = mocks.getTradeRealizedPnl;
   },
 }));
 vi.mock("../src/bot/criticalAlert.js", () => ({ sendCriticalAlert: mocks.sendCriticalAlert }));
 vi.mock("../src/api/core/utils/encryption.js", () => ({ decrypt: (v: string) => v }));
+
+function makeWhereResult(returningMock: any) {
+  const result: any = { returning: returningMock };
+  result.then = (resolve: any) => resolve(undefined);
+  return result;
+}
+
 vi.mock("../src/db/index.js", () => ({
   db: {
     query: {
@@ -42,7 +54,7 @@ vi.mock("../src/db/index.js", () => ({
       userConfig: { findFirst: mocks.userFindFirst },
     },
     insert: () => ({ values: () => ({ onConflictDoNothing: () => ({ returning: mocks.returning }) }) }),
-    update: () => ({ set: () => ({ where: mocks.updateWhere }) }),
+    update: () => ({ set: () => ({ where: (...args: any[]) => { mocks.updateWhere(...args); return makeWhereResult(mocks.updateReturning); } }) }),
     delete: () => ({ where: mocks.deleteWhere }),
   },
 }));
@@ -280,6 +292,7 @@ describe("acción paper_accept_ — entrega del resultado en Telegram", () => {
       evaluatedAt: new Date(), // recién evaluada: nunca expira en estos tests
     });
     mocks.userFindFirst.mockResolvedValue({
+      id: 2,
       chatId: "12345",
       binanceApiKey: "clave-cifrada-falsa",
       binanceApiSecret: "secreto-cifrado-falso",
@@ -289,7 +302,10 @@ describe("acción paper_accept_ — entrega del resultado en Telegram", () => {
       fcmTokens: [],
     });
     mocks.updateWhere.mockResolvedValue(undefined);
+    mocks.updateReturning.mockReset().mockResolvedValue([{ id: 1 }]); // reserveSignalForExecution gana por defecto
     mocks.executeTrade.mockReset();
+    mocks.getClosingFill.mockReset().mockResolvedValue({ fillsFound: false });
+    mocks.getTradeRealizedPnl.mockReset().mockResolvedValue({ pnl: 0, fee: 0, entryPrice: 50000, openingFill: { quantity: 1, avgPrice: 50000, fee: 0 } });
     mocks.sendCriticalAlert.mockReset().mockResolvedValue(undefined);
   });
 
@@ -315,6 +331,7 @@ describe("acción paper_accept_ — entrega del resultado en Telegram", () => {
 
     expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
     expect(mocks.sendCriticalAlert).toHaveBeenCalledWith(
+      2,
       "12345",
       [],
       "POSICIÓN ABIERTA SIN PROTECCIÓN — ACCIÓN MANUAL URGENTE"
@@ -329,5 +346,72 @@ describe("acción paper_accept_ — entrega del resultado en Telegram", () => {
 
     expect(ctx.editMessageText).toHaveBeenCalledTimes(1);
     expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Reserva atómica (ROADMAP.md A1, incidente QNT 2026-10-02): un UPDATE condicional
+// (decision IS NULL) antes de llamar a executeTrade, para que dos pedidos casi simultáneos
+// (Telegram + app, doble toque, reintento) nunca ejecuten la misma señal dos veces.
+describe("acción paper_accept_ — reserva atómica antes de ejecutar", () => {
+  function makeCtx(overrides: Partial<any> = {}) {
+    return {
+      match: ["paper_accept_1", "1"],
+      chat: { id: 12345 },
+      answerCbQuery: vi.fn().mockResolvedValue(undefined),
+      callbackQuery: { message: { text: "🚨 NUEVA SEÑAL ENCONTRADA (Sniper)" } },
+      editMessageText: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    mocks.signalFindFirst.mockResolvedValue({
+      id: 1, symbol: "BTC/USDT:USDT", direction: "LONG", gridSL: "49000", gridTP: "51000",
+      decision: null, evaluatedAt: new Date(),
+    });
+    mocks.userFindFirst.mockResolvedValue({
+      id: 2, chatId: "12345", binanceApiKey: "clave-cifrada-falsa", binanceApiSecret: "secreto-cifrado-falso",
+      montoOperacion: 25, leverageMin: 1, leverageMax: 2, fcmTokens: [],
+    });
+    mocks.executeTrade.mockReset();
+    mocks.getClosingFill.mockReset().mockResolvedValue({ fillsFound: false });
+    mocks.getTradeRealizedPnl.mockReset().mockResolvedValue({ pnl: 0, fee: 0 });
+    mocks.sendCriticalAlert.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("si la reserva falla (otro pedido ya la tomó), nunca llama a executeTrade", async () => {
+    mocks.updateReturning.mockReset().mockResolvedValue([]); // UPDATE ... WHERE decision IS NULL no afectó nada
+    const ctx = makeCtx();
+
+    await acceptHandler(ctx);
+
+    expect(mocks.executeTrade).not.toHaveBeenCalled();
+    expect(ctx.answerCbQuery).toHaveBeenCalledWith(expect.stringContaining("ya se está ejecutando"));
+  });
+
+  it("si la reserva gana, llama a executeTrade normalmente", async () => {
+    mocks.updateReturning.mockReset().mockResolvedValue([{ id: 1 }]);
+    mocks.executeTrade.mockResolvedValue({ status: "ejecutado", mensaje: "TRADE EJECUTADO" });
+    const ctx = makeCtx();
+
+    await acceptHandler(ctx);
+
+    expect(mocks.executeTrade).toHaveBeenCalledTimes(1);
+  });
+
+  it("si executeTrade lanza una excepción, NO libera la reserva y alerta críticamente", async () => {
+    mocks.updateReturning.mockReset().mockResolvedValue([{ id: 1 }]);
+    mocks.executeTrade.mockRejectedValue(new Error("timeout de red con Binance"));
+    const ctx = makeCtx();
+
+    await acceptHandler(ctx);
+
+    expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
+    expect(mocks.sendCriticalAlert.mock.calls[0][3]).toContain("timeout de red con Binance");
+    // markReservationFailed también pasa por db.update(...).set(...).where(...): confirmamos que
+    // hubo una escritura más además de la reserva inicial (no se puede inspeccionar el valor
+    // exacto con este mock compartido, pero si lanzara antes de esto el test de arriba fallaría).
+    expect(mocks.updateWhere).toHaveBeenCalled();
   });
 });

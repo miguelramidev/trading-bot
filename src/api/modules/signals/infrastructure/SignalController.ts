@@ -8,7 +8,8 @@ import { decrypt } from "../../../core/utils/encryption.js";
 import { Trader } from "../../../../bot/trader.js";
 import { sendCriticalAlert } from "../../../../bot/criticalAlert.js";
 import { internalError, newErrorId } from "../../../core/utils/errors.js";
-import { recordExecutionResult } from "../../../../cron/tradeExecution.js";
+import { recordExecutionResult, reserveSignalForExecution, markReservationFailed } from "../../../../cron/tradeExecution.js";
+import type { TradeResult } from "../../../../bot/trader.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
 
 export const signalsRouter = new Hono<AuthEnv>();
@@ -34,31 +35,57 @@ signalsRouter.post(
       if (!signal) return c.json({ error: "Signal not found" }, 404);
       if (signal.decision) return c.json({ error: "Signal already processed" }, 400);
 
+      // Reserva atómica (ROADMAP.md A1): el chequeo de arriba es solo una salida rápida, no una
+      // garantía — un UPDATE condicional (decision IS NULL) es lo único que de verdad protege
+      // contra dos pedidos casi simultáneos (Telegram + app, doble toque, reintento de red).
+      const reserved = await reserveSignalForExecution(id, user.id);
+      console.log(`[execute] signalId=${id} source=api reserved=${reserved}`);
+      if (!reserved) {
+        return c.json({ error: "Signal already being executed" }, 409);
+      }
+
       const apiKey = decrypt(user.binanceApiKey);
       const secret = user.rsaPrivateKey ? decrypt(user.rsaPrivateKey) : decrypt(user.binanceApiSecret!);
 
       const configuredMargin = user.montoOperacion ?? 25.0;
       const trader = new Trader(apiKey, secret);
-      const executionResult = await trader.executeTrade(
-        signal.symbol,
-        signal.direction!,
-        parseFloat(signal.gridSL || signal.stopLoss || "0"),
-        parseFloat(signal.gridTP || signal.takeProfit || "0"),
-        configuredMargin,
-        user.leverageMin ?? 1,
-        user.leverageMax ?? 2,
-        signal.evaluatedAt
-      );
 
-      await recordExecutionResult({
-        signalId: id,
-        userId: user.id,
-        source: "api",
-        signal: { symbol: signal.symbol, direction: signal.direction as "LONG" | "SHORT" },
-        configuredMargin,
-        executionResult,
-        trader,
-      });
+      let executionResult: TradeResult;
+      try {
+        executionResult = await trader.executeTrade(
+          signal.symbol,
+          signal.direction!,
+          parseFloat(signal.gridSL || signal.stopLoss || "0"),
+          parseFloat(signal.gridTP || signal.takeProfit || "0"),
+          configuredMargin,
+          user.leverageMin ?? 1,
+          user.leverageMax ?? 2,
+          signal.evaluatedAt
+        );
+
+        await recordExecutionResult({
+          signalId: id,
+          userId: user.id,
+          source: "api",
+          signal: { symbol: signal.symbol, direction: signal.direction as "LONG" | "SHORT" },
+          configuredMargin,
+          executionResult,
+          trader,
+        });
+      } catch (e: any) {
+        console.error(`[execute] signalId=${id} source=api resultado=excepcion: ${e.message}`);
+        // No se libera la reserva: no sabemos si la orden llegó a abrirse en Binance.
+        await markReservationFailed(id, e.message);
+        await sendCriticalAlert(
+          user.id,
+          user.chatId,
+          user.fcmTokens,
+          `🚨 Error inesperado ejecutando la señal ${id} (${signal.symbol}). Revisá tu posición en Binance manualmente antes de reintentar.\nDetalle: ${e.message}`
+        );
+        return c.json({ error: "Unexpected error executing trade, check Binance manually" }, 500);
+      }
+
+      console.log(`[execute] signalId=${id} source=api resultado=${executionResult.status}`);
 
       // Los rechazos de negocio (saldo, capital) se muestran tal cual; el detalle de un error fatal
       // (texto de Binance/ccxt) queda solo en el log, con una referencia para el cliente.
@@ -70,7 +97,7 @@ signalsRouter.post(
       }
 
       if (executionResult.status === "critico") {
-        await sendCriticalAlert(user.chatId, user.fcmTokens, executionResult.mensaje);
+        await sendCriticalAlert(user.id, user.chatId, user.fcmTokens, executionResult.mensaje);
       }
 
       // Compatibilidad: la app Flutter actual solo entiende "success"/"error" en `status`.

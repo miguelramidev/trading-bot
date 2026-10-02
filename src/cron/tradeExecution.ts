@@ -7,7 +7,7 @@
 // (el SL falló y se cerró a mercado) del caso en el que sigue abierta (falló el TP). Una fila
 // del primer caso quedaba marcada activa para siempre: el monitor por velas nunca la iba a
 // cerrar porque el precio no tiene por qué volver a tocar ese SL viejo.
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { signalHistory, tradeExecutions } from "../db/schema.js";
 import type { Trader, TradeResult } from "../bot/trader.js";
@@ -19,9 +19,82 @@ export type ExecutionSource = "telegram" | "api";
 // un cierre recién ejecutado a veces tardan unos segundos en aparecer en fetchMyTrades.
 const CLOSING_FILL_MAX_ATTEMPTS = 3;
 const CLOSING_FILL_RETRY_DELAY_MS = 1500;
+// Mismos números para el fill de ENTRADA (ver captureEntryFill): es el mismo tipo de demora de
+// Binance, del otro lado de la operación.
+const ENTRY_FILL_MAX_ATTEMPTS = 3;
+const ENTRY_FILL_RETRY_DELAY_MS = 1500;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Reserva atómica de la señal antes de llamar a `executeTrade` (ROADMAP.md hallazgo A1).
+ * `UPDATE ... WHERE decision IS NULL` — solo gana la reserva el primer pedido que llega; si dos
+ * pedidos llegan casi juntos (reintento de red, doble toque, o Telegram + app casi a la vez),
+ * el segundo ve 0 filas afectadas y nunca debe llamar a `executeTrade`. Idéntico para los dos
+ * caminos de ejecución (Telegram y la app).
+ */
+export async function reserveSignalForExecution(signalId: number, userId: number): Promise<boolean> {
+  const updated = await db
+    .update(signalHistory)
+    .set({ decision: "Ejecutando", reservedByUserId: userId, reservedAt: new Date() })
+    .where(and(eq(signalHistory.id, signalId), isNull(signalHistory.decision)))
+    .returning({ id: signalHistory.id });
+  return updated.length > 0;
+}
+
+/**
+ * Si `executeTrade` lanza una excepción no controlada DESPUÉS de reservar la señal (ej. el
+ * proceso se cae a mitad de camino), la fila quedaría en "Ejecutando" para siempre, bloqueando
+ * cualquier reintento futuro — a propósito: no la liberamos solos, porque no sabemos si la orden
+ * sí llegó a abrirse en Binance. Mejor que un reintento automático abra una segunda posición real
+ * sin que nadie se dé cuenta. Requiere revisión manual antes de reintentar.
+ */
+export async function markReservationFailed(signalId: number, errorMessage: string): Promise<void> {
+  await db
+    .update(signalHistory)
+    .set({ decision: "Ejecutando -> Error", reason: `Revisar Binance manualmente antes de reintentar: ${errorMessage}`.substring(0, 250) })
+    .where(eq(signalHistory.id, signalId));
+}
+
+// `fetchMyTrades` necesita una ventana para buscar — a diferencia del `entryOrderId` (que
+// identifica la orden con certeza, no por tiempo), esto es solo para que la respuesta de Binance
+// incluya el fill: el fill real queda un poco ANTES de `openedAt` (que se captura con `new Date()`
+// DESPUÉS de que `executeTrade` ya puso la orden — confirmado contra una ejecución real,
+// 2026-10-02: 648ms antes), así que se amplía el margen hacia atrás por las dudas.
+const ENTRY_FILL_SEARCH_WINDOW_MS = 60_000;
+
+/**
+ * Fill de ENTRADA real (cantidad y precio), para `signal_history.executedEntryPrice` y
+ * `trade_executions.entryPrice`/`quantity`. `executeTrade` no lo calcula (solo usa el precio del
+ * ticker para dimensionar la orden) pero SÍ devuelve el id real de la orden a mercado
+ * (`entryOrderId`) — se filtra por esa orden puntual, no por ventana de tiempo ni por lado: así no
+ * depende de ningún margen y no puede confundirse con un fill de otra operación del mismo símbolo
+ * (como sí podía pasar buscando solo por tiempo+lado). Reintento corto por si el fill todavía no
+ * aparece en `fetchMyTrades` (mismo patrón que los fills de cierre). Si nunca aparece, se sigue
+ * igual: la fila queda sin entry price real en vez de bloquear la respuesta al usuario por esto.
+ */
+async function captureEntryFill(
+  trader: Trader,
+  symbol: string,
+  openedAtMs: number,
+  entryOrderId: string | undefined
+): Promise<{ entryPrice: number | null; quantity: number | null }> {
+  if (!entryOrderId) return { entryPrice: null, quantity: null };
+
+  const since = openedAtMs - ENTRY_FILL_SEARCH_WINDOW_MS;
+  let fill = await trader.getFillsForOrder(symbol, entryOrderId, since);
+  let attempts = 1;
+  while (fill === null && attempts < ENTRY_FILL_MAX_ATTEMPTS) {
+    await sleep(ENTRY_FILL_RETRY_DELAY_MS);
+    fill = await trader.getFillsForOrder(symbol, entryOrderId, since);
+    attempts++;
+  }
+  return {
+    entryPrice: fill?.avgPrice ?? null,
+    quantity: fill?.quantity ?? null,
+  };
 }
 
 export interface RecordExecutionResultInput {
@@ -74,11 +147,26 @@ export async function recordExecutionResult(input: RecordExecutionResultInput): 
       : { reason: "emergency", pnl: null, exitPrice: null };
   }
 
+  // Incidente QNT (2026-10-02): `executeTrade` nunca devolvía el fill real de entrada (solo usa
+  // el precio del ticker para dimensionar la orden), así que `executedEntryPrice` quedaba NULL
+  // para siempre en toda operación que cerrara por la conciliación (en vez del monitor por velas
+  // viejo, que sí lo completaba) — y `HistoryController` trata un "Cerrada" sin
+  // `executedEntryPrice` como descartada, aunque la posición haya sido real. Se captura acá, una
+  // sola vez, al ejecutar.
+  let entryPrice: number | null = null;
+  let entryQuantity: number | null = null;
+  if (finalDecision === "Tomada") {
+    const captured = await captureEntryFill(trader, signal.symbol, openedAt.getTime(), executionResult.entryOrderId);
+    entryPrice = captured.entryPrice;
+    entryQuantity = captured.quantity;
+  }
+
   await db.update(signalHistory)
     .set({
       decision: finalDecision,
       reason: reasonText,
       isActiveTrade,
+      ...(entryPrice !== null ? { executedEntryPrice: entryPrice.toString() } : {}),
       ...(close ? {
         realizedPnl: close.pnl !== null ? close.pnl.toFixed(4) : null,
         executedExitPrice: close.exitPrice !== null ? close.exitPrice.toString() : null,
@@ -95,6 +183,8 @@ export async function recordExecutionResult(input: RecordExecutionResultInput): 
       userId,
       source,
       marginUsd: configuredMargin.toFixed(2),
+      entryPrice: entryPrice !== null ? entryPrice.toString() : null,
+      quantity: entryQuantity !== null ? entryQuantity.toString() : null,
       openedAt,
       isActive: isActiveTrade,
       ...(close ? {

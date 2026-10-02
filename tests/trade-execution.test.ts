@@ -7,9 +7,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
+  updateReturning: vi.fn(),
   insertValues: vi.fn(),
   insertOnConflict: vi.fn(),
 }));
+
+function makeWhereResult(returningMock: any) {
+  const result: any = { returning: returningMock };
+  result.then = (resolve: any) => resolve(undefined);
+  return result;
+}
 
 vi.mock("../src/db/index.js", () => ({
   db: {
@@ -18,10 +25,13 @@ vi.mock("../src/db/index.js", () => ({
   },
 }));
 
-const { recordExecutionResult } = await import("../src/cron/tradeExecution.js");
+const { recordExecutionResult, reserveSignalForExecution, markReservationFailed } = await import("../src/cron/tradeExecution.js");
 
-function makeTrader(getClosingFill: any) {
-  return { getClosingFill } as any;
+function makeTrader(
+  getClosingFill: any,
+  getFillsForOrder: any = vi.fn().mockResolvedValue({ quantity: 1, avgPrice: 12345, fee: 0 }) // resuelve en el primer intento: a los tests que no les importa el entry price no les suma reintentos de más.
+) {
+  return { getClosingFill, getFillsForOrder } as any;
 }
 
 function lastSetValues(): any {
@@ -32,7 +42,8 @@ function lastInsertValues(): any {
 }
 
 beforeEach(() => {
-  mocks.updateWhere.mockReset().mockResolvedValue(undefined);
+  mocks.updateReturning.mockReset().mockResolvedValue([{ id: 1 }]);
+  mocks.updateWhere.mockReset().mockImplementation(() => makeWhereResult(mocks.updateReturning));
   mocks.updateSet.mockReset().mockImplementation(() => ({ where: mocks.updateWhere }));
   mocks.insertOnConflict.mockReset().mockResolvedValue(undefined);
   mocks.insertValues.mockReset().mockImplementation(() => ({ onConflictDoNothing: mocks.insertOnConflict }));
@@ -167,4 +178,127 @@ describe("recordExecutionResult — advertencia con cierre de emergencia (posici
     expect(getClosingFill).toHaveBeenCalledTimes(2);
     expect(result.close).toEqual({ reason: "emergency", pnl: 0, exitPrice: 100 });
   }, 10000);
+});
+
+// Incidente QNT (2026-10-02): executeTrade nunca devolvía el fill real de entrada, así que
+// executedEntryPrice quedaba NULL en toda operación cerrada por la conciliación — y el historial
+// de la app trata un "Cerrada" sin executedEntryPrice como descartada, aunque la posición haya
+// sido real.
+describe("recordExecutionResult — captura el fill de entrada real", () => {
+  it("Tomada: busca los fills por el entryOrderId real (no por ventana de tiempo) y los guarda", async () => {
+    const getFillsForOrder = vi.fn().mockResolvedValue({ quantity: 0.5, avgPrice: 49950.5, fee: 0.1 });
+    const trader = makeTrader(vi.fn(), getFillsForOrder);
+
+    await recordExecutionResult({
+      ...baseInput,
+      executionResult: { status: "ejecutado", mensaje: "TRADE EJECUTADO", entryOrderId: "entry-order-9" },
+      trader,
+    });
+
+    // Filtra por la orden puntual que devolvió executeTrade, no por lado+tiempo: la ventana es
+    // solo para que fetchMyTrades devuelva el fill, la identificación es por entryOrderId.
+    expect(getFillsForOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "entry-order-9", baseInput.openedAt.getTime() - 60_000);
+    expect(lastSetValues()).toMatchObject({ executedEntryPrice: "49950.5" });
+    expect(lastInsertValues()).toMatchObject({ entryPrice: "49950.5", quantity: "0.5" });
+  });
+
+  it("entrada repartida en varios fills de la misma orden: guarda la cantidad total y el precio promedio ponderado", async () => {
+    // getFillsForOrder ya agrega los fills de la orden (ver tests/trader.test.ts), acá solo se
+    // confirma que recordExecutionResult persiste ese agregado tal cual, no el precio de un fill
+    // suelto (incidente GTC, 2026-10-02: la entrada quedó repartida en 3 fills a precios distintos).
+    const getFillsForOrder = vi.fn().mockResolvedValue({ quantity: 197.9, avgPrice: 0.177103148054573, fee: 0.0175 });
+    const trader = makeTrader(vi.fn(), getFillsForOrder);
+
+    await recordExecutionResult({
+      ...baseInput,
+      signal: { symbol: "GTC/USDT:USDT", direction: "LONG" },
+      executionResult: { status: "ejecutado", mensaje: "TRADE EJECUTADO", entryOrderId: "entry-order-gtc" },
+      trader,
+    });
+
+    expect(lastSetValues()).toMatchObject({ executedEntryPrice: "0.177103148054573" });
+    expect(lastInsertValues()).toMatchObject({ entryPrice: "0.177103148054573", quantity: "197.9" });
+  });
+
+  it("si el fill nunca aparece (ni con reintentos), sigue sin él en vez de bloquear la respuesta", async () => {
+    const getFillsForOrder = vi.fn().mockResolvedValue(null);
+    const trader = makeTrader(vi.fn(), getFillsForOrder);
+
+    const result = await recordExecutionResult({
+      ...baseInput,
+      executionResult: { status: "ejecutado", mensaje: "TRADE EJECUTADO", entryOrderId: "entry-order-9" },
+      trader,
+    });
+
+    expect(getFillsForOrder).toHaveBeenCalledTimes(3); // 1 intento + 2 reintentos
+    expect(result.finalDecision).toBe("Tomada"); // no se bloquea por esto
+    expect(lastSetValues().executedEntryPrice).toBeUndefined();
+    expect(lastInsertValues()).toMatchObject({ entryPrice: null, quantity: null });
+  }, 10000);
+
+  it("si el primer intento no encuentra el fill pero un reintento sí, deja de reintentar", async () => {
+    const getFillsForOrder = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ quantity: 1, avgPrice: 100, fee: 0 });
+    const trader = makeTrader(vi.fn(), getFillsForOrder);
+
+    await recordExecutionResult({
+      ...baseInput,
+      executionResult: { status: "ejecutado", mensaje: "TRADE EJECUTADO", entryOrderId: "entry-order-9" },
+      trader,
+    });
+
+    expect(getFillsForOrder).toHaveBeenCalledTimes(2);
+  }, 10000);
+
+  it("sin entryOrderId (no debería pasar salvo en datos viejos): no busca nada, sigue sin entry price", async () => {
+    const getFillsForOrder = vi.fn();
+    const trader = makeTrader(vi.fn(), getFillsForOrder);
+
+    await recordExecutionResult({
+      ...baseInput,
+      executionResult: { status: "ejecutado", mensaje: "TRADE EJECUTADO" }, // sin entryOrderId
+      trader,
+    });
+
+    expect(getFillsForOrder).not.toHaveBeenCalled();
+    expect(lastInsertValues()).toMatchObject({ entryPrice: null, quantity: null });
+  });
+
+  it("Rechazada: no busca el fill de entrada (nunca hubo posición real)", async () => {
+    const getFillsForOrder = vi.fn();
+    const trader = makeTrader(vi.fn(), getFillsForOrder);
+
+    await recordExecutionResult({
+      ...baseInput,
+      executionResult: { status: "rechazado", mensaje: "Balance insuficiente" },
+      trader,
+    });
+
+    expect(getFillsForOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe("reserveSignalForExecution", () => {
+  it("devuelve true cuando el UPDATE condicional afecta una fila (decision estaba en null)", async () => {
+    mocks.updateReturning.mockResolvedValue([{ id: 1 }]);
+    const result = await reserveSignalForExecution(1, 2);
+    expect(result).toBe(true);
+    expect(mocks.updateSet).toHaveBeenCalledWith({ decision: "Ejecutando", reservedByUserId: 2, reservedAt: expect.any(Date) });
+  });
+
+  it("devuelve false cuando el UPDATE no afecta ninguna fila (otro pedido ya la reservó)", async () => {
+    mocks.updateReturning.mockResolvedValue([]);
+    const result = await reserveSignalForExecution(1, 2);
+    expect(result).toBe(false);
+  });
+});
+
+describe("markReservationFailed", () => {
+  it("deja la fila en un estado de error explícito, sin liberar la reserva", async () => {
+    await markReservationFailed(1, "timeout de red con Binance");
+    expect(lastSetValues()).toMatchObject({ decision: "Ejecutando -> Error" });
+    expect(lastSetValues().reason).toContain("timeout de red con Binance");
+  });
 });

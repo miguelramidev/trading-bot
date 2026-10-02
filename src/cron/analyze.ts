@@ -1,5 +1,5 @@
 import { Telegraf } from "telegraf";
-import { sendPushNotification } from "../firebase.js";
+import { sendPushNotificationAndPrune } from "../firebase.js";
 import { eq, and, desc, gte } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { signalHistory, userConfig } from "../db/schema.js";
@@ -207,7 +207,7 @@ async function runAnalysis(timeframe: string) {
             if ((user.notificationsMobile || user.notificationsWeb) && user.fcmTokens && user.fcmTokens.length > 0) {
               const { title, body } = buildClosePushMessage(notificationInput);
               for (const t of user.fcmTokens) {
-                await sendPushNotification(t, title, body, { tradeId: String(trade.id), symbol: trade.symbol });
+                await sendPushNotificationAndPrune(user.id, t, title, body, { tradeId: String(trade.id), symbol: trade.symbol });
               }
             }
             if (user.chatId && user.notificationsTelegram) {
@@ -716,7 +716,8 @@ async function runAnalysis(timeframe: string) {
           if ((user.notificationsMobile || user.notificationsWeb) && user.fcmTokens && user.fcmTokens.length > 0) {
             for (const t of user.fcmTokens) {
               try {
-                await sendPushNotification(
+                await sendPushNotificationAndPrune(
+                  user.id,
                   t,
                   `Nueva Señal: ${signal.direction} en ${signal.symbol}`,
                   `Estrategia: ${signal.strategy} | SL: ${signal.stopLoss} | TP: ${signal.takeProfit}` +

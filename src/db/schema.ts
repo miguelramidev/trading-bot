@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, serial, integer, bigint, unique, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, serial, integer, bigint, unique, jsonb, type AnyPgColumn } from "drizzle-orm/pg-core";
 import type { SignalWarning } from "../cron/signalWarnings.js";
 
 // Guardamos la configuración de cada chat
@@ -53,8 +53,14 @@ export const signalHistory = pgTable("signal_history", {
   btcCorrelation: text("btc_correlation"),
   volumeRank: integer("volume_rank"),
   btcRegime: text("btc_regime"),
-  decision: text("decision"), // "Tomada", "Descartada" (manual), "Rechazada" (executeTrade), "Ignorada" (expiró), null (pendiente)
+  decision: text("decision"), // "Tomada", "Descartada" (manual), "Rechazada" (executeTrade), "Ignorada" (expiró), "Ejecutando" (reserva atómica en curso), null (pendiente)
   reason: text("reason"), // Por qué se tomó/descartó
+  // Reserva atómica antes de ejecutar (ROADMAP.md A1, reserveSignalForExecution en
+  // tradeExecution.ts): quién la pidió y cuándo, para que la conciliación pueda resolver una
+  // fila que quedó trabada en "Ejecutando" (ej. la Lambda se cortó a mitad de camino) sabiendo
+  // contra qué cuenta de Binance confirmar si la posición se llegó a abrir.
+  reservedByUserId: integer("reserved_by_user_id").references((): AnyPgColumn => userConfig.id),
+  reservedAt: timestamp("reserved_at"),
   // Aditivo (Fase 1, 2026-10-01): las advertencias de riesgo macro/reversa de
   // estrategia que antes solo vivían mezcladas dentro de `reason` (y que se
   // perdían al ejecutar/descartar, porque ese mismo campo se pisa con el

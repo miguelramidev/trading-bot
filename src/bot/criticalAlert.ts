@@ -1,6 +1,6 @@
 import { Telegram } from "telegraf";
 import { Resource } from "sst";
-import { sendPushNotification } from "../firebase.js";
+import { sendPushNotificationAndPrune } from "../firebase.js";
 
 function getTelegramToken(): string | undefined {
   return process.env.TELEGRAM_TOKEN || (Resource as any).TELEGRAM_TOKEN?.value;
@@ -12,6 +12,7 @@ function getTelegramToken(): string | undefined {
 // usuario en userConfig). Si el usuario nunca vinculó Telegram, chatId viene null y solo se
 // manda el push.
 export async function sendCriticalAlert(
+  userId: number,
   chatId: string | null | undefined,
   fcmTokens: string[] | null | undefined,
   mensaje: string
@@ -33,6 +34,6 @@ export async function sendCriticalAlert(
 
   const plainText = mensaje.replace(/<[^>]+>/g, "");
   for (const token of fcmTokens || []) {
-    await sendPushNotification(token, "🚨 Alerta crítica de trading", plainText);
+    await sendPushNotificationAndPrune(userId, token, "🚨 Alerta crítica de trading", plainText);
   }
 }

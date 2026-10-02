@@ -486,6 +486,9 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
 
     expect(result.status).toBe("ejecutado");
     expect(exchange.calls.map((c) => c.method)).toEqual(["createMarketOrder", "createOrder", "createOrder"]);
+    // Id real de la orden a mercado, para que tradeExecution.ts capture el fill de entrada por
+    // esta orden puntual (ver captureEntryFill), no por ventana de tiempo.
+    expect(result.entryOrderId).toBe("market-1");
 
     const [marketCall, slCall, tpCall] = exchange.calls;
     expect(marketCall.args[0]).toBe("BTC/USDT");
@@ -609,6 +612,9 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
       // La conciliación (src/cron/reconciliation.ts) necesita saber que acá ya no queda
       // posición: sin esto, la fila quedaría marcada isActiveTrade=true para siempre.
       expect(result.positionOpen).toBe(false);
+      // Igual se informa: aunque la posición ya se cerró, tradeExecution.ts la necesita para
+      // calcular el PnL real de ESTE cierre de emergencia (ver captureEntryFill).
+      expect(result.entryOrderId).toBe("market-1");
 
       const closeCall = exchange.calls.find(
         (c) => c.method === "createMarketOrder" && c.args[1] === "sell" && c.args[2] === 0.501
@@ -641,6 +647,7 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
 
       expect(result.status).toBe("critico");
       expect(result.mensaje).toContain("ACCIÓN MANUAL URGENTE");
+      expect(result.entryOrderId).toBe("market-1");
       // Igual intenta barrer las órdenes que hayan quedado, aunque el cierre haya fallado.
       expect(exchange.cancelAllOrders).toHaveBeenCalledWith("BTC/USDT");
       expect(exchange.cancelAllOrders).toHaveBeenCalledWith("BTC/USDT", { trigger: true });
@@ -668,6 +675,7 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
       expect(exchange.cancelAllOrders).not.toHaveBeenCalled();
       // A diferencia del caso de arriba, acá la posición SIGUE abierta (falló el TP, no el SL).
       expect(result.positionOpen).not.toBe(false);
+      expect(result.entryOrderId).toBe("market-1");
     },
     5000
   );
@@ -974,6 +982,72 @@ describe("getClosingFill", () => {
     const result = await trader.getClosingFill("BTC/USDT:USDT", 500, "sell");
 
     expect(result.fillsFound).toBe(false);
+  });
+});
+
+// getFillsForOrder: fill de ENTRADA para tradeExecution.ts (captureEntryFill). A diferencia de
+// getClosingFill, acá SÍ se conoce de antemano el id real de la orden (executeTrade lo devuelve),
+// así que filtra por ese id puntual — nunca por lado+tiempo, que podía confundirse con un fill de
+// otra operación del mismo símbolo (incidente GTC/QNT, 2026-10-02).
+describe("getFillsForOrder", () => {
+  it("un solo fill: devuelve su cantidad, precio y comisión", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([
+      { side: "sell", price: 243.46, amount: 0.1, order: "9", fee: { cost: 0.0122 } },
+    ]);
+
+    const result = await trader.getFillsForOrder("QNT/USDT:USDT", "9", 500);
+
+    expect(result!.quantity).toBeCloseTo(0.1);
+    expect(result!.avgPrice).toBeCloseTo(243.46);
+    expect(result!.fee).toBeCloseTo(0.0122);
+  });
+
+  it("entrada repartida en varios fills de la MISMA orden: agrega cantidad y promedia el precio ponderado por cantidad", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([
+      { side: "buy", price: 0.1771, amount: 135.6, order: "gtc-1", fee: { cost: 0.012 } },
+      { side: "buy", price: 0.17711, amount: 37.2, order: "gtc-1", fee: { cost: 0.0033 } },
+      { side: "buy", price: 0.17711, amount: 25.1, order: "gtc-1", fee: { cost: 0.0022 } },
+    ]);
+
+    const result = await trader.getFillsForOrder("GTC/USDT:USDT", "gtc-1", 500);
+
+    expect(result!.quantity).toBeCloseTo(197.9);
+    expect(result!.avgPrice).toBeCloseTo(0.177103, 6);
+    expect(result!.fee).toBeCloseTo(0.0175);
+  });
+
+  it("ignora fills de OTRAS órdenes del mismo símbolo en la ventana, aunque sean del mismo lado", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([
+      { side: "buy", price: 999, amount: 5, order: "otra-operacion-anterior", fee: { cost: 1 } },
+      { side: "buy", price: 100, amount: 1, order: "la-nuestra", fee: { cost: 0.1 } },
+    ]);
+
+    const result = await trader.getFillsForOrder("BTC/USDT:USDT", "la-nuestra", 500);
+
+    expect(result).toEqual({ quantity: 1, avgPrice: 100, fee: 0.1 });
+  });
+
+  it("sin ningún fill de esa orden todavía: null", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockResolvedValue([
+      { side: "buy", price: 100, amount: 1, order: "otra-orden", fee: { cost: 0.1 } },
+    ]);
+
+    const result = await trader.getFillsForOrder("BTC/USDT:USDT", "la-nuestra", 500);
+
+    expect(result).toBeNull();
+  });
+
+  it("si fetchMyTrades falla, no lanza: null", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.fetchMyTrades = vi.fn().mockRejectedValue(new Error("timeout de red"));
+
+    const result = await trader.getFillsForOrder("BTC/USDT:USDT", "la-nuestra", 500);
+
+    expect(result).toBeNull();
   });
 });
 

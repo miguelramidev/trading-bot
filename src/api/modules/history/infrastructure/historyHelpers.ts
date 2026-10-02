@@ -33,9 +33,9 @@ export function filterTradesBySearch<T extends SearchableTrade>(
 }
 
 interface StatusedTrade {
-  status: "DESCARTADO" | "TP HIT" | "SL HIT";
-  // null en las descartadas (nunca tuvieron resultado) — siempre se descartan
-  // antes de sumarse, pero el tipo lo refleja para no mentir con un 0.
+  status: "DESCARTADO" | "RECHAZADO" | "TP HIT" | "SL HIT";
+  // null en las descartadas/rechazadas (nunca tuvieron resultado) — siempre se
+  // excluyen antes de sumarse, pero el tipo lo refleja para no mentir con un 0.
   pnl: number | null;
 }
 
@@ -59,8 +59,8 @@ export function computeHistoryStats<T extends StatusedTrade>(trades: T[]): Histo
   let grossLoss = 0;
 
   for (const t of trades) {
-    if (t.status === "DESCARTADO") continue;
-    // No descartada: siempre tiene pnl real (ver mapeo del controller).
+    if (t.status === "DESCARTADO" || t.status === "RECHAZADO") continue;
+    // No descartada ni rechazada: siempre tiene pnl real (ver mapeo del controller).
     const pnl = t.pnl ?? 0;
     totalTrades++;
     totalPnl += pnl;
@@ -90,9 +90,14 @@ export function computeAvailableStrategies<T extends { strategy: string }>(trade
   return [...new Set(trades.map((t) => t.strategy))].sort((a, b) => a.localeCompare(b));
 }
 
-/** Filtro de tipo (Todas/Ejecutadas/Descartadas): solo la lista, nunca las métricas. */
-export function filterTradesByType<T extends { status: "DESCARTADO" | "TP HIT" | "SL HIT" }>(trades: T[], filter: string): T[] {
-  if (filter === "Tomadas") return trades.filter((t) => t.status !== "DESCARTADO");
+/**
+ * Filtro de tipo (Todas/Ejecutadas/Descartadas/Rechazadas): solo la lista, nunca las
+ * métricas. "Rechazadas" (protección de `executeTrade`, Reglas 5/6/7/8 de RULES.md) tiene su
+ * propio filtro — no se mezcla con "Descartadas" (decisión manual del usuario).
+ */
+export function filterTradesByType<T extends { status: "DESCARTADO" | "RECHAZADO" | "TP HIT" | "SL HIT" }>(trades: T[], filter: string): T[] {
+  if (filter === "Tomadas") return trades.filter((t) => t.status !== "DESCARTADO" && t.status !== "RECHAZADO");
   if (filter === "Descartadas") return trades.filter((t) => t.status === "DESCARTADO");
+  if (filter === "Rechazadas") return trades.filter((t) => t.status === "RECHAZADO");
   return trades;
 }

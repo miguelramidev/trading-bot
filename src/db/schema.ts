@@ -53,7 +53,7 @@ export const signalHistory = pgTable("signal_history", {
   btcCorrelation: text("btc_correlation"),
   volumeRank: integer("volume_rank"),
   btcRegime: text("btc_regime"),
-  decision: text("decision"), // "Tomada", "Descartada", null (pendiente)
+  decision: text("decision"), // "Tomada", "Descartada" (manual), "Rechazada" (executeTrade), "Ignorada" (expiró), null (pendiente)
   reason: text("reason"), // Por qué se tomó/descartó
   // Aditivo (Fase 1, 2026-10-01): las advertencias de riesgo macro/reversa de
   // estrategia que antes solo vivían mezcladas dentro de `reason` (y que se

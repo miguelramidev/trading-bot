@@ -46,7 +46,8 @@ signalsRouter.post(
         parseFloat(signal.gridTP || signal.takeProfit || "0"),
         configuredMargin,
         user.leverageMin ?? 1,
-        user.leverageMax ?? 2
+        user.leverageMax ?? 2,
+        signal.evaluatedAt
       );
 
       await recordExecutionResult({

@@ -17,12 +17,24 @@ export interface TradeResult {
 const EXIT_ORDER_MAX_ATTEMPTS = 3; // 1 intento + 2 reintentos
 const EXIT_ORDER_RETRY_DELAY_MS = 800;
 
-// ROADMAP.md hallazgo A10: el Stop Loss se calcula como 1×ATR(15m) desde el precio de la
-// señal, sin piso mínimo — para activos de precio alto (BTC) o momentáneamente poco
-// volátiles (TRX) puede quedar a una fracción de % del precio, más ajustado que la propia
+// ROADMAP.md hallazgo A10, RULES.md Regla 5: el Stop Loss se calcula como 1×ATR(15m) desde
+// el precio de la señal, sin piso mínimo — para activos de precio alto (BTC) o momentáneamente
+// poco volátiles (TRX) puede quedar a una fracción de % del precio, más ajustado que la propia
 // comisión de entrada+salida. 0.5% ≈ 5x la comisión taker ida y vuelta estimada (0.05% x2 =
 // 0.10%), para que el SL no salte con ruido normal de mercado sin margen real de protección.
-const MIN_SL_DISTANCE_PCT = 0.005;
+export const MIN_SL_DISTANCE_PCT = 0.005;
+
+// RULES.md Regla 7: relación riesgo/premio mínima para ejecutar, calculada con el precio EN
+// VIVO (no el de la señal). Si el precio ya recorrió mucho camino desde que se generó la
+// señal, entrar ahora cambia la relación real de la operación respecto a la que el usuario
+// vio y aprobó — hallazgo del backtest de breakeven (2026-10-01): ~48% de las señales ya
+// habían cruzado su propio SL/TP para cuando se simulaba la entrada a la vela siguiente.
+export const MIN_EFFECTIVE_RR = 1.5;
+
+// RULES.md Regla 8, ROADMAP.md hallazgo A2: Telegram ya corta a los 15 min (antes de llegar
+// acá); esto es el backstop común para cualquier canal (incluida la API web, que hoy no
+// tenía límite de edad) — más laxo a propósito, para no duplicar el corte de Telegram.
+export const MAX_SIGNAL_AGE_MS = 60 * 60 * 1000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -165,12 +177,23 @@ export class Trader {
     return closed;
   }
 
-  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number, configuredMargin: number = 25.0, leverageMin: number = 1, leverageMax: number = 2): Promise<TradeResult> {
+  async executeTrade(symbol: string, direction: string, stopLossPrice: number, takeProfitPrice: number, configuredMargin: number = 25.0, leverageMin: number = 1, leverageMax: number = 2, evaluatedAt: Date = new Date()): Promise<TradeResult> {
     try {
       // 0. Validar la configuración de apalancamiento antes de tocar el exchange (RULES.md invariante:
       // nunca operar por encima de leverageMax, ni siquiera si leverageMin ya lo supera).
       if (leverageMin > leverageMax) {
         return { status: "rechazado", mensaje: `❌ Configuración inválida: el apalancamiento mínimo (x${leverageMin}) no puede ser mayor que el máximo (x${leverageMax}). Corregí la configuración antes de operar.` };
+      }
+
+      // 0.5 RULES.md Regla 8: antigüedad máxima de la señal. Antes de tocar el exchange —
+      // no hace falta ni el ticker para rechazar esto.
+      const ageMs = Date.now() - evaluatedAt.getTime();
+      if (ageMs > MAX_SIGNAL_AGE_MS) {
+        const ageMin = Math.floor(ageMs / 60_000);
+        return {
+          status: "rechazado",
+          mensaje: `❌ Regla 8: la señal tiene ${ageMin} min, por encima del máximo permitido (${MAX_SIGNAL_AGE_MS / 60_000} min). No se coloca ninguna orden.`,
+        };
       }
 
       await this.exchange.loadMarkets();
@@ -262,14 +285,48 @@ export class Trader {
 
       if (amount <= 0) return { status: "rechazado", mensaje: "❌ Cantidad calculada de tokens es 0 (precisión del exchange)." };
 
-      // 7.5 Validar distancia mínima del SL contra el precio actual (A10 en ROADMAP.md).
-      // Antes de abrir ninguna posición: si el SL está demasiado ajustado, la comisión de
-      // entrada+salida ya se come el margen de protección sin que haya pasado nada real.
+      // 7.4 RULES.md Regla 6: el precio en vivo ya cruzó el SL o el TP de la señal. Chequeo
+      // previo al de la Regla 7 (relación efectiva): si esto no se cumple, el riesgo o el
+      // premio calculados contra el precio actual ya no tienen sentido (pueden dar hasta
+      // signo invertido) — mismo hallazgo del backtest de breakeven (2026-10-01, ~48% de las
+      // señales de esa muestra ya habían cruzado su propio SL/TP para cuando se simulaba la
+      // entrada a la vela siguiente).
+      const isLong = direction === "LONG";
+      const priceAlreadyBeyond = isLong
+        ? currentPrice <= stopLossPrice || currentPrice >= takeProfitPrice
+        : currentPrice >= stopLossPrice || currentPrice <= takeProfitPrice;
+      if (priceAlreadyBeyond) {
+        const cruzoSl = isLong ? currentPrice <= stopLossPrice : currentPrice >= stopLossPrice;
+        const nivel = cruzoSl ? `el Stop Loss ($${stopLossPrice})` : `el Take Profit ($${takeProfitPrice})`;
+        return {
+          status: "rechazado",
+          mensaje: `❌ Regla 6: el precio actual ($${currentPrice}) ya cruzó ${nivel} de la señal. No se coloca ninguna orden.`,
+        };
+      }
+
+      // 7.5 RULES.md Regla 7: relación riesgo/premio efectiva con el precio EN VIVO (no el de
+      // la señal). Misma fórmula para LONG y SHORT, sin ramificar por dirección: con valor
+      // absoluto en los dos lados no hace falta invertir el signo según el lado de la operación.
+      const liveRisk = Math.abs(currentPrice - stopLossPrice);
+      const liveReward = Math.abs(takeProfitPrice - currentPrice);
+      const effectiveRR = liveReward / liveRisk;
+      if (effectiveRR < MIN_EFFECTIVE_RR) {
+        const pctRecorrido = Math.abs(currentPrice - stopLossPrice) / Math.abs(takeProfitPrice - stopLossPrice) * 100;
+        return {
+          status: "rechazado",
+          mensaje: `❌ Regla 7: el precio ya recorrió el ${pctRecorrido.toFixed(0)}% del camino; la relación quedó en 1:${effectiveRR.toFixed(2)}, por debajo del mínimo de 1:${MIN_EFFECTIVE_RR}. No se coloca ninguna orden.`,
+        };
+      }
+
+      // 7.6 RULES.md Regla 5 (A10 en ROADMAP.md): piso de distancia mínima del SL contra el
+      // precio actual. Antes de abrir ninguna posición: si el SL está demasiado ajustado, la
+      // comisión de entrada+salida ya se come el margen de protección sin que haya pasado
+      // nada real.
       const slDistancePct = Math.abs(currentPrice - stopLossPrice) / currentPrice;
       if (slDistancePct < MIN_SL_DISTANCE_PCT) {
         return {
           status: "rechazado",
-          mensaje: `❌ Stop Loss demasiado ajustado: está a ${(slDistancePct * 100).toFixed(3)}% del precio actual, por debajo del mínimo permitido (${(MIN_SL_DISTANCE_PCT * 100).toFixed(2)}%). No se coloca ninguna orden.`,
+          mensaje: `❌ Regla 5: Stop Loss demasiado ajustado, está a ${(slDistancePct * 100).toFixed(3)}% del precio actual, por debajo del mínimo permitido (${(MIN_SL_DISTANCE_PCT * 100).toFixed(2)}%). No se coloca ninguna orden.`,
         };
       }
 

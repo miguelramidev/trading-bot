@@ -15,7 +15,7 @@ historyRouter.get(
   zValidator("query", z.object({
     page: z.string().optional().default("1"),
     limit: z.string().optional().default("20"),
-    filter: z.string().optional().default("Todos"), // "Todos", "Tomadas", "Descartadas" — solo filtra la lista, no las métricas
+    filter: z.string().optional().default("Todos"), // "Todos", "Tomadas", "Descartadas", "Rechazadas" — solo filtra la lista, no las métricas
     period: z.enum(["all", "7d", "30d"]).optional().default("all"),
     symbol: z.string().optional(),
     strategy: z.string().optional(),
@@ -50,7 +50,7 @@ historyRouter.get(
       });
 
       const mappedTrades = allSignals.map(t => {
-        let statusStr: "DESCARTADO" | "TP HIT" | "SL HIT" = "DESCARTADO";
+        let statusStr: "DESCARTADO" | "RECHAZADO" | "TP HIT" | "SL HIT" = "DESCARTADO";
         // null, no 0: una descartada no tiene resultado, "0.00%" mentiría que sí lo tiene.
         let roi: number | null = null;
         let pnl: number | null = null;
@@ -64,8 +64,13 @@ historyRouter.get(
         // The bug made some discarded trades look like "Cerrada (SL Tocado)". We can heuristically fix them for display:
         // If entryPrice is null or 0 and it was closed, it was likely discarded by mistake.
         const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
+        // "Rechazada": `executeTrade` la rechazó (Reglas 1/2/5/6/7/8, balance, leverage) —
+        // nunca hubo posición real, distinto de un descarte manual del usuario.
+        const wasRejected = t.decision === "Rechazada";
 
-        if (wasActuallyDiscarded) {
+        if (wasRejected) {
+          statusStr = "RECHAZADO";
+        } else if (wasActuallyDiscarded) {
           statusStr = "DESCARTADO";
         } else if (t.decision?.includes("Cerrada")) {
           if ((pnlVal ?? 0) > 0 || t.decision.includes("TP")) {
@@ -174,14 +179,17 @@ historyRouter.get(
       if (!t) return c.json({ error: "Trade not found" }, 404);
 
       const wasActuallyDiscarded = t.decision === "Descartada" || t.decision === "Ignorada" || (!t.executedEntryPrice && t.decision?.includes("Cerrada"));
-      // null, no 0: una descartada no tiene resultado, y `realized_roi`/`realized_pnl`
+      const wasRejected = t.decision === "Rechazada";
+      // null, no 0: una descartada/rechazada no tiene resultado, y `realized_roi`/`realized_pnl`
       // pueden venir null incluso en una señal YA EJECUTADA (ver historyHelpers:
       // roto desde el refactor multi-tenant del 25/09) — "|| '0'" lo disfrazaba de 0.
-      const pnlVal = wasActuallyDiscarded || t.realizedPnl == null ? null : parseFloat(t.realizedPnl);
-      const roiVal = wasActuallyDiscarded || t.realizedRoi == null ? null : parseFloat(t.realizedRoi);
+      const pnlVal = wasActuallyDiscarded || wasRejected || t.realizedPnl == null ? null : parseFloat(t.realizedPnl);
+      const roiVal = wasActuallyDiscarded || wasRejected || t.realizedRoi == null ? null : parseFloat(t.realizedRoi);
 
       let statusStr = "DESCARTADO";
-      if (!wasActuallyDiscarded && t.decision?.includes("Cerrada")) {
+      if (wasRejected) {
+        statusStr = "RECHAZADO";
+      } else if (!wasActuallyDiscarded && t.decision?.includes("Cerrada")) {
         statusStr = (pnlVal ?? 0) > 0 || t.decision.includes("TP") ? "TP HIT" : "SL HIT";
       } else if (t.isActiveTrade) {
         statusStr = "ACTIVA";

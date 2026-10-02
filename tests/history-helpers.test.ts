@@ -48,24 +48,39 @@ describe("filterTradesByType", () => {
     { status: "TP HIT" as const },
     { status: "SL HIT" as const },
     { status: "DESCARTADO" as const },
+    { status: "RECHAZADO" as const },
   ];
 
   it("'Todos' no filtra", () => {
-    expect(filterTradesByType(trades, "Todos")).toHaveLength(3);
+    expect(filterTradesByType(trades, "Todos")).toHaveLength(4);
   });
 
-  it("'Tomadas' excluye descartadas", () => {
+  it("'Tomadas' excluye descartadas Y rechazadas", () => {
     expect(filterTradesByType(trades, "Tomadas")).toHaveLength(2);
   });
 
-  it("'Descartadas' solo descartadas", () => {
-    expect(filterTradesByType(trades, "Descartadas")).toHaveLength(1);
+  it("'Descartadas' solo descartadas (no mezcla con rechazadas)", () => {
+    const result = filterTradesByType(trades, "Descartadas");
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe("DESCARTADO");
+  });
+
+  it("'Rechazadas' tiene su propio filtro, separado de descartadas", () => {
+    const result = filterTradesByType(trades, "Rechazadas");
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe("RECHAZADO");
   });
 });
 
 describe("computeHistoryStats", () => {
   it("ignora las descartadas en todas las métricas", () => {
     const stats = computeHistoryStats([{ status: "DESCARTADO" as const, pnl: 999 }]);
+    expect(stats.totalTrades).toBe(0);
+    expect(stats.totalPnl).toBe(0);
+  });
+
+  it("ignora las rechazadas en todas las métricas (nunca hubo posición real)", () => {
+    const stats = computeHistoryStats([{ status: "RECHAZADO" as const, pnl: null }]);
     expect(stats.totalTrades).toBe(0);
     expect(stats.totalPnl).toBe(0);
   });

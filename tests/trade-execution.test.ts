@@ -65,7 +65,7 @@ describe("recordExecutionResult — ejecutado (sin positionOpen, se asume abiert
 });
 
 describe("recordExecutionResult — rechazado", () => {
-  it("marca Descartada y NO inserta en trade_executions (sin posición real en Binance)", async () => {
+  it("marca Rechazada (no Descartada: esa es el descarte manual del usuario) y NO inserta en trade_executions (sin posición real en Binance)", async () => {
     const trader = makeTrader(vi.fn());
     const result = await recordExecutionResult({
       ...baseInput,
@@ -73,9 +73,9 @@ describe("recordExecutionResult — rechazado", () => {
       trader,
     });
 
-    expect(result.finalDecision).toBe("Descartada");
+    expect(result.finalDecision).toBe("Rechazada");
     expect(result.isActiveTrade).toBe(false);
-    expect(lastSetValues()).toMatchObject({ decision: "Descartada", isActiveTrade: false });
+    expect(lastSetValues()).toMatchObject({ decision: "Rechazada", isActiveTrade: false });
     expect(mocks.insertValues).not.toHaveBeenCalled();
   });
 });

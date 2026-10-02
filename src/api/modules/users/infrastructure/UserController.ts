@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { internalError } from "../../../core/utils/errors.js";
 import type { AuthEnv } from "../../../core/middleware/auth.js";
 import { validateCapitalRisk } from "./configValidation.js";
+import { MIN_SL_DISTANCE_PCT, MIN_EFFECTIVE_RR, MAX_SIGNAL_AGE_MS } from "../../../../bot/trader.js";
 
 import { SyncUserUseCase } from "../application/SyncUserUseCase.js";
 import { PostgresUserRepository } from "./PostgresUserRepository.js";
@@ -114,6 +115,12 @@ usersRouter.get("/config", async (c) => {
         hasRsaKeys: !!user.rsaPublicKey && !!user.rsaPrivateKey,
         rsaPublicKey: user.rsaPublicKey,
         binanceKeyInfo,
+        // RULES.md Reglas 5/7/8: umbrales de protección de `executeTrade`, no son
+        // configurables por usuario — viajan acá para que la app avise y deshabilite el
+        // botón de operar ANTES de intentar, en vez de duplicar estos números a mano.
+        minSlDistancePct: MIN_SL_DISTANCE_PCT,
+        minEffectiveRR: MIN_EFFECTIVE_RR,
+        maxSignalAgeMinutes: MAX_SIGNAL_AGE_MS / 60_000,
       }
     });
   } catch (error: any) {

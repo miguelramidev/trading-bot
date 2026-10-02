@@ -1,11 +1,13 @@
 // Funciones puras del dashboard, separadas del controller para poder testearlas
 // sin mockear ccxt ni Drizzle (ver DashboardController.ts).
 
-export type StatusVariant = "objetivo" | "stop" | "enCurso" | "pendiente" | "descartada";
+export type StatusVariant = "objetivo" | "stop" | "enCurso" | "pendiente" | "descartada" | "rechazada";
 
 /**
- * `decision` en signal_history pasa por: null (pendiente) -> "Tomada" | "Descartada"
+ * `decision` en signal_history pasa por: null (pendiente) -> "Tomada" | "Descartada" | "Rechazada"
  * -> (al cerrar el monitor de analyze.ts) "Tomada -> Cerrada (TP Tocado)" / "... (SL Tocado)".
+ * "Rechazada" nunca encadena con "-> Cerrada": `executeTrade` la rechazó antes de abrir
+ * posición, así que no hay nada que el monitor pueda cerrar después.
  * Ver src/cron/analyze.ts línea 60 para el formato exacto del string compuesto.
  */
 export function mapDecisionToStatus(decision: string | null, isActiveTrade: boolean): StatusVariant {
@@ -15,6 +17,9 @@ export function mapDecisionToStatus(decision: string | null, isActiveTrade: bool
   // eso este chequeo va ANTES que los de "TP/SL Tocado" — si no, "Descartada ->
   // Cerrada (SL Tocado)" caía en la rama de "stop" en vez de "descartada".
   if (decision.startsWith("Descartada")) return "descartada";
+  // "Rechazada" (protección de executeTrade) es distinta de "Descartada" (decisión manual
+  // del usuario) — mismo criterio, pero su propia variante/StatusPill.
+  if (decision.startsWith("Rechazada")) return "rechazada";
   if (decision.includes("TP Tocado")) return "objetivo";
   if (decision.includes("SL Tocado")) return "stop";
   if (decision === "Tomada") return isActiveTrade ? "enCurso" : "descartada";

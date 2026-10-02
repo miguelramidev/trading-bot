@@ -274,7 +274,8 @@ bot.action(/^paper_accept_(\d+)$/, async (ctx) => {
      parseFloat(signal.gridTP || "0"),
      configuredMargin,
      user.leverageMin ?? 1,
-     user.leverageMax ?? 2
+     user.leverageMax ?? 2,
+     signal.evaluatedAt
   );
 
   await recordExecutionResult({

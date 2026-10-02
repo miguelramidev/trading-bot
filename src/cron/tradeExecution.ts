@@ -37,7 +37,10 @@ export interface RecordExecutionResultInput {
 }
 
 export interface RecordExecutionResultOutput {
-  finalDecision: "Tomada" | "Descartada";
+  /** "Rechazada": `executeTrade` rechazó la orden (Reglas 1/2/5/6/7/8, balance, leverage,
+   * etc.) — nunca hubo posición real. Distinto de "Descartada", que es el descarte MANUAL
+   * del usuario (`POST /api/signals/:id/discard`, callback de Telegram) y no pasa por acá. */
+  finalDecision: "Tomada" | "Rechazada";
   isActiveTrade: boolean;
   /** `true` cuando ya no queda posición abierta al terminar `executeTrade` (cierre de
    * emergencia) — la fila se cerró en este mismo llamado, no la va a tocar la conciliación. */
@@ -49,8 +52,9 @@ export async function recordExecutionResult(input: RecordExecutionResultInput): 
   const { signalId, userId, source, signal, configuredMargin, executionResult, trader } = input;
   const openedAt = input.openedAt ?? new Date();
 
-  // "rechazado" es el único caso sin posición real abierta en Binance.
-  const finalDecision: "Tomada" | "Descartada" = executionResult.status === "rechazado" ? "Descartada" : "Tomada";
+  // "rechazado" es el único caso sin posición real abierta en Binance. "Rechazada", no
+  // "Descartada": esta última es el descarte MANUAL del usuario, no pasa por acá.
+  const finalDecision: "Tomada" | "Rechazada" = executionResult.status === "rechazado" ? "Rechazada" : "Tomada";
   const reasonText = executionResult.mensaje.substring(0, 100);
   const closedImmediately = executionResult.positionOpen === false;
   const isActiveTrade = finalDecision === "Tomada" && !closedImmediately;

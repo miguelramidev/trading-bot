@@ -128,7 +128,7 @@ describe("executeTrade — Regla 1 (escalado de apalancamiento)", () => {
     exchange.markets["BTC/USDT"] = makeMarket({ limits: { cost: { min: 10 } } });
     exchange.fetchTicker.mockResolvedValue({ last: 100 });
 
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 2, 5);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 120, 25, 2, 5);
 
     expect(result.status).toBe("ejecutado");
     expect(result.mensaje).toContain("TRADE EJECUTADO");
@@ -141,7 +141,8 @@ describe("executeTrade — Regla 1 (escalado de apalancamiento)", () => {
     exchange.markets["DOGE/USDT"] = makeMarket({ symbol: "DOGE/USDT:USDT", limits: { cost: { min: 10 } } });
     exchange.fetchTicker.mockResolvedValue({ last: 0.1 });
 
-    const result = await trader.executeTrade("DOGE/USDT", "LONG", 0.09, 0.11, 3, 2, 5);
+    // SL/TP con relación 1:2 (Regla 7 exige mínimo 1:1.5): riesgo 0.01, premio 0.02.
+    const result = await trader.executeTrade("DOGE/USDT", "LONG", 0.09, 0.12, 3, 2, 5);
 
     expect(result.status).toBe("ejecutado");
     expect(result.mensaje).toContain("x4");
@@ -185,7 +186,7 @@ describe("executeTrade — Regla 2 (validación de balance)", () => {
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchBalance.mockResolvedValue({ free: { USDT: "50" } });
 
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 120, 25, 1, 2);
 
     expect(result.status).toBe("ejecutado");
   });
@@ -251,9 +252,213 @@ describe("executeTrade — A10 (piso de distancia mínima del Stop Loss)", () =>
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 100 });
 
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 120, 25, 1, 2);
 
     expect(result.status).toBe("ejecutado");
+  });
+});
+
+// RULES.md Regla 8: backstop común de antigüedad para cualquier canal (ROADMAP.md A2 — la API
+// web no tenía límite de edad). No depende de la dirección ni del precio: se chequea ANTES de
+// tocar el exchange.
+describe("executeTrade — Regla 8 (antigüedad máxima de la señal)", () => {
+  it("señal de más de 60 min: rechaza sin tocar el exchange", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    const evaluatedAt = new Date(Date.now() - 61 * 60 * 1000);
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2, evaluatedAt);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 8");
+    expect(exchange.loadMarkets).not.toHaveBeenCalled();
+    expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+
+  it("señal de exactamente 60 min (límite exacto): no rechaza, sigue el flujo normal", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 100 });
+    const evaluatedAt = new Date(Date.now() - 60 * 60 * 1000);
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 120, 25, 1, 2, evaluatedAt);
+
+    expect(result.status).toBe("ejecutado");
+  });
+
+  it("sin evaluatedAt (default): nunca rechaza por antigüedad (compatibilidad hacia atrás)", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 100 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 120, 25, 1, 2);
+
+    expect(result.status).toBe("ejecutado");
+  });
+});
+
+// RULES.md Regla 6: con el precio EN VIVO. Hallazgo del backtest de breakeven (2026-10-01,
+// docs/auditorias/2026-10-01-breakeven.md): ~48% de una muestra ya habían cruzado su propio
+// SL/TP para cuando se simulaba la entrada — acá se rechaza en vez de operar con niveles que
+// ya no tienen sentido.
+describe("executeTrade — Regla 6 (precio ya fuera de los niveles de la señal)", () => {
+  it("LONG: precio en vivo ya por debajo del Stop Loss — rechaza citando Stop Loss", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 88 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 6");
+    expect(result.mensaje).toContain("Stop Loss");
+    expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+
+  it("LONG: precio en vivo ya por encima del Take Profit — rechaza citando Take Profit", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 112 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 6");
+    expect(result.mensaje).toContain("Take Profit");
+  });
+
+  it("LONG: precio en vivo exactamente en el Stop Loss (límite exacto) — rechaza igual (inclusivo)", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 90 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 110, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 6");
+  });
+
+  it("SHORT: precio en vivo ya por encima del Stop Loss — rechaza citando Stop Loss", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 112 });
+
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 110, 90, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 6");
+    expect(result.mensaje).toContain("Stop Loss");
+  });
+
+  it("SHORT: precio en vivo ya por debajo del Take Profit — rechaza citando Take Profit", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 88 });
+
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 110, 90, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 6");
+    expect(result.mensaje).toContain("Take Profit");
+  });
+
+  it("SHORT: precio en vivo exactamente en el Stop Loss (límite exacto) — rechaza igual (inclusivo)", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    exchange.fetchTicker.mockResolvedValue({ last: 110 });
+
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 110, 90, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 6");
+  });
+});
+
+// RULES.md Regla 7: misma fórmula para LONG y SHORT (valor absoluto en los dos lados).
+describe("executeTrade — Regla 7 (relación riesgo/premio mínima efectiva)", () => {
+  it("LONG: relación efectiva por debajo de 1.5 — rechaza con los números en el mensaje", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    // SL=90 TP=100, precio=96: riesgo=6, premio=4, relación=0.67.
+    exchange.fetchTicker.mockResolvedValue({ last: 96 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 100, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 7");
+    expect(result.mensaje).toContain("1:0.67");
+    expect(result.mensaje).toContain("1:1.5");
+    expect(exchange.createMarketOrder).not.toHaveBeenCalled();
+  });
+
+  it("LONG: relación efectiva exactamente 1.5 (límite exacto) — no rechaza, sigue el flujo normal", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    // SL=90 TP=100, precio=94: riesgo=4, premio=6, relación=1.5 exacto.
+    exchange.fetchTicker.mockResolvedValue({ last: 94 });
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 90, 100, 25, 1, 2);
+
+    expect(result.status).toBe("ejecutado");
+  });
+
+  it("SHORT: relación efectiva por debajo de 1.5 — rechaza con los números en el mensaje", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    // SL=110 TP=90, precio=94: riesgo=16, premio=4, relación=0.25.
+    exchange.fetchTicker.mockResolvedValue({ last: 94 });
+
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 110, 90, 25, 1, 2);
+
+    expect(result.status).toBe("rechazado");
+    expect(result.mensaje).toContain("Regla 7");
+    expect(result.mensaje).toContain("1:0.25");
+  });
+
+  it("SHORT: relación efectiva exactamente 1.5 (límite exacto) — no rechaza, sigue el flujo normal", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    // SL=110 TP=90, precio=102: riesgo=8, premio=12, relación=1.5 exacto.
+    exchange.fetchTicker.mockResolvedValue({ last: 102 });
+
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 110, 90, 25, 1, 2);
+
+    expect(result.status).toBe("ejecutado");
+  });
+});
+
+// El movimiento del precio entre el chequeo (Regla 6/7, con el ticker leído una sola vez) y el
+// momento real en que Binance coloca el Stop Loss es una ventana que ninguna validación previa
+// puede cerrar del todo. Si para cuando se intenta colocar el SL el precio YA lo cruzó, Binance
+// lo rechaza en vez de aceptarlo (ej. -2021 "Order would immediately trigger") — el mecanismo
+// genérico de A6 (agotar reintentos -> emergencyClose) es el que absorbe este caso: no hace
+// falta detectarlo aparte, alcanza con que el fallo de colocación dispare el cierre de emergencia.
+describe("executeTrade — entrada real degradada entre el chequeo y la orden (race condition)", () => {
+  it("el precio cruza el SL real entre el chequeo y la colocación: Binance rechaza el SL (-2021) y termina en cierre de emergencia", async () => {
+    const { trader, exchange } = makeTrader();
+    exchange.markets["BTC/USDT"] = makeMarket();
+    // El chequeo de Reglas 5/6/7 pasa con este precio (riesgo=1000, premio=1000, relación=1).
+    exchange.fetchTicker.mockResolvedValue({ last: 50000 });
+    // Pero al momento real de colocar el STOP_MARKET, el precio de mercado ya lo cruzó:
+    // Binance responde -2021 en vez de aceptar la orden.
+    exchange.createOrder.mockImplementation(async (...args: any[]) => {
+      if (args[1] === "STOP_MARKET") throw genericExchangeError("Order would immediately trigger.");
+      exchange.calls.push({ method: "createOrder", args });
+      return { id: "order-1" };
+    });
+    exchange.positions["BTC/USDT"] = { symbol: "BTC/USDT", contracts: 0.5 };
+
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51500, 25, 1, 2);
+
+    expect(result.status).toBe("advertencia");
+    expect(result.mensaje).toContain("CERRADA POR FALLA DE PROTECCIÓN");
+    expect(result.positionOpen).toBe(false);
+    // Confirma que de verdad pasó por emergencyClose: cierre a mercado reduceOnly, tageado.
+    const closeCall = exchange.calls.find(
+      (c) => c.method === "createMarketOrder" && c.args[1] === "sell" && c.args[2] === 0.5
+    );
+    expect(closeCall).toBeDefined();
+    expect(closeCall!.args[3]).toMatchObject({ reduceOnly: true });
   });
 });
 
@@ -276,7 +481,8 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
     exchange.markets["BTC/USDT"] = makeMarket();
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
 
-    const result = await trader.executeTrade("BTC/USDT", "SHORT", 51000, 49000, 25, 1, 2);
+    // SL=51000, TP=48000, precio=50000: riesgo=1000, premio=2000, relación=2.0 (Regla 7 exige 1.5).
+    const result = await trader.executeTrade("BTC/USDT", "SHORT", 51000, 48000, 25, 1, 2);
 
     expect(result.status).toBe("ejecutado");
     expect(exchange.calls.map((c) => c.method)).toEqual(["createMarketOrder", "createOrder", "createOrder"]);
@@ -296,7 +502,7 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
 
     expect(tpCall.args[1]).toBe("TAKE_PROFIT_MARKET");
     expect(tpCall.args[2]).toBe("buy");
-    expect(tpCall.args[5]).toMatchObject({ stopPrice: 49000, closePosition: true, timeInForce: "GTC" });
+    expect(tpCall.args[5]).toMatchObject({ stopPrice: 48000, closePosition: true, timeInForce: "GTC" });
     expect(tpCall.args[5].clientOrderId).toMatch(/^tp_/);
   });
 
@@ -306,9 +512,12 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
     exchange.markets["1000SHIB/USDT"] = makeMarket({ symbol: "1000SHIB/USDT:USDT" });
     exchange.fetchTicker.mockResolvedValue({ last: 0.001 });
 
-    await trader.executeTrade("1000SHIB/USDT", "LONG", 0.0009, 0.0011, 25, 1, 2);
+    // SL=0.0009, TP=0.0013, precio=0.001: riesgo=0.0001, premio=0.0002, relación=2.0.
+    const result = await trader.executeTrade("1000SHIB/USDT", "LONG", 0.0009, 0.0013, 25, 1, 2);
 
+    expect(result.status).toBe("ejecutado");
     const ids = exchange.calls.filter((c) => c.method === "createOrder").map((c) => c.args[5].clientOrderId);
+    expect(ids.length).toBeGreaterThan(0); // si se rechazara antes, este loop no probaría nada
     for (const id of ids) {
       expect(id.length).toBeLessThanOrEqual(36);
       expect(id).toMatch(/^[.\w-]+$/);
@@ -322,7 +531,8 @@ describe("executeTrade — secuencia y parámetros de las órdenes", () => {
     exchange.fetchTicker.mockResolvedValue({ last: 63000 });
 
     // margen=25, leverage=2 → notional=$50 → amount = 50/63000 = 0.00079365... → toFixed(3) = "0.001"
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 60000, 66000, 25, 2, 2);
+    // SL=60000, TP=70000, precio=63000: riesgo=3000, premio=7000, relación=2.33.
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 60000, 70000, 25, 2, 2);
 
     expect(exchange.createMarketOrder).toHaveBeenCalledWith("BTC/USDT", "buy", 0.001);
     expect(result.mensaje).toContain("Cantidad: 0.001 tokens");
@@ -350,7 +560,7 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
     exchange.fetchTicker.mockResolvedValue({ last: 50000 });
     exchange.createOrder.mockRejectedValueOnce(genericExchangeError());
 
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 52000, 25, 1, 2);
 
     expect(result.status).toBe("ejecutado");
     // exchange.calls (el tracker propio) solo registra los intentos que resuelven: para contar
@@ -371,7 +581,7 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
       .mockRejectedValueOnce(genericExchangeError("timeout"))
       .mockRejectedValueOnce(duplicateClientOrderIdError());
 
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 52000, 25, 1, 2);
 
     expect(result.status).toBe("ejecutado");
     const slAttempts = exchange.createOrder.mock.calls.filter((args: any[]) => args[1] === "STOP_MARKET");
@@ -392,7 +602,7 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
       // La posición real (0.501) puede diferir levemente del amount calculado por slippage.
       exchange.positions["BTC/USDT"] = { symbol: "BTC/USDT", contracts: 0.501 };
 
-      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 52000, 25, 1, 2);
 
       expect(result.status).toBe("advertencia");
       expect(result.mensaje).toContain("CERRADA POR FALLA DE PROTECCIÓN");
@@ -427,7 +637,7 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
       exchange.createOrder.mockRejectedValue(genericExchangeError());
       exchange.fetchPositions.mockRejectedValue(new Error("timeout de red"));
 
-      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 52000, 25, 1, 2);
 
       expect(result.status).toBe("critico");
       expect(result.mensaje).toContain("ACCIÓN MANUAL URGENTE");
@@ -450,7 +660,7 @@ describe("executeTrade — A6: reintentos y protección de SL/TP (ROADMAP A6)", 
         return { id: "order-1" };
       });
 
-      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+      const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 52000, 25, 1, 2);
 
       expect(result.status).toBe("advertencia");
       expect(result.mensaje).toContain("SIN TAKE PROFIT");
@@ -551,7 +761,7 @@ describe("executeTrade — A8 (confirmación del modo real de margen tras un fal
     exchange.setMarginMode.mockRejectedValue(new Error('binance {"code":-4046,"msg":"No need to change margin type."}'));
     exchange.fetchMarginMode.mockResolvedValue({ marginMode: "isolated" });
 
-    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 51000, 25, 1, 2);
+    const result = await trader.executeTrade("BTC/USDT", "LONG", 49000, 52000, 25, 1, 2);
 
     expect(result.status).toBe("ejecutado");
     expect(exchange.createMarketOrder).toHaveBeenCalled();

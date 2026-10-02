@@ -6,9 +6,14 @@
 import { classifyProtectionOrders, type NormalizedOrder } from "../api/modules/dashboard/infrastructure/protectionOrders.js";
 import type { CloseReason } from "./closeNotificationHelpers.js";
 
-// No repetir la alerta crítica de "sin SL" en cada ciclo de cron (cada 15m) para la misma
-// posición — como máximo una vez cada 4 horas.
+// No repetir una alerta crítica en cada ciclo de cron (cada 15m) para lo mismo — como máximo
+// una vez cada 4 horas. Mismo throttle para "sin SL" (trade_executions.last_missing_sl_alert_at)
+// y para "posición huérfana" (orphan_position_alerts.last_alert_at).
 export const MISSING_SL_ALERT_THROTTLE_MS = 4 * 60 * 60 * 1000;
+
+export function shouldAlertAgain(lastAlertAt: Date | null, now: Date): boolean {
+  return lastAlertAt === null || now.getTime() - lastAlertAt.getTime() >= MISSING_SL_ALERT_THROTTLE_MS;
+}
 
 export type ReconciliationAction =
   | { kind: "still_open" }
@@ -88,9 +93,7 @@ export function decideReconciliationAction(input: DecideReconciliationActionInpu
   const classification = classifyProtectionOrders({ orders: protectionOrders, isLong: direction === "LONG", entryPrice });
 
   if (!classification.hasStopLoss) {
-    const shouldAlert =
-      lastMissingSlAlertAt === null || now.getTime() - lastMissingSlAlertAt.getTime() >= MISSING_SL_ALERT_THROTTLE_MS;
-    return { kind: "missing_stop_loss", shouldAlert };
+    return { kind: "missing_stop_loss", shouldAlert: shouldAlertAgain(lastMissingSlAlertAt, now) };
   }
 
   // "más allá del tick size": sin tick size conocido, cualquier diferencia cuenta (no hay forma

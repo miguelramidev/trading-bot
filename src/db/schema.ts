@@ -132,3 +132,17 @@ export const tradeExecutions = pgTable("trade_executions", {
 }, (table) => [
   unique().on(table.signalId, table.userId),
 ]);
+
+// Throttle (mismo patrón que trade_executions.last_missing_sl_alert_at) para la alerta de
+// "posición huérfana": una posición real en Binance sin ninguna fila activa en trade_executions
+// para ese usuario y símbolo — el bot no la está siguiendo. No hay una fila de trade_executions
+// a la que colgarle el throttle (por definición, no hay ninguna activa), así que necesita su
+// propia tabla.
+export const orphanPositionAlerts = pgTable("orphan_position_alerts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => userConfig.id),
+  symbol: text("symbol").notNull(),
+  lastAlertAt: timestamp("last_alert_at").notNull(),
+}, (table) => [
+  unique().on(table.userId, table.symbol),
+]);

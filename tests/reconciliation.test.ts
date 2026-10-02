@@ -4,18 +4,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // por usuario y por ciclo (las órdenes de protección se piden par por par, ver más abajo), aplica
 // la decisión pura de reconciliationDecision.ts (ya testeada en tests/reconciliation-decision.test.ts)
 // o solo la loguea en modo de solo registro; idempotencia en el cierre (update condicional);
-// resuelve reservas trabadas en "Ejecutando" (punto 2). Nada toca red/DB real: db, Trader,
-// Telegram y los envíos de notificación están mockeados.
+// resuelve reservas trabadas en "Ejecutando" (punto 2) y detecta posiciones huérfanas (punto 3).
+// Nada toca red/DB real: db, Trader, Telegram y los envíos de notificación están mockeados.
 const mocks = vi.hoisted(() => ({
   tradeExecFindMany: vi.fn(),
   userFindFirst: vi.fn(),
+  userFindMany: vi.fn(),
   signalFindFirst: vi.fn(),
   signalFindMany: vi.fn(),
+  orphanFindFirst: vi.fn(),
   tradeExecSet: vi.fn(),
   tradeExecReturning: vi.fn(),
   signalHistorySet: vi.fn(),
   signalHistoryReturning: vi.fn(),
+  orphanSet: vi.fn(),
   tradeExecInsertValues: vi.fn(),
+  orphanInsertValues: vi.fn(),
   insertOnConflict: vi.fn(),
   fetchAllPositions: vi.fn(),
   fetchOpenOrdersForSymbol: vi.fn(),
@@ -65,16 +69,25 @@ vi.mock("../src/db/index.js", async () => {
     db: {
       query: {
         tradeExecutions: { findMany: mocks.tradeExecFindMany },
-        userConfig: { findFirst: mocks.userFindFirst },
+        userConfig: { findFirst: mocks.userFindFirst, findMany: mocks.userFindMany },
         signalHistory: { findFirst: mocks.signalFindFirst, findMany: mocks.signalFindMany },
+        orphanPositionAlerts: { findFirst: mocks.orphanFindFirst },
       },
       update: vi.fn((table: any) => {
         if (table === schema.tradeExecutions) {
           return { set: vi.fn((vals: any) => { mocks.tradeExecSet(vals); return { where: vi.fn(() => makeWhereResult(mocks.tradeExecReturning)) }; }) };
         }
+        if (table === schema.orphanPositionAlerts) {
+          return { set: vi.fn((vals: any) => { mocks.orphanSet(vals); return { where: vi.fn(() => makeWhereResult(vi.fn())) }; }) };
+        }
         return { set: vi.fn((vals: any) => { mocks.signalHistorySet(vals); return { where: vi.fn(() => makeWhereResult(mocks.signalHistoryReturning)) }; }) };
       }),
-      insert: vi.fn(() => ({ values: vi.fn((vals: any) => { mocks.tradeExecInsertValues(vals); return { onConflictDoNothing: mocks.insertOnConflict }; }) })),
+      insert: vi.fn((table: any) => {
+        if (table === schema.tradeExecutions) {
+          return { values: vi.fn((vals: any) => { mocks.tradeExecInsertValues(vals); return { onConflictDoNothing: mocks.insertOnConflict }; }) };
+        }
+        return { values: vi.fn((vals: any) => { mocks.orphanInsertValues(vals); return { onConflictDoNothing: mocks.insertOnConflict }; }) };
+      }),
     },
   };
 });
@@ -124,13 +137,17 @@ beforeEach(() => {
   mocks.traderConstructions.length = 0;
   mocks.tradeExecFindMany.mockReset().mockResolvedValue([]);
   mocks.userFindFirst.mockReset().mockResolvedValue(baseUser);
+  mocks.userFindMany.mockReset().mockResolvedValue([baseUser]);
   mocks.signalFindFirst.mockReset().mockResolvedValue(baseSignal);
   mocks.signalFindMany.mockReset().mockResolvedValue([]); // resolveStuckReservations: sin filas trabadas por defecto
+  mocks.orphanFindFirst.mockReset().mockResolvedValue(undefined);
   mocks.tradeExecSet.mockReset();
   mocks.tradeExecReturning.mockReset().mockResolvedValue([{ id: 1 }]);
   mocks.signalHistorySet.mockReset();
   mocks.signalHistoryReturning.mockReset().mockResolvedValue([{ id: 1 }]);
+  mocks.orphanSet.mockReset();
   mocks.tradeExecInsertValues.mockReset();
+  mocks.orphanInsertValues.mockReset();
   mocks.insertOnConflict.mockReset().mockResolvedValue(undefined);
   mocks.fetchAllPositions.mockReset().mockResolvedValue([]);
   mocks.fetchOpenOrdersForSymbol.mockReset().mockResolvedValue([]);
@@ -161,12 +178,17 @@ describe("isReconciliationDryRun", () => {
   });
 });
 
-describe("reconcileActiveTrades — sin filas activas", () => {
+describe("reconcileActiveTrades — sin usuarios con llaves de Binance", () => {
   it("no instancia ningún Trader ni toca la base", async () => {
-    mocks.tradeExecFindMany.mockResolvedValue([]);
+    mocks.userFindMany.mockResolvedValue([]);
     await reconcileActiveTrades();
     expect(mocks.traderConstructions).toHaveLength(0);
-    expect(mocks.userFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("ignora a los usuarios sin binanceApiKey configurada", async () => {
+    mocks.userFindMany.mockResolvedValue([{ ...baseUser, binanceApiKey: null }]);
+    await reconcileActiveTrades();
+    expect(mocks.traderConstructions).toHaveLength(0);
   });
 });
 
@@ -379,6 +401,71 @@ describe("reconcileActiveTrades — SL que no coincide (modo activo)", () => {
   });
 });
 
+// Punto 3 del incidente QNT (2026-10-02): una posición real en Binance sin ninguna fila activa
+// en trade_executions para ese usuario — el bot no la está siguiendo en absoluto.
+describe("reconcileActiveTrades — posiciones huérfanas", () => {
+  it("modo activo: posición sin fila activa conocida -> alerta crítica y guarda el throttle", async () => {
+    vi.stubEnv("RECONCILIATION_DRY_RUN", "false");
+    mocks.tradeExecFindMany.mockResolvedValue([]); // nada activo en trade_executions
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "MAGMA/USDT:USDT", contracts: 136, entryPrice: 0.256 }]);
+    mocks.orphanFindFirst.mockResolvedValue(undefined); // nunca se alertó antes
+
+    await reconcileActiveTrades();
+
+    expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
+    expect(mocks.sendCriticalAlert.mock.calls[0][3]).toContain("MAGMA/USDT:USDT");
+    expect(mocks.orphanInsertValues).toHaveBeenCalledWith(expect.objectContaining({ userId: 2, symbol: "MAGMA/USDT:USDT" }));
+  });
+
+  it("una posición con fila activa conocida NO es huérfana", async () => {
+    vi.stubEnv("RECONCILIATION_DRY_RUN", "false");
+    mocks.tradeExecFindMany.mockResolvedValue([makeTradeExecution()]); // BTC/USDT:USDT, ver baseSignal
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "BTC/USDT:USDT", contracts: 0.01, entryPrice: 50000 }]);
+    mocks.fetchOpenOrdersForSymbol.mockResolvedValue([
+      { symbol: "BTC/USDT:USDT", side: "sell", reduceOnly: true, triggerPrice: 49000, status: "open" },
+      { symbol: "BTC/USDT:USDT", side: "sell", reduceOnly: true, triggerPrice: 51000, status: "open" },
+    ]);
+
+    await reconcileActiveTrades();
+
+    expect(mocks.sendCriticalAlert).not.toHaveBeenCalled();
+  });
+
+  it("ya se alertó hace poco: no repite (throttle), tampoco en modo activo", async () => {
+    vi.stubEnv("RECONCILIATION_DRY_RUN", "false");
+    mocks.tradeExecFindMany.mockResolvedValue([]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "MAGMA/USDT:USDT", contracts: 136, entryPrice: 0.256 }]);
+    mocks.orphanFindFirst.mockResolvedValue({ id: 5, userId: 2, symbol: "MAGMA/USDT:USDT", lastAlertAt: new Date() });
+
+    await reconcileActiveTrades();
+
+    expect(mocks.sendCriticalAlert).not.toHaveBeenCalled();
+  });
+
+  it("modo de solo registro: solo loguea, no escribe ni alerta", async () => {
+    mocks.tradeExecFindMany.mockResolvedValue([]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "MAGMA/USDT:USDT", contracts: 136, entryPrice: 0.256 }]);
+
+    await reconcileActiveTrades();
+
+    expect(mocks.sendCriticalAlert).not.toHaveBeenCalled();
+    expect(mocks.orphanInsertValues).not.toHaveBeenCalled();
+    expect(mocks.orphanFindFirst).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalled();
+  });
+
+  it("se chequea aunque no haya NINGUNA fila activa en trade_executions para ningún usuario", async () => {
+    vi.stubEnv("RECONCILIATION_DRY_RUN", "false");
+    mocks.tradeExecFindMany.mockResolvedValue([]);
+    mocks.fetchAllPositions.mockResolvedValue([{ symbol: "MAGMA/USDT:USDT", contracts: 136, entryPrice: 0.256 }]);
+
+    await reconcileActiveTrades();
+
+    expect(mocks.traderConstructions).toHaveLength(1); // igual se instancia el Trader para chequear
+    expect(mocks.sendCriticalAlert).toHaveBeenCalledTimes(1);
+  });
+});
+
 // Punto 2 del incidente QNT (2026-10-02): si la Lambda se corta a mitad de executeTrade, la
 // reserva atómica deja la fila en "Ejecutando" para siempre.
 describe("resolveStuckReservations", () => {
@@ -445,7 +532,7 @@ describe("resolveStuckReservations", () => {
   it("reconcileActiveTrades llama a resolveStuckReservations antes de procesar las filas activas", async () => {
     mocks.signalFindMany.mockResolvedValue([makeStuckSignal()]);
     mocks.fetchAllPositions.mockResolvedValue([]);
-    mocks.tradeExecFindMany.mockResolvedValue([]);
+    mocks.userFindMany.mockResolvedValue([]); // sin usuarios con trade_executions activas
 
     await reconcileActiveTrades();
 

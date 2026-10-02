@@ -1,6 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { decideReconciliationAction, MISSING_SL_ALERT_THROTTLE_MS } from "../src/cron/reconciliationDecision.js";
+import { decideReconciliationAction, shouldAlertAgain, MISSING_SL_ALERT_THROTTLE_MS } from "../src/cron/reconciliationDecision.js";
 import type { NormalizedOrder } from "../src/api/modules/dashboard/infrastructure/protectionOrders.js";
+
+describe("shouldAlertAgain", () => {
+  const now = new Date("2026-10-01T12:00:00.000Z");
+
+  it("sin alerta previa: true", () => {
+    expect(shouldAlertAgain(null, now)).toBe(true);
+  });
+
+  it("dentro del umbral: false", () => {
+    expect(shouldAlertAgain(new Date(now.getTime() - 60 * 60 * 1000), now)).toBe(false);
+  });
+
+  it("justo en el umbral o más: true", () => {
+    expect(shouldAlertAgain(new Date(now.getTime() - MISSING_SL_ALERT_THROTTLE_MS), now)).toBe(true);
+    expect(shouldAlertAgain(new Date(now.getTime() - MISSING_SL_ALERT_THROTTLE_MS - 1), now)).toBe(true);
+  });
+});
 
 // Caso base: LONG, entrada 100, SL 95, TP 110. Órdenes de protección vivas con la forma
 // mínima que exige `classifyProtectionOrders` (ver tests/protection-orders.test.ts).

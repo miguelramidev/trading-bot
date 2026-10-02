@@ -8,12 +8,12 @@ import { and, eq, lt } from "drizzle-orm";
 import { Telegram } from "telegraf";
 import { Resource } from "sst";
 import { db } from "../db/index.js";
-import { tradeExecutions, signalHistory, userConfig } from "../db/schema.js";
+import { tradeExecutions, signalHistory, userConfig, orphanPositionAlerts } from "../db/schema.js";
 import { decrypt } from "../api/core/utils/encryption.js";
 import { Trader } from "../bot/trader.js";
 import { sendCriticalAlert } from "../bot/criticalAlert.js";
 import { sendPushNotificationAndPrune } from "../firebase.js";
-import { decideReconciliationAction, type ReconciliationAction } from "./reconciliationDecision.js";
+import { decideReconciliationAction, shouldAlertAgain, type ReconciliationAction } from "./reconciliationDecision.js";
 import { buildCloseTelegramMessage, buildClosePushMessage, closeReasonLabel } from "./closeNotificationHelpers.js";
 
 type TradeExecutionRow = typeof tradeExecutions.$inferSelect;
@@ -57,37 +57,35 @@ export async function reconcileActiveTrades(): Promise<void> {
   }
 
   const activeTrades = await db.query.tradeExecutions.findMany({ where: eq(tradeExecutions.isActive, true) });
-  if (activeTrades.length === 0) return;
-
   const byUser = new Map<number, TradeExecutionRow[]>();
   for (const trade of activeTrades) {
     if (!byUser.has(trade.userId)) byUser.set(trade.userId, []);
     byUser.get(trade.userId)!.push(trade);
   }
 
-  for (const [userId, trades] of byUser) {
+  // Todos los usuarios con llaves de Binance configuradas, no solo los que ya tienen una fila
+  // activa en trade_executions — el chequeo de posiciones huérfanas (punto 3) necesita mirar
+  // Binance aunque trade_executions no tenga NADA para ese usuario, que es justo el caso que
+  // detecta: una posición real que el bot no está siguiendo en absoluto.
+  const users = (await db.query.userConfig.findMany()).filter((u) => !!u.binanceApiKey);
+
+  for (const user of users) {
     try {
-      await reconcileUserTrades(userId, trades, dryRun);
+      await reconcileUserTrades(user, byUser.get(user.id) ?? [], dryRun);
     } catch (e) {
-      console.error(`[conciliación] Error procesando al usuario ${userId}:`, e);
+      console.error(`[conciliación] Error procesando al usuario ${user.id}:`, e);
     }
   }
 }
 
-async function reconcileUserTrades(userId: number, trades: TradeExecutionRow[], dryRun: boolean): Promise<void> {
-  const user = await db.query.userConfig.findFirst({ where: eq(userConfig.id, userId) });
-  if (!user || !user.binanceApiKey) {
-    console.error(`[conciliación] Usuario ${userId} sin API keys configuradas, se omite.`);
-    return;
-  }
-
+async function reconcileUserTrades(user: UserRow, trades: TradeExecutionRow[], dryRun: boolean): Promise<void> {
   let apiKey: string;
   let apiSecret: string;
   try {
-    apiKey = decrypt(user.binanceApiKey);
+    apiKey = decrypt(user.binanceApiKey!);
     apiSecret = user.rsaPrivateKey ? decrypt(user.rsaPrivateKey) : decrypt(user.binanceApiSecret!);
   } catch (e) {
-    console.error(`[conciliación] Error desencriptando las llaves del usuario ${userId}:`, e);
+    console.error(`[conciliación] Error desencriptando las llaves del usuario ${user.id}:`, e);
     return;
   }
 
@@ -97,12 +95,57 @@ async function reconcileUserTrades(userId: number, trades: TradeExecutionRow[], 
   // bien contra esta cuenta (confirmado).
   const positions = await trader.fetchAllPositions();
 
+  const knownSymbols = new Set<string>();
   for (const trade of trades) {
     try {
-      await reconcileOneTrade(trade, user, trader, positions, dryRun);
+      const symbol = await reconcileOneTrade(trade, user, trader, positions, dryRun);
+      if (symbol) knownSymbols.add(symbol);
     } catch (e) {
       console.error(`[conciliación] Error conciliando trade_executions.id=${trade.id}:`, e);
     }
+  }
+
+  try {
+    await checkOrphanPositions(user, positions, knownSymbols, dryRun);
+  } catch (e) {
+    console.error(`[conciliación] Error chequeando posiciones huérfanas del usuario ${user.id}:`, e);
+  }
+}
+
+/**
+ * Punto 3: una posición real en Binance (contracts > 0) sin ninguna fila activa en
+ * trade_executions para este usuario — el bot no la está siguiendo en absoluto (nunca se
+ * registró, o se perdió el registro). Mismo throttle de 4h que "sin SL", en su propia tabla
+ * porque acá no hay ninguna fila de trade_executions a la que colgárselo.
+ */
+async function checkOrphanPositions(user: UserRow, positions: any[], knownSymbols: Set<string>, dryRun: boolean): Promise<void> {
+  for (const p of positions) {
+    if (!p.contracts || p.contracts <= 0) continue;
+    if (knownSymbols.has(p.symbol)) continue;
+
+    if (dryRun) {
+      console.log(`[conciliación][solo registro] posición huérfana: ${p.symbol} (usuario ${user.id}) sin fila activa en trade_executions.`);
+      continue;
+    }
+
+    const existing = await db.query.orphanPositionAlerts.findFirst({
+      where: and(eq(orphanPositionAlerts.userId, user.id), eq(orphanPositionAlerts.symbol, p.symbol)),
+    });
+    if (!shouldAlertAgain(existing?.lastAlertAt ?? null, new Date())) continue;
+
+    if (existing) {
+      await db.update(orphanPositionAlerts).set({ lastAlertAt: new Date() }).where(eq(orphanPositionAlerts.id, existing.id));
+    } else {
+      await db.insert(orphanPositionAlerts).values({ userId: user.id, symbol: p.symbol, lastAlertAt: new Date() }).onConflictDoNothing();
+    }
+
+    console.log(`[conciliación] posición huérfana detectada: ${p.symbol} (usuario ${user.id}), alertando.`);
+    await sendCriticalAlert(
+      user.id,
+      user.chatId,
+      user.fcmTokens,
+      `🚨 <b>POSICIÓN SIN SEGUIMIENTO:</b> hay una posición abierta en ${p.symbol} que el bot no está siguiendo (sin ninguna fila activa registrada). Revisala manualmente en Binance.`
+    );
   }
 }
 
@@ -215,17 +258,19 @@ async function fetchProtectionOrdersConfirmed(trader: Trader, symbol: string): P
   return trader.fetchOpenOrdersForSymbol(symbol);
 }
 
+/** Devuelve el símbolo conciliado (para que `reconcileUserTrades` sepa que ya está cubierto y no
+ * lo marque como huérfano más abajo), o `null` si se omitió por algún error. */
 async function reconcileOneTrade(
   trade: TradeExecutionRow,
   user: UserRow,
   trader: Trader,
   positions: any[],
   dryRun: boolean
-): Promise<void> {
+): Promise<string | null> {
   const signal = await db.query.signalHistory.findFirst({ where: eq(signalHistory.id, trade.signalId) });
   if (!signal || !signal.direction) {
     console.error(`[conciliación] trade_executions.id=${trade.id} sin señal o sin dirección asociada, se omite.`);
-    return;
+    return null;
   }
 
   const symbol = signal.symbol;
@@ -278,10 +323,11 @@ async function reconcileOneTrade(
 
   if (dryRun) {
     console.log(`[conciliación][solo registro] trade_executions.id=${trade.id} (${symbol}):`, JSON.stringify(action));
-    return;
+    return symbol;
   }
 
   await applyAction(action, trade, signal.isActiveTrade, user, trader, symbol, direction, entryPrice);
+  return symbol;
 }
 
 async function fetchClosingFillWithRetries(

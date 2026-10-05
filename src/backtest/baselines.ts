@@ -1,6 +1,7 @@
 // Líneas base obligatorias (PROMPT_GUIDE.md, "Línea base primero"): toda estrategia tiene que
 // superarlas para justificarse.
 //   B0: BTC comprado y mantenido (perpetuo, sin apalancamiento, con funding).
+//   B2: BTC solo cuando cierra sobre su SMA200, revisado los lunes (el filtro de la rotación).
 //   B1: top 5 del universe point-in-time (por volumen), pesos iguales, rebalanceo semanal (lunes
 //       00:00 UTC), con comisión taker + slippage sobre lo que se rota y funding diario.
 // Se miden sobre retornos diarios, igual que las estrategias (Sharpe ×√365, MDD de la curva).
@@ -70,6 +71,32 @@ function main() {
     if (c0 && c1) b0.push(c1 / c0 - 1 - (btc.funding.get(d + DAY_MS) ?? 0));
   }
 
+  // B2: BTC solo con BTC > SMA200, revisado los lunes (mismo reloj y mismo filtro de mercado que
+  // la rotación de la opción B). Si la rotación no le gana a esto, no aporta nada.
+  const btcDays = [...btc.close.keys()].sort((a, b) => a - b);
+  const sma200At = new Map<number, number>();
+  for (let k = 199; k < btcDays.length; k++) {
+    let sum = 0;
+    for (let j = k - 199; j <= k; j++) sum += btc.close.get(btcDays[j])!;
+    sma200At.set(btcDays[k], sum / 200);
+  }
+  const b2: number[] = [];
+  let inMarket = false;
+  for (let d = from; d + DAY_MS < to; d += DAY_MS) {
+    let switchCost = 0;
+    // La vela del domingo (d) cierra el lunes 00:00: se decide con ese cierre y su SMA200.
+    if (new Date(d + DAY_MS).getUTCDay() === 1) {
+      const c = btc.close.get(d);
+      const ma = sma200At.get(d);
+      const want = c !== undefined && ma !== undefined && c > ma;
+      if (want !== inMarket) switchCost = tradeCost / 2; // una sola pata: entrar o salir
+      inMarket = want;
+    }
+    const c0 = btc.close.get(d);
+    const c1 = btc.close.get(d + DAY_MS);
+    b2.push((inMarket && c0 && c1 ? c1 / c0 - 1 - (btc.funding.get(d + DAY_MS) ?? 0) : 0) - switchCost);
+  }
+
   // B1: top 5 semanal.
   const cache = new Map<string, Daily>();
   const daily = (id: string) => {
@@ -109,6 +136,7 @@ function main() {
   console.log(`Período ${new Date(from).toISOString().slice(0, 10)} → ${new Date(to).toISOString().slice(0, 10)}, costos ×${cost}`);
   stats("B0 BTC comprado y mantenido", b0);
   stats("B1 top 5 por volumen, semanal", b1);
+  stats("B2 BTC con filtro SMA200 semanal", b2);
 }
 
 main();

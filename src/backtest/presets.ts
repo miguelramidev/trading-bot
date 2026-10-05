@@ -6,6 +6,7 @@ import type { Strategy } from "./engine/types.js";
 import type { ExitParams } from "./strategies/common.js";
 import { breakoutStrategy } from "./strategies/breakout.js";
 import { rsi2PullbackStrategy } from "./strategies/rsi2Pullback.js";
+import { rotationStrategy } from "./strategies/rotation.js";
 
 // Los tres modos de salida que se comparan en todas las estrategias de tendencia.
 const BRACKET: ExitParams = { mode: "bracket", stopAtr: 1, m: 2 }; // el actual del bot
@@ -65,6 +66,14 @@ export const PRESETS: Record<string, () => Strategy<any>[]> = {
         breakoutStrategy({ timeframeHours: 24, side: "long", n: 20, exit: BOT_TRAIL, btcSma: 0, dailyTrendFilter: false, relativeStrength: { lookbackDays, topK } })
       )
     ),
+  ],
+  // Opción B (2026-10-05, aprobada por el usuario antes de correr nada, docs §13): rotación semanal
+  // por fuerza relativa. Exactamente estas 4 variantes; las reglas fijas viven en rotation.ts.
+  ROT: () => [
+    rotationStrategy({ score: "residual", lookbackDays: 28, topK: 3 }), // R1, la central
+    rotationStrategy({ score: "residual", lookbackDays: 14, topK: 3 }), // R2: ventana
+    rotationStrategy({ score: "raw", lookbackDays: 28, topK: 3 }), // R3: tipo de ranking
+    rotationStrategy({ score: "residual", lookbackDays: 28, topK: 5 }), // R4: cantidad de monedas
   ],
   // Cortos evaluados en serio (decisión del usuario): misma comparación de salidas que los largos.
   SHORT_WF: () => [

@@ -313,7 +313,9 @@ Se retoma desde cero: el trabajo anterior (~19 commits sin pushear) se perdió c
 * [x] Decidir capital y salida (2026-10-05): 300 USDT, stop gestionado por el bot y trailing nativo con activación como alternativa, cortos evaluados en serio.
 * [x] Walk-forward, costos ×2, Monte Carlo y Deflated Sharpe (`src/backtest/validate.ts`, §11 del documento): **ninguna variante pasa.** Largos: Sharpe OOS 0,53 explicado por un solo semestre (MYX), MC p95 del 73 %. Cortos: Sharpe OOS ~0, negativo con costos ×2. T1/T2/M1/cortos descartados en su forma actual.
 * [x] Opción A (2026-10-05, §12): universo top 30 y filtro de fuerza relativa X1 sobre T1 largo. **Tampoco pasa** (walk-forward: Sharpe OOS 0,39, MC p95 52 %, DSR 0,13). Se cierra la línea de breakout/tendencia de serie temporal sin retocarla. N acumulado: 40 variantes.
-* [ ] Próximo paso: opción B, momentum relativo como rotación de cartera semanal con confirmación manual (hipótesis original de `PROMPT_GUIDE.md`), con tesis nueva y 3–4 variantes como máximo.
+* [x] Opción B (2026-10-05, §13): rotación semanal por fuerza relativa, 4 variantes aprobadas antes de correr. **Tampoco pasa** (walk-forward: Sharpe OOS 0,58 explicado por un solo tramo, DSR 0,18; ninguna variante supera el Sharpe de BTC comprado y mantenido).
+* [x] Conclusión de la tanda (§14): ninguna de las 44 variantes de las cuatro familias tiene edge robusto fuera de muestra. No relajar criterios, no seguir iterando sobre los mismos datos, no usar el holdout sin candidato.
+* [ ] Decidir cómo seguir (ver la conversación del 2026-10-05): auditar la estrategia actual de 15m con los trades reales y/o correr en modo sombra (solo registro de señales) los candidatos menos malos para acumular datos nuevos.
 * [ ] Walk-forward (24 meses in-sample / 6 out-of-sample), Deflated Sharpe, PBO, mesetas de parámetros, Monte Carlo del drawdown.
 * [ ] Calibrar el slippage con los fills reales de `signal_history`.
 * [ ] Replicar la estrategia actual (B3: MACD 15m + inversión macro) para auditar si la Estrategia 3 tiene el edge que se le atribuye (necesita velas de 15m).

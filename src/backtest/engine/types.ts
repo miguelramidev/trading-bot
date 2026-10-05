@@ -53,6 +53,9 @@ export interface PositionView {
   entryTfIndex: number;
   stop: number;
   barsHeld: number; // velas del TF de señal desde la entrada
+  /** Posición en el ranking cross-sectional al cierre de esta vela (1 = la mejor). undefined si la
+   * estrategia no rankea o si la moneda quedó fuera del ranking (salió del universo o sin datos). */
+  csRank?: number;
 }
 
 /**
@@ -82,6 +85,8 @@ export interface Strategy<P = unknown> {
    * NaN = sin dato suficiente (no compite). */
   crossSectionalScore?(p: P, i: number): number;
   crossSectionalTopK?: number;
+  /** Tope de posiciones abiertas propio de la estrategia (además del de la cuenta). */
+  maxPositions?: number;
 }
 
 export type TradeExitReason = ExitReason | "signal" | "time" | "delisted" | "end";

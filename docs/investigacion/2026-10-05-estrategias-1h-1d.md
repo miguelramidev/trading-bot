@@ -450,3 +450,50 @@ Son 6 variantes nuevas, así que N = 40. El walk-forward re-selecciona sobre las
 **Presupuesto de pruebas:**
 - Ya hay 40 variantes distintas probadas sobre estos ~5 años. Cualquier familia nueva sobre los mismos datos arranca con un Deflated Sharpe más exigente: el N es acumulativo, porque los datos son los mismos.
 - La próxima familia tiene que venir con una tesis nueva y pocas variantes, idealmente 3 o 4.
+
+---
+
+## 13. Opción B: rotación semanal por fuerza relativa (2026-10-05) — tampoco pasa
+
+**Tesis, aprobada antes de correr:** en cripto el capital y la atención rotan hacia las monedas grandes que vienen ganándole a BTC. Ese impulso persiste 1–4 semanas, y solo vale la pena estar comprado con el mercado en tendencia.
+
+**Reglas fijas (`src/backtest/strategies/rotation.ts`):**
+- Top 30 por volumen, con rebalanceo los lunes 00:00 UTC (domingo 21:00 PYT).
+- Filtro de mercado BTC > SMA200.
+- Salida por histéresis fuera del top 2K y stop duro de 2,5 ATR diario.
+- Solo largos.
+
+**Variantes (4, N = 44):** R1 residual 28 días k3, R2 residual 14 días k3, R3 retorno crudo 28 días k3, R4 residual 28 días k5.
+
+**Línea base nueva:** B2, BTC con el mismo filtro SMA200 semanal: CAGR 6,3 %, MDD 61,9 %, Sharpe 0,36.
+- La comparación con las estrategias se hace por Sharpe, porque las líneas base invierten el 100 % del capital y el simulador usa margen fijo.
+- El listón es B0 (BTC comprado y mantenido), con Sharpe 0,57.
+
+| | Sharpe | Anual | MDD | MC p95 | DSR | PnL sin top 3 monedas |
+|---|---|---|---|---|---|---|
+| R1 res 28d k3 | 0,56 (×2: 0,55) | 16,8 % | 33,8 % | 66,0 % | 0,11 | negativo |
+| R2 res 14d k3 | 0,21 | 3,3 % | 29,2 % | 56,0 % | 0,03 | negativo |
+| R3 raw 28d k3 | 0,49 | 14,7 % | 38,1 % | 74,3 % | 0,08 | negativo |
+| R4 res 28d k5 | 0,41 | 14,0 % | 48,3 % | 92,7 % | 0,07 | negativo |
+| **Walk-forward OOS** | **0,58** (×2: 0,57) | 20,0 % | 35,6 % | 57,6 % | 0,18 | |
+
+- El walk-forward lo explica entero el último tramo (2025-07 → 2025-09: +247 USDT). Los otros cinco semestres suman −82 USDT.
+- Ninguna variante supera el Sharpe de BTC comprado y mantenido (0,57).
+
+---
+
+## 14. Conclusión de la tanda (2026-10-05)
+
+**Resultado:** sobre 2021–2025, con universo point-in-time, costos realistas y validación fuera de muestra, **ninguna de las 44 variantes de las cuatro familias muestra un edge robusto.** Abarcaron tendencia y breakout en 1d/4h, reversión, cortos, filtros de liquidez y fuerza relativa, y rotación semanal.
+
+**Patrón común:** en todas las variantes largas que ganan, el PnL lo explican muy pocos eventos de cola derecha (MYX en 2025, CHZ/AVAX en 2021, el tramo 2025-07/09). Sin esas pocas monedas, el resultado es ~0 o negativo, y fuera de muestra no se sostiene semestre a semestre.
+
+**Lo que NO corresponde hacer:**
+- Relajar los criterios de aceptación (Sharpe ≥ 1, DSR ≥ 0,95, MC p95 ≤ 25 %) después de ver los resultados. Eso es mover el arco.
+- Seguir probando variantes sobre estos mismos datos: con N = 44, cada variante nueva hace más probable encontrar ruido que parezca edge.
+- Usar el holdout: está reservado para un candidato que haya pasado el walk-forward, y no hay ninguno.
+
+**Lo que se aprendió y es útil igual:**
+- El trailing nativo de Binance, con su tope del 10 %, no sirve para seguir tendencias diarias en altcoins.
+- Con menos de ~300 USDT, el notional mínimo de Binance hace que cada trade arriesgue demasiado.
+- El motor, los datos y el protocolo ya están y son reutilizables.

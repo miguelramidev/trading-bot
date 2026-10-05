@@ -327,3 +327,58 @@ Las estadísticas (DSR, PBO, SPA de White/Hansen) se pueden hacer en TS o en Pyt
    - Mantenimiento supuesto: 1 %, sin verificar (la tabla de brackets de Binance es un endpoint autenticado).
 6. **Tamaño: margen fijo**, como hoy (Regla 1 de `RULES.md` sin cambios). El vol-target de la literatura no se usa para dimensionar. Queda solo como línea base (B2) y como referencia.
 7. **Motor de backtest en TypeScript**, dentro de `src/backtest/`.
+
+---
+
+## 10. Primeros resultados (2026-10-05) — in-sample, sin walk-forward
+
+**Período:** 2021-01-01 → 2025-09-30 (el holdout 2025-10 → 2026-09 no se tocó). **Costos ×1.** Margen de 6 USDT con apalancamiento x1–x10 y máximo 5 posiciones. Corridas registradas en `data_dl/backtests/registry.jsonl`.
+
+> **Advertencia.** Todo esto es in-sample, sobre el período completo y eligiendo la mejor de varias variantes. **No es evidencia de edge todavía.** Sirve para descartar ideas y para detectar problemas de diseño, no para elegir una estrategia.
+
+**Datos:**
+- 679 perpetuos elegibles descargados (40.931 archivos, 0 errores).
+- 596 instrumentos pasaron por el top 100 en algún momento.
+- Los saltos de más del 50 % en 1h son eventos reales (LUNA, ZKJ, pumps de listados), no errores de escala.
+
+### Líneas base
+| | CAGR | MDD | Sharpe |
+|---|---|---|---|
+| B0 BTC comprado y mantenido | 17,7 % | 78,9 % | 0,57 |
+| B1 top 5 por volumen, semanal | −4,9 % | 95,2 % | 0,37 |
+
+### Hallazgo 1: con 30 USDT el tamaño mínimo de Binance hace inviable un MDD del 25 %
+El bot exige un notional de al menos 10 USDT (Regla 1), así que cada posición es de 12 USDT, el 40 % de la cuenta. Con un stop de 2,5 ATR diario (15–20 % en altcoins), cada trade arriesga el 6–8 % del capital, y 4 stops seguidos rompen el 25 %.
+
+Con 30 USDT casi todas las variantes **quiebran la cuenta**: un anual de −17 % y un MDD de 88–95 % quieren decir que se quedó sin margen para operar. Con el mismo margen de 6 USDT y **300 USDT** de capital, el riesgo por trade baja a ~0,7 % y las mismas reglas dan:
+
+| Variante (300 USDT) | Trades | PF | Anual | MDD | Sharpe | Sin top 3 monedas | Años negativos |
+|---|---|---|---|---|---|---|---|
+| T1 1d long n20, trailing del bot | 375 | 1,82 | 33,8 % | 16,4 % | 0,85 | +154 (de +482) | 2022, 2024 |
+| T1 1d long n55, trailing del bot | 341 | 1,22 | 7,7 % | 22,0 % | 0,32 | | |
+| T1 1d long n55, trailing nativo | 1.705 | 1,02 | 1,2 % | 18,7 % | 0,11 | | |
+| T1 1d **short** n20, trailing nativo | 1.348 | 1,24 | 10,0 % | 7,9 % | 0,80 | +114 (de +143) | 2023 (−2 %) |
+| T2 4h **short** n20, trailing nativo | 1.696 | 1,18 | 8,6 % | 9,1 % | 0,65 | +92 (de +122) | 2023 (−2 %) |
+
+### Hallazgo 2: en largos de 1d, el trailing nativo de Binance no sirve con callback desde la entrada
+- Con trailing nativo, las posiciones largas duran **1,2 velas diarias en promedio**, contra 19 con el trailing del bot (chandelier de 3 ATR).
+- La causa es que 3 ATR diarios en altcoins son el 18–24 %, y Binance recorta el callback al 10 %: la posición sale en el ruido normal del día siguiente.
+- Resultado: rinde igual que el bracket actual (los dos pierden), mientras que el trailing del bot es la única salida larga rentable.
+- Variantes no probadas que podrían cambiar esto:
+  - Nativo con `activatePrice`, para que el trailing arranque recién después de +k ATR.
+  - Stop gestionado por el bot y actualizado una vez por día. En 1d eso es un solo reemplazo de orden por posición y por día.
+
+### Hallazgo 3: T2 (4h) y M1 (retroceso RSI(2)) no funcionan
+- **T2 largo** pierde con las tres salidas.
+- **M1** pierde en 4h. En 1d queda en PF ~1,05–1,10, sin edge después de costos. Coincide con la investigación: la reversión no rinde en un top 100.
+
+### Hallazgo 4: los cortos rinden más parejo que los largos
+- Contra lo que anticipaba la literatura, en este período (bear de 2022 y caída lenta de las altcoins en 2024–2025) los cortos con trailing nativo son los más estables: MDD bajo, poca dependencia de las mejores monedas y 4 de 5 años positivos.
+- La decisión sigue siendo operar solo largos. Esto queda como información.
+
+### Advertencias
+- **Trial budget:** ya hay ~50 corridas registradas, contando la sensibilidad de capital. El Deflated Sharpe tiene que descontar esa N.
+- **Dependencia de outliers:**
+  - El mejor largo depende de un puñado de trades: MYX 2025 aportó +167 USDT, con +112 de funding cobrado durante un squeeze de cortos.
+  - El PnL sin las 3 mejores monedas cae al ~30 %.
+- **Faltan:** walk-forward, costos ×2, Monte Carlo y Deflated Sharpe. Ninguna variante llega todavía al umbral de Sharpe ≥ 1,0.

@@ -44,9 +44,9 @@ export interface ExitParams {
 }
 
 export function exitLabel(e: ExitParams): string {
-  if (e.mode === "bracket") return `bracket${e.stopAtr}/${e.m}`;
-  if (e.mode === "native_trail") return `ntrail${e.stopAtr}/${e.m}`;
-  return `btrail${e.stopAtr}/${e.m}`;
+  if (e.mode === "bracket") return `bracket${e.stopAtr}-${e.m}`;
+  if (e.mode === "native_trail") return `ntrail${e.stopAtr}-${e.m}`;
+  return `btrail${e.stopAtr}-${e.m}`;
 }
 
 export interface ExitArrays {

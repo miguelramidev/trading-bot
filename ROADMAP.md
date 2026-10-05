@@ -309,7 +309,8 @@ Se retoma desde cero: el trabajo anterior (~19 commits sin pushear) se perdió c
 * [x] Universo point-in-time (`src/backtest/universe.ts`): top 100 por mediana de volumen de 30 días, solo con velas ya cerradas. Reemplaza al `scripts_py/download_top100.py`, que tiene sesgo de supervivencia.
 * [x] Motor: indicadores puros con calentamiento en `NaN` (los de `data.ts` rellenan con 0), salidas intravela pesimistas (stop/TP/trailing nativo), cartera con cupo y Regla 1, comisiones, slippage por liquidez, funding real, deslistados. Tests en `tests/backtest-*.test.ts`.
 * [x] Holdout protegido: el runner no simula desde 2025-10-01 sin `--holdout`. Registro de todas las corridas (`data_dl/backtests/registry.jsonl`) para el Deflated Sharpe.
-* [ ] Correr las líneas base (B0 BTC, B1 top 5 semanal) y los grupos pre-registrados T1, T2, M1 y SHORTS (`src/backtest/presets.ts`).
+* [x] Correr las líneas base y los grupos pre-registrados T1, T2, M1 y SHORTS (2026-10-05, in-sample; resultados en `docs/investigacion/2026-10-05-estrategias-1h-1d.md` §10). Hallazgos: con 30 USDT el tamaño mínimo de Binance (10 USDT de notional) hace inviable un MDD del 25 %; el trailing nativo (tope del 10 %) no sirve para largos en 1d; T2 y M1 descartados; solo T1 n20 con trailing del bot sobrevive in-sample (con 300 USDT: Sharpe 0,85, MDD 16 %), muy dependiente de pocas monedas.
+* [ ] Decidir capital y salida a la luz de los primeros resultados (ver §10 del documento).
 * [ ] Walk-forward (24 meses in-sample / 6 out-of-sample), Deflated Sharpe, PBO, mesetas de parámetros, Monte Carlo del drawdown.
 * [ ] Calibrar el slippage con los fills reales de `signal_history`.
 * [ ] Replicar la estrategia actual (B3: MACD 15m + inversión macro) para auditar si la Estrategia 3 tiene el edge que se le atribuye (necesita velas de 15m).

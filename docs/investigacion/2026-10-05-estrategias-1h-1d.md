@@ -422,3 +422,31 @@ Diferencias de diseño contra la literatura que sí tenía resultados positivos 
    - La prioridad por "fuerza de la ruptura en ATR" favorece justamente los pumps más estirados, que tienden a ser monedas chicas.
 2. **Filtro de fuerza relativa (X1)** y **corte por nivel de liquidez:** los dos estaban en §6 y no se probaron todavía.
 3. **Presupuesto de pruebas:** quedan ~10 corridas antes de llegar a las ~45 que admite el período.
+
+---
+
+## 12. Opción A: universo top 30 y fuerza relativa (2026-10-05) — tampoco pasa
+
+**Qué se probó:** los dos ítems de §6 que faltaban, solo sobre el T1 largo con trailing del bot y sin tocar nada más:
+- Universo top 30 líquido (n20 y n55).
+- Filtro de fuerza relativa residual X1 sobre n20: L {14, 28} × top k {5, 10}.
+
+Son 6 variantes nuevas, así que N = 40. El walk-forward re-selecciona sobre las 14 variantes largas.
+
+**Lo que mejoró, en el período completo:** depende menos de outliers. Sin las 3 mejores monedas conserva entre el 28 % y el 43 % del PnL, y los MDD bajan a 20–29 %. La mejor nueva es top 30 n55: Sharpe 0,64 y MDD del 19,9 %.
+
+**Lo que no alcanza:**
+
+| | Sharpe OOS | Anual OOS | MDD OOS | MC p95 | DSR |
+|---|---|---|---|---|---|
+| Walk-forward largos (pool ampliado) | 0,39 (×2: 0,36) | 8,0 % | 19,5 % | 51,7 % | 0,13 |
+| *Umbral* | *≥ 1,0* | | | *≤ 25 %* | *≥ 0,95* |
+
+- La re-selección eligió top 30 n55 en los últimos 4 semestres.
+- Sus resultados OOS alternan: −53, +41, −33, +49 USDT. No hay un edge estable.
+
+**Conclusión:** con esto se agotan los ítems pre-registrados para breakout/tendencia de serie temporal. Según el protocolo, **se cierra esta línea sin retocarla.** El holdout sigue sin usarse.
+
+**Presupuesto de pruebas:**
+- Ya hay 40 variantes distintas probadas sobre estos ~5 años. Cualquier familia nueva sobre los mismos datos arranca con un Deflated Sharpe más exigente: el N es acumulativo, porque los datos son los mismos.
+- La próxima familia tiene que venir con una tesis nueva y pocas variantes, idealmente 3 o 4.

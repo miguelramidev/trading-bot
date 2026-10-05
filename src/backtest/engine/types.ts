@@ -75,6 +75,13 @@ export interface Strategy<P = unknown> {
   exitSignal?(p: P, i: number, pos: PositionView): boolean;
   /** Corte por tiempo, en velas del TF de señal. */
   maxBars?: number;
+  /** Solo se entra en instrumentos con rank de volumen ≤ maxRank en el universo vigente. */
+  maxRank?: number;
+  /** Filtro cross-sectional: en cada cierre se rankean todos los instrumentos del universo por
+   * este score (mayor primero) y solo se permiten entradas en el top `crossSectionalTopK`.
+   * NaN = sin dato suficiente (no compite). */
+  crossSectionalScore?(p: P, i: number): number;
+  crossSectionalTopK?: number;
 }
 
 export type TradeExitReason = ExitReason | "signal" | "time" | "delisted" | "end";

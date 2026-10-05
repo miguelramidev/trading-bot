@@ -9,7 +9,10 @@
 import type { Side } from "../engine/exits.js";
 import type { InstrumentData, MarketData, Strategy } from "../engine/types.js";
 import { ema, rollingMax, rollingMin, shift } from "../indicators.js";
+import { residualMomentum } from "./relativeStrength.js";
 import { alignDaily, btcAboveSma, buildPlan, botTrailStop, exitArrays, exitLabel, type ExitArrays, type ExitParams } from "./common.js";
+
+const RS_BETA_DAYS = 60;
 
 export interface BreakoutParams {
   timeframeHours: 4 | 24;
@@ -21,6 +24,12 @@ export interface BreakoutParams {
   btcSma: number;
   /** Solo 4h: exigir tendencia diaria de la moneda (cierre diario > EMA50 diaria, o < para short). */
   dailyTrendFilter: boolean;
+  /** Universo líquido: solo entra en monedas con rank de volumen ≤ maxRank (docs §6, corte por liquidez). */
+  maxRank?: number;
+  /** Filtro de fuerza relativa residual contra BTC (X1, docs §6): solo entra si la moneda está en el
+   * top `topK` del universo por momentum residual de `lookbackDays` días (beta de 60 días). En
+   * cortos se rankea al revés (las más débiles). */
+  relativeStrength?: { lookbackDays: number; topK: number };
 }
 
 interface Prepared {
@@ -29,6 +38,8 @@ interface Prepared {
   prevChannel: Float64Array;
   btcOk: Uint8Array | null;
   dailyOk: Uint8Array | null;
+  /** Score cross-sectional alineado al TF (NaN si no hay datos o no aplica). */
+  rs: Float64Array | null;
   exit: ExitArrays;
 }
 
@@ -44,6 +55,8 @@ export function breakoutStrategy(params: BreakoutParams): Strategy<Prepared> {
     exitLabel(exit),
     params.btcSma ? `btc${params.btcSma}` : "btc-",
     params.dailyTrendFilter ? "dtf" : "",
+    params.maxRank ? `top${params.maxRank}` : "",
+    params.relativeStrength ? `rs${params.relativeStrength.lookbackDays}k${params.relativeStrength.topK}` : "",
   ]
     .filter(Boolean)
     .join("_");
@@ -53,6 +66,9 @@ export function breakoutStrategy(params: BreakoutParams): Strategy<Prepared> {
     family: "tendencia",
     timeframeHours,
     side,
+    maxRank: params.maxRank,
+    crossSectionalTopK: params.relativeStrength?.topK,
+    crossSectionalScore: params.relativeStrength ? (p, i) => (p.rs ? p.rs[i] : NaN) : undefined,
     prepare(inst: InstrumentData, market: MarketData): Prepared {
       const tf = inst.tf;
       // 1d: canal de cierres (Zarattini). 4h: canal de highs/lows (Turtle).
@@ -74,7 +90,14 @@ export function breakoutStrategy(params: BreakoutParams): Strategy<Prepared> {
           dailyOk[i] = k >= 0 && s * inst.daily.close[k] > s * e50[k] ? 1 : 0;
         }
       }
-      return { close: tf.close, channel, prevChannel: shift(channel, 1), btcOk, dailyOk, exit: exitArrays(tf, side) };
+      let rs: Float64Array | null = null;
+      if (params.relativeStrength) {
+        const daily = residualMomentum(inst.daily, market.btcDaily, params.relativeStrength.lookbackDays, RS_BETA_DAYS);
+        const idx = alignDaily(tf, timeframeHours, inst.daily);
+        rs = new Float64Array(tf.length).fill(NaN);
+        for (let i = 0; i < tf.length; i++) if (idx[i] >= 0) rs[i] = s * daily[idx[i]];
+      }
+      return { close: tf.close, channel, prevChannel: shift(channel, 1), btcOk, dailyOk, rs, exit: exitArrays(tf, side) };
     },
     entry(p, i) {
       if (i < 1) return null;

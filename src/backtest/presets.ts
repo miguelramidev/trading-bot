@@ -51,6 +51,21 @@ export const PRESETS: Record<string, () => Strategy<any>[]> = {
       breakoutStrategy({ timeframeHours: 24, side: "long", n, exit: NATIVE_TRAIL_ACTIVATED, btcSma: 0, dailyTrendFilter: false })
     ),
   ],
+  // Opción A (2026-10-05, después de §11): los dos ítems de §6 que faltaban, SOLO sobre el T1 largo
+  // con trailing del bot y sin tocar nada más (prioridad, stops, lookbacks): universo top 30 líquido
+  // y filtro de fuerza relativa residual X1 (L {14, 28} días × top k {5, 10}). El pool del
+  // walk-forward incluye también las variantes anteriores, para que la re-selección sea honesta.
+  LONG_WF2: () => [
+    ...PRESETS.LONG_WF(),
+    ...[20, 55].map((n) =>
+      breakoutStrategy({ timeframeHours: 24, side: "long", n, exit: BOT_TRAIL, btcSma: 0, dailyTrendFilter: false, maxRank: 30 })
+    ),
+    ...[14, 28].flatMap((lookbackDays) =>
+      [5, 10].map((topK) =>
+        breakoutStrategy({ timeframeHours: 24, side: "long", n: 20, exit: BOT_TRAIL, btcSma: 0, dailyTrendFilter: false, relativeStrength: { lookbackDays, topK } })
+      )
+    ),
+  ],
   // Cortos evaluados en serio (decisión del usuario): misma comparación de salidas que los largos.
   SHORT_WF: () => [
     ...[20, 55].flatMap((n) =>

@@ -153,6 +153,27 @@ describe("simulate", () => {
     expect(res.trades[0].leverage).toBe(2);
     expect(res.trades[0].notional).toBeCloseTo(12, 10);
   });
+
+  it("maxRank: no entra en instrumentos fuera del top indicado del universo", () => {
+    const a = instrument("A", hours(72, () => 100), 4);
+    const b = instrument("B", hours(72, () => 100), 4);
+    const strat = { ...stubStrategy({ A: { bar: 1, score: 1 }, B: { bar: 1, score: 9 } }, 50), maxRank: 1 };
+    const res = simulate(strat, new Map([["A", a], ["B", b]]), { btcDaily: a.daily }, universe(["A", "B"]), cfg());
+    expect(res.trades.map((t) => t.instrument)).toEqual(["A"]);
+  });
+
+  it("filtro cross-sectional: solo entra en el top K por score, rankeando todo el universo", () => {
+    const ids = ["A", "B", "C"];
+    const insts = new Map(ids.map((id) => [id, instrument(id, hours(72, () => 100), 4)]));
+    const rsScore: Record<string, number> = { A: 1, B: 3, C: 2 };
+    const strat = {
+      ...stubStrategy({ A: { bar: 1, score: 1 }, B: { bar: 1, score: 1 }, C: { bar: 1, score: 1 } }, 50),
+      crossSectionalTopK: 2,
+      crossSectionalScore: (p: { id: string }) => rsScore[p.id],
+    };
+    const res = simulate(strat, insts, { btcDaily: insts.get("A")!.daily }, universe(ids), cfg());
+    expect(res.trades.map((t) => t.instrument).sort()).toEqual(["B", "C"]);
+  });
 });
 
 describe("regla1Leverage (mismo algoritmo que Trader.executeTrade)", () => {

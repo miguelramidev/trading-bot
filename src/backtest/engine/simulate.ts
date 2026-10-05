@@ -224,9 +224,28 @@ export function simulate(
       // 2b. Entradas.
       const snap = universeAt(universe, H);
       if (snap) {
+        // Filtro cross-sectional: top K del universo vigente por el score de la estrategia,
+        // calculado sobre TODO el universo (incluidas las monedas con posición abierta).
+        let allowed: Set<string> | null = null;
+        if (strategy.crossSectionalScore && strategy.crossSectionalTopK) {
+          const scored: { id: string; score: number }[] = [];
+          for (const id of snap.ranked) {
+            const inst = instruments.get(id);
+            if (!inst) continue;
+            const i = indexAt(inst.tf.openTime, closedBarOpen);
+            if (i < 0) continue;
+            const score = strategy.crossSectionalScore(getPrepared(inst), i);
+            if (Number.isFinite(score)) scored.push({ id, score });
+          }
+          scored.sort((a, b) => b.score - a.score);
+          allowed = new Set(scored.slice(0, strategy.crossSectionalTopK).map((x) => x.id));
+        }
+
         const candidates: { inst: InstrumentData; i: number; score: number; rank: number }[] = [];
         snap.ranked.forEach((id, k) => {
           if (open.has(id)) return;
+          if (strategy.maxRank !== undefined && k + 1 > strategy.maxRank) return;
+          if (allowed && !allowed.has(id)) return;
           const inst = instruments.get(id);
           if (!inst) return;
           const i = indexAt(inst.tf.openTime, closedBarOpen);

@@ -300,7 +300,7 @@ Se retoma desde cero: el trabajo anterior (~19 commits sin pushear) se perdió c
 * **Capital inicial supuesto: 30 USDT. Drawdown máximo tolerado: 25 %** (percentil 95 de Monte Carlo).
 * **Solo largos.** Los cortos se backtestean aparte, solo como información.
 * Salida con el **`TRAILING_STOP_MARKET` nativo de Binance** (callback 0,1–10 %, sin `closePosition`, convive con un STOP_MARKET fijo).
-* **Margen fijo como hoy** (Regla 1 sin cambios). En el backtest: 6 USDT por operación a x1–x2, así que BTC (mínimo 50 USDT) y ETH/BCH/LTC/ETC/LINK (20 USDT) quedan rechazados por la Regla 1, igual que en producción.
+* **Margen fijo como hoy** (Regla 1 sin cambios), con **apalancamiento x1–x10**. En el backtest: 6 USDT por operación. La Regla 1 sube el apalancamiento solo lo necesario: x2 para la mayoría (notional 12), x4 para ETH/BCH/LTC/ETC/LINK (mínimo 20) y x9 para BTC (mínimo 50). El simulador modela la liquidación en aislado: si el precio la alcanza antes que el stop, se pierde todo el margen.
 * Motor de backtest propio en **TypeScript** (`src/backtest/`), sin Python.
 
 **Backtest:**
@@ -319,6 +319,7 @@ Se retoma desde cero: el trabajo anterior (~19 commits sin pushear) se perdió c
 * [ ] Cron alineado al cierre de vela del TF (00:00 UTC para 1d = 21:00 PYT; cada 4h). El de 15 min queda para monitoreo y conciliación.
 * [ ] `executeTrade` con `TRAILING_STOP_MARKET` (cantidad + `reduceOnly`) además del STOP_MARKET inicial. Conciliación y limpieza de órdenes al tanto del trailing.
 * [ ] Regla 8 (edad de la señal) por TF: una señal de 1d confirmada a la mañana siguiente tiene ~12 h.
+* [ ] **Regla nueva: el SL tiene que quedar antes que la liquidación.** Con stops de 2–3 ATR en 4h/1d y hasta x9 (BTC con margen de 6 USDT), el stop puede quedar más lejos que el precio de liquidación en aislado (~10 % a x9): la posición se liquidaría antes de que el stop actúe. `executeTrade` tiene que calcular la liquidación con el bracket real del par y rechazar si el SL no queda antes. Documentarlo en `RULES.md` y cubrirlo con tests.
 * [ ] La estrategia de producción importa los mismos indicadores y señales de `src/backtest/` (lo validado es lo que se ejecuta).
 
 ---

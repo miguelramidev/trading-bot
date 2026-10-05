@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { processBar, initExitState, clampCallbackRate } from "../src/backtest/engine/exits.js";
+import { processBar, initExitState, clampCallbackRate, liquidationPrice } from "../src/backtest/engine/exits.js";
 
 const bar = (open: number, high: number, low: number, close: number) => ({ open, high, low, close });
 
@@ -72,9 +72,51 @@ describe("processBar: trailing nativo", () => {
     expect(processBar(s, bar(111, 111, 105, 106))?.price).toBeCloseTo(106.4, 10);
   });
 
-  it("el stop duro sigue vigente con el trailing: se toma el peor nivel tocado", () => {
+  it("stop duro y trailing tocados en la misma vela: cierra el más cercano (el precio pasa primero por ahí)", () => {
     const s = initExitState("long", 100, 97, undefined, { callbackRate: 0.02 }); // trailing en 98
-    expect(processBar(s, bar(100, 100, 96, 96.5))).toEqual({ reason: "stop", price: 97, ambiguous: false });
+    expect(processBar(s, bar(100, 100, 96, 96.5))).toEqual({ reason: "trailing", price: 98, ambiguous: false });
+  });
+
+  it("el stop duro sigue vigente si el trailing quedó más lejos", () => {
+    const s = initExitState("long", 100, 99, undefined, { callbackRate: 0.05 }); // trailing en 95
+    expect(processBar(s, bar(100, 100, 94, 94.5))).toEqual({ reason: "stop", price: 99, ambiguous: false });
+  });
+});
+
+describe("processBar: liquidación (margen aislado)", () => {
+  it("liquida si el stop está más lejos que el precio de liquidación", () => {
+    const s = initExitState("long", 100, 85, undefined, undefined, 90); // stop 85, liquidación 90
+    expect(processBar(s, bar(100, 100, 84, 86))).toEqual({ reason: "liquidation", price: 90, ambiguous: false });
+  });
+
+  it("no liquida si el stop está antes: cierra el stop", () => {
+    const s = initExitState("long", 100, 95, undefined, undefined, 90);
+    expect(processBar(s, bar(100, 100, 88, 89))).toEqual({ reason: "stop", price: 95, ambiguous: false });
+  });
+
+  it("gap que abre más allá de la liquidación: liquida aunque el stop esté antes", () => {
+    const s = initExitState("long", 100, 95, undefined, undefined, 90);
+    expect(processBar(s, bar(87, 88, 85, 86))).toEqual({ reason: "liquidation", price: 90, ambiguous: false });
+  });
+
+  it("gap entre el stop y la liquidación: llena el stop al open", () => {
+    const s = initExitState("long", 100, 95, undefined, undefined, 90);
+    expect(processBar(s, bar(92, 93, 89, 91))).toEqual({ reason: "stop", price: 92, ambiguous: false });
+  });
+
+  it("short: espejo", () => {
+    const s = initExitState("short", 100, 115, undefined, undefined, 110);
+    expect(processBar(s, bar(100, 116, 100, 114))).toEqual({ reason: "liquidation", price: 110, ambiguous: false });
+  });
+});
+
+describe("liquidationPrice", () => {
+  it("long a x9 con 1 % de mantenimiento queda a ~10,1 % de la entrada", () => {
+    expect(liquidationPrice("long", 100, 9, 0.01)).toBeCloseTo(100 * (1 - 1 / 9 + 0.01), 10);
+  });
+
+  it("short es el espejo", () => {
+    expect(liquidationPrice("short", 100, 2, 0.01)).toBeCloseTo(149, 10);
   });
 });
 

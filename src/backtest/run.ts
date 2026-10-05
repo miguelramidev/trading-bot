@@ -5,7 +5,7 @@
 // reservado se usa una sola vez, al final, con --holdout (docs §8.5).
 //
 // Correr: npx tsx src/backtest/run.ts --preset=T1 [--from=2021-01-01] [--to=2025-10-01] [--cost=1|2]
-//         [--equity=30] [--margin=6] [--lev-min=1] [--lev-max=2] [--max-positions=5]
+//         [--equity=30] [--margin=6] [--lev-min=1] [--lev-max=10] [--max-positions=5]
 import { readFileSync, mkdirSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadInstrumentData } from "./data/load.js";

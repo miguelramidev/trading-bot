@@ -12,7 +12,7 @@
 //
 // Margen fijo por operación (como `montoOperacion` del bot, sin interés compuesto): los
 // resultados en % se leen contra `initialEquity`.
-import { processBar, initExitState, type ExitState } from "./exits.js";
+import { processBar, initExitState, liquidationPrice, type ExitState } from "./exits.js";
 import type { InstrumentData, MarketData, SimConfig, SimResult, Strategy, Trade, DailyEquity, TradeExitReason, PositionView } from "./types.js";
 import { universeAt, type UniverseSnapshot } from "../universe.js";
 import { HOUR_MS, DAY_MS } from "../data/candles.js";
@@ -123,10 +123,14 @@ export function simulate(
     const isStopLike = reason === "stop" || reason === "trailing";
     let slip = slippageBps(cfg, pos.rank) * (isStopLike ? cfg.stopSlippageMult : 1);
     if (reason === "end") slip = 0;
+    if (reason === "liquidation") slip = 0;
     let price = rawPrice * (1 - sideSign * slip);
     if (reason === "delisted") price = rawPrice * (1 - sideSign * cfg.delistPenalty);
-    const exitFee = pos.qty * price * fee;
-    const gross = sideSign * pos.qty * (price - pos.entryPrice);
+    // Liquidación en aislado: se pierde todo el margen de la posición (lo que sobre lo absorbe
+    // el fondo de seguro), sin comisión de salida a cargo del usuario.
+    const liquidated = reason === "liquidation";
+    const exitFee = liquidated ? 0 : pos.qty * price * fee;
+    const gross = liquidated ? -pos.margin : sideSign * pos.qty * (price - pos.entryPrice);
     const fees = pos.fees + exitFee;
     const net = gross - fees + pos.funding;
     const risk = pos.qty * Math.abs(pos.entryPrice - pos.initialStop);
@@ -270,7 +274,14 @@ export function simulate(
             margin: cfg.marginPerTrade,
             fees: qty * entryPrice * fee,
             funding: 0,
-            exit: initExitState(strategy.side, entryPrice, plan.stop, plan.takeProfit, plan.trailing),
+            exit: initExitState(
+              strategy.side,
+              entryPrice,
+              plan.stop,
+              plan.takeProfit,
+              plan.trailing,
+              liquidationPrice(strategy.side, entryPrice, leverage, cfg.maintenanceMarginRate)
+            ),
             ambiguous: false,
             h1Index: j,
             fundingIndex: lowerBound(c.inst.funding.time, H + 1),

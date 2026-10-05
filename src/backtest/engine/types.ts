@@ -120,6 +120,8 @@ export interface SimConfig {
   leverageMax: number;
   /** Piso de notional que exige el bot además del MIN_NOTIONAL del par: max(10, minNotional). */
   notionalFloor: number;
+  /** Tasa de margen de mantenimiento para el precio de liquidación (margen aislado). */
+  maintenanceMarginRate: number;
   maxPositions: number;
   /** Comisión taker por lado (0.0005 = 0.05 %, VIP0). */
   feeRate: number;
@@ -133,15 +135,19 @@ export interface SimConfig {
 }
 
 // Capital inicial supuesto: 30 USDT (decisión del usuario, 2026-10-05). Margen de 6 USDT por
-// operación (20 % del capital) y apalancamiento x1–x2 (defaults de RULES.md Regla 1): con eso los
-// pares de mínimo 5 USDT se operan a x2 (notional 12), y BTC (50) y ETH/BCH/LTC/ETC/LINK (20)
-// quedan rechazados, igual que los rechazaría executeTrade.
+// operación (20 % del capital) y apalancamiento x1–x10 (máximo pedido por el usuario). Con la
+// Regla 1 el apalancamiento sube solo lo necesario para el notional mínimo: los pares de mínimo
+// 5 USDT se operan a x2 (notional 12), ETH/BCH/LTC/ETC/LINK (20) a x4 y BTC (50) a x9.
 export const DEFAULT_SIM_CONFIG: Omit<SimConfig, "start" | "end"> = {
   initialEquity: 30,
   marginPerTrade: 6,
   leverageMin: 1,
-  leverageMax: 2,
+  leverageMax: 10,
   notionalFloor: 10,
+  // Supuesto, no verificado (la tabla de brackets de Binance es un endpoint autenticado):
+  // primer tramo de mantenimiento de 1 %, conservador frente al 0,4 % de BTC. A x9 la
+  // liquidación queda a ~10 % de la entrada.
+  maintenanceMarginRate: 0.01,
   maxPositions: 5,
   feeRate: 0.0005,
   // Supuestos a calibrar contra los fills reales de signal_history (ver docs §8.3).

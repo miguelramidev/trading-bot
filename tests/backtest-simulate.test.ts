@@ -51,6 +51,7 @@ const cfg = (over: Partial<SimConfig> = {}): SimConfig => ({
   leverageMin: 2,
   leverageMax: 2,
   notionalFloor: 10,
+  maintenanceMarginRate: 0.01,
   maxPositions: 5,
   feeRate: 0.0005,
   slippageTiers: [{ maxRank: 100, bps: 0 }],
@@ -129,6 +130,20 @@ describe("simulate", () => {
       cfg({ initialEquity: 30, marginPerTrade: 6, leverageMin: 1, leverageMax: 2 }));
     expect(res.trades).toHaveLength(0);
     expect(res.skippedMinNotional).toBe(1);
+  });
+
+  it("con x10 de máximo, BTC (mínimo 50) entra a x9 y se liquida si cae más que el margen antes del stop", () => {
+    // Precio 100 hasta la hora 9, después se desploma a 80 (−20 %). Stop en 85 (más lejos que la
+    // liquidación, ~89,9 a x9): pierde todo el margen (6), no el −15 % del stop.
+    const price = (h: number) => (h < 10 ? 100 : 80);
+    const btc = instrument("BTC", hours(72, price), 4, [], 50);
+    const res = simulate(stubStrategy({ BTC: { bar: 1, score: 1 } }, 85), new Map([["BTC", btc]]), { btcDaily: btc.daily }, universe(["BTC"]),
+      cfg({ initialEquity: 30, marginPerTrade: 6, leverageMin: 1, leverageMax: 10 }));
+    const t = res.trades[0];
+    expect(t.leverage).toBe(9);
+    expect(t.exitReason).toBe("liquidation");
+    expect(t.grossPnl).toBe(-6);
+    expect(t.netPnl).toBeCloseTo(-6 - 54 * 0.0005, 10); // margen + comisión de entrada
   });
 
   it("Regla 1: escala el apalancamiento hasta alcanzar el notional y lo registra en el trade", () => {

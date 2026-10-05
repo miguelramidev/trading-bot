@@ -314,6 +314,16 @@ Las estadísticas (DSR, PBO, SPA de White/Hansen) se pueden hacer en TS o en Pyt
    - Consecuencias para el backtest:
      - La salida "trailing nativo" se simula **exactamente así**: callback = clamp(m × ATR% en la entrada, 0,1 %, 10 %), con un stop inicial fijo y una activación opcional.
      - Se compara contra un trailing ATR gestionado por el bot (Donchian/chandelier) para medir cuánto se pierde por el tope de 10 %. En altcoins en 1d, el stop al punto medio del canal suele quedar a más del 10 %.
-5. **Capital inicial supuesto: 30 USDT.** El backtest usa un margen de 6 USDT por operación (20 %) a x1–x2, el rango por defecto de la Regla 1. Los pares con MIN_NOTIONAL de 5 se operan a x2 (notional 12). BTC (mínimo 50 USDT) y ETH/BCH/LTC/ETC/LINK (20 USDT) quedan rechazados por la Regla 1, igual que en producción. Los MIN_NOTIONAL son los del exchangeInfo actual: los históricos no se publican.
+5. **Capital inicial supuesto: 30 USDT, apalancamiento x1–x10.** El backtest usa un margen de 6 USDT por operación (20 %). Como la Regla 1 sube el apalancamiento solo hasta alcanzar el notional mínimo, el máximo de x10 no agranda las posiciones de la mayoría:
+   - Pares con MIN_NOTIONAL de 5: x2 (notional 12).
+   - ETH/BCH/LTC/ETC/LINK (mínimo 20): x4 (notional 24).
+   - BTC (mínimo 50): x9 (notional 54).
+   - Con x1–x2 estos últimos quedaban rechazados.
+
+   Los MIN_NOTIONAL son los del exchangeInfo actual: los históricos no se publican.
+
+   Como a x9 la liquidación en aislado queda a ~10 % de la entrada, el simulador modela la liquidación:
+   - Si el precio llega a ese nivel antes que al stop, se pierde todo el margen.
+   - Mantenimiento supuesto: 1 %, sin verificar (la tabla de brackets de Binance es un endpoint autenticado).
 6. **Tamaño: margen fijo**, como hoy (Regla 1 de `RULES.md` sin cambios). El vol-target de la literatura no se usa para dimensionar. Queda solo como línea base (B2) y como referencia.
 7. **Motor de backtest en TypeScript**, dentro de `src/backtest/`.

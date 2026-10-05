@@ -4,6 +4,13 @@
 // - Stop duro (STOP_MARKET) y TP (TAKE_PROFIT_MARKET) disparan por último precio (el bot no
 //   setea workingType → CONTRACT_PRICE), así que se simulan con las velas normales.
 // - Si la vela abre ya más allá del nivel (gap), el fill es el open, no el nivel.
+// - Si en la misma vela se tocan VARIOS niveles en contra (stop duro, trailing, liquidación), el
+//   precio se mueve de forma continua y pasa primero por el más cercano: esa orden es la que
+//   cierra la posición. Con gap más allá de todos, gana el más cercano igual (llena al open),
+//   salvo que el open ya esté más allá del precio de liquidación: ahí liquida.
+// - Liquidación (margen aislado): si el precio cruza el nivel de liquidación antes que el stop
+//   (stop más lejos que la liquidación, o gap que pasa por encima de los dos), se pierde todo el
+//   margen de la operación.
 // - Si en la misma vela se tocan el stop y el TP, no se sabe cuál fue primero con OHLC: se
 //   asume el stop (pesimista) y se marca como ambigua para reportar qué % de trades lo fue.
 // - Trailing nativo (TRAILING_STOP_MARKET de Binance): sigue el extremo alcanzado DESPUÉS de
@@ -43,9 +50,11 @@ export interface ExitState {
   trailingActive: boolean;
   /** Mejor precio alcanzado desde la activación del trailing (high para long, low para short). */
   trailingPeak: number;
+  /** Precio de liquidación de la posición (margen aislado). */
+  liquidation?: number;
 }
 
-export type ExitReason = "stop" | "take_profit" | "trailing";
+export type ExitReason = "stop" | "take_profit" | "trailing" | "liquidation";
 
 export interface ExitFill {
   reason: ExitReason;
@@ -99,12 +108,21 @@ export function processBar(state: ExitState, bar: Bar): ExitFill | null {
     else if (s * favorable >= s * state.takeProfit) tpHit = { reason: "take_profit", price: state.takeProfit };
   }
 
+  // Liquidación: solo si el precio llega a ese nivel (o abre más allá).
+  if (state.liquidation !== undefined && atOrWorse(side, adverse, state.liquidation)) {
+    candidates.push({ reason: "liquidation", price: state.liquidation });
+  }
+
   if (candidates.length > 0) {
-    // El peor de los niveles en contra que se tocaron (pesimista).
-    const worst = candidates.reduce((a, b) => (s * b.price < s * a.price ? b : a));
     // TP en el open (gap a favor) gana siempre: es lo primero que pasó en la vela.
     if (tpHit && tpHit.price === bar.open) return { ...tpHit, ambiguous: false };
-    return { ...worst, ambiguous: tpHit !== null };
+    // Abrió ya más allá de la liquidación: liquidada antes de que ningún stop pueda llenar.
+    if (state.liquidation !== undefined && atOrWorse(side, bar.open, state.liquidation)) {
+      return { reason: "liquidation", price: state.liquidation, ambiguous: tpHit !== null };
+    }
+    // El nivel en contra más cercano es el primero que cruza el precio: esa orden cierra.
+    const first = candidates.reduce((a, b) => (s * b.price > s * a.price ? b : a));
+    return { ...first, ambiguous: tpHit !== null };
   }
   if (tpHit) return { ...tpHit, ambiguous: false };
 
@@ -126,9 +144,19 @@ export function processBar(state: ExitState, bar: Bar): ExitFill | null {
 }
 
 /** Estado inicial de salida para una entrada al precio `entry`. */
-export function initExitState(side: Side, entry: number, stop: number, takeProfit?: number, trailing?: NativeTrailing): ExitState {
+export function initExitState(side: Side, entry: number, stop: number, takeProfit?: number, trailing?: NativeTrailing, liquidation?: number): ExitState {
   const active = trailing !== undefined && trailing.activatePrice === undefined;
-  return { side, stop, takeProfit, trailing, trailingActive: active, trailingPeak: entry };
+  return { side, stop, takeProfit, trailing, trailingActive: active, trailingPeak: entry, liquidation };
+}
+
+/**
+ * Precio de liquidación aproximado en margen aislado: la posición se liquida cuando la pérdida
+ * se come el margen menos el mantenimiento. Long: entrada × (1 − 1/apalancamiento + mmr).
+ * `maintenanceMarginRate` depende del par y del tamaño (tabla de brackets de Binance); para
+ * notionales chicos es el del primer tramo.
+ */
+export function liquidationPrice(side: Side, entry: number, leverage: number, maintenanceMarginRate: number): number {
+  return side === "long" ? entry * (1 - 1 / leverage + maintenanceMarginRate) : entry * (1 + 1 / leverage - maintenanceMarginRate);
 }
 
 /** Clampea el callback al rango que acepta Binance (0.1 % a 10 %). */

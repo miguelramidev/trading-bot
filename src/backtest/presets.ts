@@ -12,6 +12,8 @@ const BRACKET: ExitParams = { mode: "bracket", stopAtr: 1, m: 2 }; // el actual 
 const NATIVE_TRAIL: ExitParams = { mode: "native_trail", stopAtr: 2.5, m: 3 }; // TRAILING_STOP_MARKET
 const BOT_TRAIL: ExitParams = { mode: "bot_trail", stopAtr: 2.5, m: 3 }; // chandelier, referencia
 const EXITS = [BRACKET, NATIVE_TRAIL, BOT_TRAIL];
+// Trailing nativo que se activa recién a +2 ATR: hasta ahí protege solo el stop inicial.
+const NATIVE_TRAIL_ACTIVATED: ExitParams = { mode: "native_trail", stopAtr: 2.5, m: 3, activateAtr: 2 };
 
 export const PRESETS: Record<string, () => Strategy<any>[]> = {
   // T1: Donchian 1d, long.
@@ -33,10 +35,27 @@ export const PRESETS: Record<string, () => Strategy<any>[]> = {
         )
       )
     ),
-  // Cortos, solo como información (decisión del usuario: se opera solo largo).
+  // Cortos, primera pasada exploratoria (cuando se iban a operar solo largos).
   SHORTS: () => [
     breakoutStrategy({ timeframeHours: 24, side: "short", n: 20, exit: NATIVE_TRAIL, btcSma: 0, dailyTrendFilter: false }),
     breakoutStrategy({ timeframeHours: 4, side: "short", n: 20, exit: NATIVE_TRAIL, btcSma: 0, dailyTrendFilter: true }),
     rsi2PullbackStrategy({ timeframeHours: 24, side: "short", l: 10, exitRule: "rsi70", stopAtr: 2.5, maxBars: 10 }),
+  ],
+
+  // --- Validación (pre-registrado el 2026-10-05, después de los primeros resultados, §10) ---
+  // Pool de selección del walk-forward para largos: la grilla T1 completa más el trailing
+  // nativo con activación a +2 ATR (la variante que podría evitar mover el stop a diario).
+  LONG_WF: () => [
+    ...PRESETS.T1(),
+    ...[20, 55].map((n) =>
+      breakoutStrategy({ timeframeHours: 24, side: "long", n, exit: NATIVE_TRAIL_ACTIVATED, btcSma: 0, dailyTrendFilter: false })
+    ),
+  ],
+  // Cortos evaluados en serio (decisión del usuario): misma comparación de salidas que los largos.
+  SHORT_WF: () => [
+    ...[20, 55].flatMap((n) =>
+      [NATIVE_TRAIL, BOT_TRAIL].map((exit) => breakoutStrategy({ timeframeHours: 24, side: "short", n, exit, btcSma: 0, dailyTrendFilter: false }))
+    ),
+    breakoutStrategy({ timeframeHours: 4, side: "short", n: 20, exit: NATIVE_TRAIL, btcSma: 0, dailyTrendFilter: true }),
   ],
 };

@@ -382,3 +382,43 @@ Con 30 USDT casi todas las variantes **quiebran la cuenta**: un anual de −17 %
   - El mejor largo depende de un puñado de trades: MYX 2025 aportó +167 USDT, con +112 de funding cobrado durante un squeeze de cortos.
   - El PnL sin las 3 mejores monedas cae al ~30 %.
 - **Faltan:** walk-forward, costos ×2, Monte Carlo y Deflated Sharpe. Ninguna variante llega todavía al umbral de Sharpe ≥ 1,0.
+
+---
+
+## 11. Validación fuera de muestra (2026-10-05) — ninguna variante pasa
+
+**Decisiones del usuario tras §10:**
+- Capital de **300 USDT**, con margen fijo de 6 USDT y x1–x10.
+- Probar el stop gestionado por el bot y el trailing nativo con activación.
+- **Evaluar los cortos en serio**, con el mismo margen.
+
+**Método (`src/backtest/validate.ts`):**
+- Pools pre-registrados en `presets.ts`:
+  - `LONG_WF`: T1 completo, más el trailing nativo con activación a +2 ATR.
+  - `SHORT_WF`: T1 corto n20/n55 × {nativo, bot}, más T2 corto.
+- Walk-forward de 24 meses in-sample y 6 out-of-sample, **re-seleccionando** la mejor variante en cada paso.
+- Costos ×1 y ×2, Monte Carlo por bloques de 10 días y Deflated Sharpe con N = variantes distintas probadas (34).
+- El holdout no se tocó.
+
+### Resultados
+| | Sharpe OOS | Anual OOS | MDD OOS | MC p95 | DSR |
+|---|---|---|---|---|---|
+| Walk-forward largos | 0,53 (×2: 0,50) | 17,0 % | 30,3 % | 73,3 % | 0,19 |
+| Walk-forward cortos | −0,04 (×2: −0,38) | −0,4 % | 11,6 % | 33,9 % | 0,04 |
+| *Umbral (§8.7)* | *≥ 1,0* | | | *≤ 25 %* | *≥ 0,95* |
+
+- **Largos:** el resultado OOS lo explica casi entero un solo semestre (2025-07 → 2025-09: +152,5 USDT, el squeeze de MYX). Sin ese tramo, los otros cinco semestres suman −12 USDT.
+  - La mejor variante en todo el período (T1 n20 con trailing del bot) tiene un MDD histórico del 16 %, pero de **66 % en el p95 de Monte Carlo**: depende de días extremos que no se repiten de forma confiable.
+  - El trailing nativo con activación no rescata los largos: Sharpe −0,04 con n20 y 0,32 con n55.
+- **Cortos:** in-sample se veían estables (Sharpe 0,80, MDD 8 %), pero la re-selección fuera de muestra da ~0, y con costos ×2 son negativos.
+  - Son sensibles a los costos: muchos trades cortos con el trailing nativo.
+
+### Lectura
+Según el protocolo (`PROMPT_GUIDE.md`, "si no funciona, descarto la idea completa y no la retoco"), **T1, T2, M1 y los cortos quedan descartados en su forma actual.** No se ajustan parámetros mirando estos resultados.
+
+Diferencias de diseño contra la literatura que sí tenía resultados positivos (Zarattini, dimaquant), y que estaban pre-registradas en §6 pero todavía no se corrieron:
+1. **Universo:**
+   - Esas pruebas usan el top 20–40 líquido. El nuestro es el top 100, y la investigación ya advertía que en las chicas los breakouts **revierten** (dimaquant).
+   - La prioridad por "fuerza de la ruptura en ATR" favorece justamente los pumps más estirados, que tienden a ser monedas chicas.
+2. **Filtro de fuerza relativa (X1)** y **corte por nivel de liquidez:** los dos estaban en §6 y no se probaron todavía.
+3. **Presupuesto de pruebas:** quedan ~10 corridas antes de llegar a las ~45 que admite el período.

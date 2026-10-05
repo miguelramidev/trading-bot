@@ -5,19 +5,16 @@
 // reservado se usa una sola vez, al final, con --holdout (docs §8.5).
 //
 // Correr: npx tsx src/backtest/run.ts --preset=T1 [--from=2021-01-01] [--to=2025-10-01] [--cost=1|2]
-//         [--equity=30] [--margin=6] [--lev-min=1] [--lev-max=10] [--max-positions=5]
-import { readFileSync, mkdirSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
+//         [--equity=300] [--margin=6] [--lev-min=1] [--lev-max=10] [--max-positions=5]
+import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadInstrumentData } from "./data/load.js";
-import { HOUR_MS } from "./data/candles.js";
-import { UNIVERSE_PATH, BACKTESTS_DIR } from "./data/paths.js";
-import type { UniverseSnapshot } from "./universe.js";
+import { BACKTESTS_DIR } from "./data/paths.js";
 import { simulate } from "./engine/simulate.js";
-import { DEFAULT_SIM_CONFIG, type InstrumentData, type SimConfig, type SimResult } from "./engine/types.js";
+import { DEFAULT_SIM_CONFIG, type SimConfig, type SimResult } from "./engine/types.js";
 import { computeMetrics, type Metrics } from "./metrics.js";
 import { PRESETS } from "./presets.js";
 import { HOLDOUT_START } from "./holdout.js";
-
+import { loadUniverse, loadMarket, groupByTimeframe } from "./context.js";
 
 function arg(name: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -55,8 +52,7 @@ async function main() {
     throw new Error(`--to pasa el inicio del holdout (${new Date(HOLDOUT_START).toISOString().slice(0, 10)}). Ese tramo se usa una sola vez al final: pasá --holdout explícitamente.`);
   }
 
-  if (!existsSync(UNIVERSE_PATH)) throw new Error("Falta el universo: correr antes npx tsx src/backtest/prepare.ts");
-  const universe: UniverseSnapshot[] = JSON.parse(readFileSync(UNIVERSE_PATH, "utf8")).snapshots;
+  const universe = loadUniverse();
 
   const cfg: SimConfig = {
     ...DEFAULT_SIM_CONFIG,
@@ -71,25 +67,10 @@ async function main() {
   };
   console.log(`Capital ${cfg.initialEquity} USDT | margen ${cfg.marginPerTrade} | x${cfg.leverageMin}–x${cfg.leverageMax} | máx. ${cfg.maxPositions} posiciones | costos ×${cfg.costMultiplier}`);
 
-  const strategies = PRESETS[presetName]();
-  const byTf = new Map<number, typeof strategies>();
-  for (const s of strategies) byTf.set(s.timeframeHours, [...(byTf.get(s.timeframeHours) ?? []), s]);
-
-  // Solo se cargan los instrumentos que alguna vez estuvieron en el universo durante el período.
-  const ids = new Set(universe.filter((s) => s.date >= from && s.date < to).flatMap((s) => s.ranked));
-  const symbols = [...new Set([...ids].map((id) => id.split("~")[0]))];
   const runStamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-  for (const [tfHours, group] of byTf) {
-    console.log(`\nCargando ${symbols.length} símbolos (TF ${tfHours}h)...`);
-    const instruments = new Map<string, InstrumentData>();
-    for (const symbol of symbols) {
-      for (const inst of loadInstrumentData(symbol, tfHours, from - 24 * HOUR_MS)) {
-        if (ids.has(inst.id)) instruments.set(inst.id, inst);
-      }
-    }
-    const btc = loadInstrumentData("BTCUSDT", tfHours, from)[0];
-    const market = { btcDaily: btc.daily };
+  for (const [tfHours, group] of groupByTimeframe(PRESETS[presetName]())) {
+    const { instruments, market } = loadMarket(universe, tfHours, from, to);
 
     for (const strategy of group) {
       const t0 = Date.now();

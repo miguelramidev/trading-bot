@@ -134,12 +134,13 @@ export interface SimConfig {
   costMultiplier: number;
 }
 
-// Capital inicial supuesto: 30 USDT (decisión del usuario, 2026-10-05). Margen de 6 USDT por
-// operación (20 % del capital) y apalancamiento x1–x10 (máximo pedido por el usuario). Con la
+// Capital inicial: 300 USDT (decisión del usuario, 2026-10-05, después de ver que con 30 USDT el
+// notional mínimo de Binance hacía inviable un MDD del 25 %). Margen fijo de 6 USDT por
+// operación (2 % del capital) y apalancamiento x1–x10 (máximo pedido por el usuario). Con la
 // Regla 1 el apalancamiento sube solo lo necesario para el notional mínimo: los pares de mínimo
 // 5 USDT se operan a x2 (notional 12), ETH/BCH/LTC/ETC/LINK (20) a x4 y BTC (50) a x9.
 export const DEFAULT_SIM_CONFIG: Omit<SimConfig, "start" | "end"> = {
-  initialEquity: 30,
+  initialEquity: 300,
   marginPerTrade: 6,
   leverageMin: 1,
   leverageMax: 10,

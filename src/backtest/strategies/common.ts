@@ -41,11 +41,14 @@ export interface ExitParams {
   stopAtr: number;
   /** bracket: TP en ATR (2, como hoy). native_trail: callback = m × ATR%. bot_trail: chandelier m × ATR. */
   m: number;
+  /** Solo native_trail: el trailing se activa recién cuando el precio avanza `activateAtr` × ATR
+   * a favor (`activatePrice` de Binance). Sin esto, trailea desde la entrada. */
+  activateAtr?: number;
 }
 
 export function exitLabel(e: ExitParams): string {
   if (e.mode === "bracket") return `bracket${e.stopAtr}-${e.m}`;
-  if (e.mode === "native_trail") return `ntrail${e.stopAtr}-${e.m}`;
+  if (e.mode === "native_trail") return `ntrail${e.stopAtr}-${e.m}${e.activateAtr ? `-a${e.activateAtr}` : ""}`;
   return `btrail${e.stopAtr}-${e.m}`;
 }
 
@@ -69,7 +72,9 @@ export function buildPlan(side: Side, e: ExitParams, a: ExitArrays, i: number, e
   if (e.mode === "bracket") return { stop, takeProfit: entryPrice + s * e.m * atrNow };
   if (e.mode === "native_trail") {
     // El callback de Binance es un % fijo desde que se coloca: se fija con el ATR% de la entrada.
-    return { stop, trailing: { callbackRate: clampCallbackRate((e.m * atrNow) / entryPrice) } };
+    const callbackRate = clampCallbackRate((e.m * atrNow) / entryPrice);
+    const activatePrice = e.activateAtr ? entryPrice + s * e.activateAtr * atrNow : undefined;
+    return { stop, trailing: { callbackRate, activatePrice } };
   }
   return { stop };
 }

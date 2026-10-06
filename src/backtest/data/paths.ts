@@ -15,3 +15,10 @@ export const QUALITY_PATH = join(UM_DIR, "quality.json");
 export const MIN_NOTIONAL_PATH = join(UM_DIR, "min_notional.json");
 
 export const BACKTESTS_DIR = join(DATA_ROOT, "backtests");
+
+/** Métricas de posicionamiento de 5m (open interest, ratios long/short, taker): un zip por día. */
+export const METRICS_DIR = join(RAW_DIR, "metrics");
+/** Velas diarias de SPOT del par equivalente de cada perpetuo (para el carry de funding). */
+export const SPOT_DIR = join(RAW_DIR, "spot_1d");
+/** perpetuo → { spot, factor }: "1000PEPEUSDT" → { spot: "PEPEUSDT", factor: 1000 }. */
+export const SPOT_MAP_PATH = join(UM_DIR, "spot_map.json");

@@ -1,6 +1,6 @@
 # Estrategia nueva de 1h: retroceso en tendencia con los filtros del bot actual
 
-**Fecha:** 2026-10-06 · **Estado:** pre-registrada; backtest sin correr.
+**Fecha:** 2026-10-06 · **Estado:** pre-registrada y aprobada por el usuario (filtro macro como veto) antes de correr; backtest sin correr.
 
 Este documento fija la tesis, las reglas, las variantes y los criterios de aceptación **antes** de ver cualquier resultado. Una vez corrido el backtest no se agregan variantes ni se mueven parámetros mirando los números (marco de [`PROMPT_GUIDE.md`](../../PROMPT_GUIDE.md) y §8 de [`2026-10-05-estrategias-1h-1d.md`](2026-10-05-estrategias-1h-1d.md)).
 

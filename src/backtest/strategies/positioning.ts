@@ -26,6 +26,10 @@ const TF_HOURS = 4;
 export interface PositioningParams {
   measure: "ls" | "combo";
   holdBars: number;
+  /** Chequeo de robustez (no es una variante a elegir): ignorar las filas de métricas de los
+   * últimos `lagMinutes` antes del cierre, por si Binance las publica con demora respecto de
+   * create_time. 0 = como el pre-registro. */
+  lagMinutes?: number;
 }
 
 export interface PositioningPrepared {
@@ -35,13 +39,13 @@ export interface PositioningPrepared {
 }
 
 /** Último valor de `values` con `time` ≤ cierre de cada vela, si no tiene más de `maxAge`. NaN si no hay. */
-export function sampleAtClose(tf: Series, tfHours: number, time: Float64Array, values: Float64Array, maxAge: number): Float64Array {
+export function sampleAtClose(tf: Series, tfHours: number, time: Float64Array, values: Float64Array, maxAge: number, lagMs = 0): Float64Array {
   const out = new Float64Array(tf.length).fill(NaN);
   let k = -1;
   for (let i = 0; i < tf.length; i++) {
-    const close = tf.openTime[i] + tfHours * HOUR_MS;
-    while (k + 1 < time.length && time[k + 1] <= close) k++;
-    if (k >= 0 && close - time[k] <= maxAge) out[i] = values[k];
+    const cutoff = tf.openTime[i] + tfHours * HOUR_MS - lagMs;
+    while (k + 1 < time.length && time[k + 1] <= cutoff) k++;
+    if (k >= 0 && cutoff - time[k] <= maxAge) out[i] = values[k];
   }
   return out;
 }
@@ -81,9 +85,10 @@ export function recentFundingMean(tf: Series, tfHours: number, funding: Instrume
 
 export function positioningStrategy(params: PositioningParams): Strategy<PositioningPrepared> {
   const { measure, holdBars } = params;
+  const lagMs = (params.lagMinutes ?? 0) * 60_000;
   const threshold = measure === "ls" ? 2.0 : 1.5;
   return {
-    id: `POS_${measure}_h${holdBars}`,
+    id: `POS_${measure}_h${holdBars}${lagMs ? `_lag${params.lagMinutes}m` : ""}`,
     family: "reversion",
     timeframeHours: TF_HOURS,
     side: "both",
@@ -94,8 +99,8 @@ export function positioningStrategy(params: PositioningParams): Strategy<Positio
       const tf = inst.tf;
       const n = tf.length;
       const m = inst.metrics;
-      const ls = m ? sampleAtClose(tf, TF_HOURS, m.time, m.lsAccount, MAX_METRIC_AGE_MS) : new Float64Array(n).fill(NaN);
-      const oi = m ? sampleAtClose(tf, TF_HOURS, m.time, m.openInterest, MAX_METRIC_AGE_MS) : new Float64Array(n).fill(NaN);
+      const ls = m ? sampleAtClose(tf, TF_HOURS, m.time, m.lsAccount, MAX_METRIC_AGE_MS, lagMs) : new Float64Array(n).fill(NaN);
+      const oi = m ? sampleAtClose(tf, TF_HOURS, m.time, m.openInterest, MAX_METRIC_AGE_MS, lagMs) : new Float64Array(n).fill(NaN);
       const oiChange = new Float64Array(n).fill(NaN);
       for (let i = OI_CHANGE_BARS; i < n; i++) {
         if (oi[i] > 0 && oi[i - OI_CHANGE_BARS] > 0) oiChange[i] = Math.log(oi[i] / oi[i - OI_CHANGE_BARS]);

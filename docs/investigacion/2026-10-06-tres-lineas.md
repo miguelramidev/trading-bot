@@ -1,6 +1,6 @@
 # Tres líneas nuevas: posicionamiento saturado, cortos a listados nuevos y carry de funding
 
-**Fecha:** 2026-10-06 · **Estado:** pre-registradas; backtest sin correr.
+**Fecha:** 2026-10-06 · **Estado:** corridas. Ninguna pasa los criterios pre-registrados; POS (ls, 72 h) queda como candidato para el holdout si el usuario lo decide (ver Resultados).
 
 ## Por qué estas tres
 
@@ -111,4 +111,73 @@ Las altcoins tienen métricas desde **2021-12**.
 
 ## Resultados
 
-*(vacío hasta correr `validate.ts --preset=POS|LIST|CARRY`)*
+Corrida del 2026-10-06. Holdout intacto. **Según los criterios pre-registrados no pasa ninguna de las tres líneas.** Hay dos casi-aciertos, en POS y en CARRY, en los que la variante individual se ve bien pero el proceso de selección del walk-forward eligió otra.
+
+### POS · posicionamiento saturado (2022-02 → 2025-09)
+
+| Variante | Trades | Sharpe (×2) | Anual (×2) | MDD (MC p95) | Semestres + | Sin top 3 |
+|---|---|---|---|---|---|---|
+| ls, 24 h | 4.325 | 1,20 (0,44) | 16,4 % (6,0 %) | 13,5 % (19,2 %) | 3/4 | 57 % |
+| **ls, 72 h** | 2.079 | **1,58 (1,29)** | **26,7 % (21,7 %)** | **7,1 % (16,9 %)** | 3/4 | 56 % |
+| combo, 24 h | 2.296 | 0,19 (−0,26) | 2,3 % | 20,0 % (42,2 %) | 2/4 | negativo |
+| combo, 72 h | 1.489 | 0,16 (−0,10) | 2,3 % | 20,2 % (49,9 %) | 1/4 | negativo |
+| **Walk-forward OOS** | | **0,23 (−0,15)** | 4,3 % | 25,9 % (40,9 %) | 2/4 | |
+
+- **El walk-forward falla por la selección.** En 2024-08 eligió `combo 24 h`, que perdió 41, y en 2025-02 eligió `ls 24 h`, que perdió 30.
+- **La medida `ls` sola funciona con las dos duraciones.** La que suma funding y open interest (`combo`) no funciona.
+
+**Chequeos sobre `ls 72 h`.** Se hicieron después de ver los resultados, así que no compiten ni cambian el veredicto.
+
+- **Look-ahead.** Con las métricas atrasadas 1 h (preset `POS_CHECK`), el Sharpe baja de 1,58 a 1,18 y el anual de 26,7 % a 18,6 %. Sigue positivo, así que no depende de usar datos del futuro.
+- **De dónde sale la ganancia.**
+  - Bruto +300 USDT, costos −31, funding +24, neto +293.
+  - **Bruto positivo todos los años:** 2022 +142, 2023 +42, 2024 +62, 2025 +54.
+  - Positivo en los dos lados: largos +141, cortos +152.
+  - 2022 lo explican los cortos, en el mercado bajista. Las ganancias siguientes son más chicas pero se sostienen.
+  - Concentración: 156 monedas operadas. MYX aporta 76 (5 trades); sin MYX quedan +217.
+  - El 70 % de las salidas son por tiempo.
+- **Deflated Sharpe.**
+  - Con N = 68: 0,00.
+  - Sin las variantes de CARRY en la varianza de los trials (su volatilidad casi nula infla la dispersión): **0,015**.
+  - Con 64 pruebas, un Sharpe de 1,58 en 3,7 años no se distingue de la suerte de elegir la mejor. **No está probado estadísticamente.**
+  - La única evidencia limpia que queda posible es el holdout.
+
+### LIST · cortos a listados nuevos (2020-03 → 2025-09)
+
+| Variante | Trades | Sharpe (×2) | Anual | MDD (MC p95) | Semestres + |
+|---|---|---|---|---|---|
+| D1, H14 | 410 | 0,28 (0,21) | 3,7 % | 19,4 % (48,3 %) | 5/8 |
+| D1, H28 | 311 | 0,16 (0,09) | 2,1 % | 18,5 % (58,2 %) | 3/8 |
+| D7, H14 | 396 | 0,01 (−0,06) | 0,2 % | 31,7 % (59,9 %) | 5/8 |
+| D7, H28 | 303 | −0,12 (−0,17) | −1,6 % | 35,2 % (66,8 %) | 5/8 |
+| **Walk-forward OOS** | | **0,23 (0,16)** | 3,3 % | 21,3 % (47,4 %) | 4/8 |
+
+**Descartada.** Los listados nuevos caen en promedio un poco, pero con squeezes que vuelven el drawdown inaceptable.
+
+### CARRY · spot comprado + perpetuo vendido (2021-01 → 2025-09)
+
+| Variante | Trades | Sharpe (×2) | Anual (×2) | MDD | Semestres + |
+|---|---|---|---|---|---|
+| T15, BTC + ETH | 15 | 6,13 (5,63) | 3,8 % (3,6 %) | 0,2 % | 5/6 |
+| **T15, top 30** | 54 | 3,69 (3,29) | **8,0 % (7,3 %)** | 0,8 % | **6/6** |
+| T30, BTC + ETH | 13 | 4,79 (4,40) | 2,9 % | 0,2 % | 2/6 |
+| T30, top 30 | 38 | 4,55 (4,13) | 6,6 % (6,3 %) | 0,8 % | 3/6 |
+| **Walk-forward OOS** | | **6,30 (5,08)** | **1,8 %** | 0,1 % | 6/6 |
+
+- **No pasa el criterio de rendimiento** (> 4,1 % anual), y el Deflated Sharpe da 0,78.
+- **El walk-forward elige por Sharpe:** siempre prefirió BTC + ETH, que tiene menos volatilidad y también rinde menos.
+- **T15 top 30** rinde 8 % anual y es positiva en todos los semestres, pero no fue la elegida.
+- **Lectura:** el carry es seguro pero chico. Con 300 USDT, 8 % anual son ~24 USDT por año.
+
+### Conclusión y decisión pendiente
+
+1. **LIST: descartada.**
+2. **CARRY: no pasa como fue pre-registrada.** Es una alternativa de bajo riesgo y bajo rendimiento, comparable a una cuenta remunerada. Pasa a ser una decisión del usuario, no del backtest.
+3. **POS (`ls 72 h`): el único candidato con ventaja económica coherente en todo el proyecto.** No pasó el walk-forward ni el Deflated Sharpe. Usar el holdout en él es una **excepción al protocolo** y la decide el usuario. Si se hace:
+   - Se corre **una sola vez**, con solo esta variante y sus parámetros tal cual (sin el atraso de 1 h).
+   - Criterio fijado antes de correr, sobre 2025-10 → 2026-09:
+     - PnL neto positivo con costos ×2;
+     - Sharpe ≥ 0,5 con costos ×1;
+     - MDD ≤ 25 %.
+   - Si pasa, 2–3 meses en modo sombra antes de usar dinero real.
+   - Advertencia: con un año de datos, el error del Sharpe es de ~±1. Pasar no prueba la ventaja y fallar no la descarta del todo. Es la mejor evidencia limpia disponible.

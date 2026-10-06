@@ -181,3 +181,34 @@ Corrida del 2026-10-06. Holdout intacto. **Según los criterios pre-registrados 
      - MDD ≤ 25 %.
    - Si pasa, 2–3 meses en modo sombra antes de usar dinero real.
    - Advertencia: con un año de datos, el error del Sharpe es de ~±1. Pasar no prueba la ventaja y fallar no la descarta del todo. Es la mejor evidencia limpia disponible.
+
+### Verificación del mecanismo de POS (2026-10-06, sin costo de pruebas)
+
+`src/backtest/analysis/posDeciles.ts`: retorno a 72 h por decil de zLS en el top 30 (2022-02 → 2025-09, 239 mil observaciones). Es descriptivo: no elige parámetros.
+
+| Decil | zLS medio | Retorno ajustado por mercado (± EE) |
+|---|---|---|
+| D1 (más cortos) | −1,85 | +0,01 % (±0,07) |
+| D2 | −1,12 | +0,27 % (±0,08) |
+| D3 | −0,73 | +0,34 % (±0,07) |
+| D4 | −0,39 | +0,16 % (±0,07) |
+| D5 | −0,06 | −0,01 % (±0,08) |
+| D6 | 0,28 | −0,02 % (±0,05) |
+| D7 | 0,62 | +0,05 % (±0,06) |
+| D8 | 0,99 | −0,19 % (±0,08) |
+| D9 | 1,42 | −0,26 % (±0,06) |
+| D10 (más largos) | 2,20 | **−0,75 % (±0,07)** |
+| zLS > +2 | | **−0,96 % (±0,09)** |
+| zLS < −2 | | +0,34 % (±0,16) |
+
+D10 por año: −0,70 % (2022), −0,65 % (2023), −0,42 % (2024), −1,27 % (2025).
+
+**Lectura:**
+
+- **Largos saturados:** el mecanismo se confirma. Desde D7 el retorno baja de forma ordenada, y D10 es negativo los cuatro años. Las monedas con las cuentas muy cargadas en largo rinden ~0,75–1 % menos que el mercado en las 72 h siguientes.
+- **Cortos saturados:** no se confirma. D1 está en cero; D2–D3 son algo positivos, pero sin la escalera que se ve del otro lado.
+- **Errores estándar:** están agrupados por fecha, pero las ventanas de 72 h se superponen entre velas consecutivas, así que los EE están subestimados (×~4). Aun corregido, la cola de largos saturados sigue siendo significativa (t ≈ −2,7). La de cortos no (t ≈ 0,5).
+- **Implicancia:**
+  - La ventaja de POS está en **ir corto contra los largos saturados**. Los largos de la estrategia viven de otra cosa, o de suerte.
+  - Además es una ventaja **relativa al mercado**: la estrategia, que no se cubre, también carga el movimiento de BTC, como en 2022.
+  - Una versión "solo cortos" o "cubierta con BTC" sería una variante nueva, inspirada en este resultado. Si se prueba, cuenta como prueba y lo justo es validarla con datos nuevos (modo sombra), no con estos.

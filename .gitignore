@@ -7,7 +7,7 @@ archive/venv/
 binance_private_key.pem
 binance_public_key.pem
 venv/
-data/
-data_dl/
+/data/
+/data_dl/
 __pycache__/
 scratch/

@@ -1,0 +1,17 @@
+// Rutas de los datos del backtest. Todo vive en data_dl/ (gitignorado): se regenera con
+// download.ts + prepare.ts.
+import { join } from "node:path";
+
+export const DATA_ROOT = join(process.cwd(), "data_dl");
+export const UM_DIR = join(DATA_ROOT, "um");
+/** Zips verificados por checksum: um/raw/<klines_1h|funding>/<SYMBOL>/<archivo>.zip */
+export const RAW_DIR = join(UM_DIR, "raw");
+export const KLINES_DIR = join(RAW_DIR, "klines_1h");
+export const FUNDING_DIR = join(RAW_DIR, "funding");
+
+export const SYMBOLS_PATH = join(UM_DIR, "symbols.json");
+export const UNIVERSE_PATH = join(UM_DIR, "universe.json");
+export const QUALITY_PATH = join(UM_DIR, "quality.json");
+export const MIN_NOTIONAL_PATH = join(UM_DIR, "min_notional.json");
+
+export const BACKTESTS_DIR = join(DATA_ROOT, "backtests");

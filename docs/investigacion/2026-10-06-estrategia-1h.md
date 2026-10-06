@@ -1,6 +1,6 @@
 # Estrategia nueva de 1h: retroceso en tendencia con los filtros del bot actual
 
-**Fecha:** 2026-10-06 · **Estado:** pre-registrada y aprobada por el usuario (filtro macro como veto) antes de correr; backtest sin correr.
+**Fecha:** 2026-10-06 · **Estado:** pre-registrada y aprobada por el usuario (filtro macro como veto) antes de correr. **Resultado: descartada, no pasa ningún criterio (§7).**
 
 Este documento fija la tesis, las reglas, las variantes y los criterios de aceptación **antes** de ver cualquier resultado. Una vez corrido el backtest no se agregan variantes ni se mueven parámetros mirando los números (marco de [`PROMPT_GUIDE.md`](../../PROMPT_GUIDE.md) y §8 de [`2026-10-05-estrategias-1h-1d.md`](2026-10-05-estrategias-1h-1d.md)).
 
@@ -87,4 +87,62 @@ Sobre la curva OOS concatenada del walk-forward (24 meses in-sample / 6 out-of-s
 
 ## 7. Resultados
 
-*(vacío hasta correr `npx tsx src/backtest/validate.ts --preset=PB1H` y `--preset=PB1H_SIN`)*
+**Resultado: no pasa ningún criterio. La idea se descarta entera, sin retocar parámetros.**
+
+Corrida del 2026-10-06:
+- **Datos:** 678 perpetuos elegibles, 41.310 archivos verificados por checksum y sin errores. 594 instrumentos pasaron por el top 100.
+- **Período:** 2021-01 → 2025-09. El holdout no se tocó.
+
+### 7.1 Pool del walk-forward (`PB1H`, con los tres filtros)
+
+| Variante | Trades | Sharpe (×2) | Anual | MDD (MC p95) | Semestres + |
+|---|---|---|---|---|---|
+| A rsi2 + bracket | 4.539 | −1,39 (−2,28) | −14,3 % | 71,7 % (108 %) | 0/6 |
+| B rsi2 + trailing | 7.321 | −2,11 (−2,31) | −20,6 % | 98,0 % (132 %) | 0/6 |
+| C ema21 + bracket | 5.251 | −2,01 (−2,60) | −18,4 % | 88,4 % (118 %) | 0/6 |
+| D ema21 + trailing | 4.795 | −0,69 (−1,91) | −10,8 % | 81,4 % (112 %) | 1/6 |
+| **Walk-forward OOS** | | **−2,12 (−3,24)** | **−21,7 %** | **60,1 % (85 %)** | **0/6** |
+| *Umbral* | | *≥ 1,0* | | *p95 ≤ 25 %* | *mayoría* |
+
+Deflated Sharpe 0,00 con N = 48 en ese momento (55 al final de la tanda). Ningún semestre fuera de muestra fue positivo.
+
+### 7.2 Comparación sin filtros (`PB1H_SIN`)
+
+Las cuatro variantes sin filtros pierden ~20 % anual y **quiebran la cuenta** (MDD 97–98 %). Desde 2024 ya no queda margen para operar, y por eso esos semestres figuran con PnL 0.
+
+| | Sharpe | Trades | Neto (USDT) |
+|---|---|---|---|
+| D con filtros | −0,69 | 4.795 | −155 |
+| D sin filtros | −1,05 | 8.914 | −294 (cuenta quebrada) |
+
+### 7.3 Diagnóstico de filtros (`PB1H_ABL`, sobre la variante D)
+
+| Variante | Trades | Sharpe | Anual | MDD |
+|---|---|---|---|---|
+| Con los tres | 4.795 | −0,69 | −10,9 % | 81,5 % |
+| Sin macro | 7.072 | −0,62 | −11,8 % | 84,4 % |
+| Sin funding | 4.934 | −1,61 | −18,7 % | 91,0 % |
+| Sin exposición | 10.365 | −0,93 | −20,7 % | 98,9 % |
+
+### 7.4 Por qué pierde (variante D, desglose de trades)
+
+| | N | Bruto | Comisiones + slippage | Funding | Neto | R bruto medio | Costo medio en R |
+|---|---|---|---|---|---|---|---|
+| Todos | 4.795 | −76,5 | −68,6 | −9,7 | −154,8 | −0,027 | 0,046 |
+| Largos | 3.473 | −78,4 | −49,4 | −4,4 | −132,2 | −0,057 | 0,045 |
+| Cortos | 1.322 | +1,9 | −19,2 | −5,3 | −22,6 | +0,052 | 0,049 |
+
+- **El retroceso de 1h no tiene ventaja antes de costos.** El R bruto medio es ~0. Cada trade paga ~0,05 R de comisión y slippage, y con miles de trades eso hunde la curva. Encaja con el riesgo anotado en §6 y con el fracaso de M1 en 4h/1d. Bajar a 1h no rescató la idea: la empeoró, porque multiplicó los trades.
+- **Los años no son estables:**
+  - 2025 fue positivo (+38,8).
+  - 2023 y 2024 fueron muy negativos (−44 y −111).
+- **Los filtros cortan pérdidas, pero no generan ventaja.**
+  - Por qué ayudan: reducen a la mitad la cantidad de trades, y así la cuenta sobrevive en vez de quebrar. El R por trade casi no cambia (−0,027 contra −0,014 sin filtros). Ayudan porque se opera menos, no porque elijan mejores trades.
+  - Funding: es el que más aporta (sacarlo baja el Sharpe de −0,69 a −1,61).
+  - Exposición correlacionada: le sigue (sacarlo lo baja a −0,93).
+  - Macro BTC: no muestra aporte (sin él, −0,62).
+  - Advertencia: son diferencias entre variantes perdedoras, con 55 pruebas acumuladas. Es una lectura direccional, no una conclusión firme.
+
+### 7.5 Conclusión
+
+Según §5, **la estrategia de 1h queda descartada.** No se usa el holdout, no se implementa en el bot y no se borran las estrategias de 15m de `analyze.ts` para reemplazarlas por esta. Variantes acumuladas sobre 2021–2025: **55**.

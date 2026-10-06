@@ -92,6 +92,15 @@ export const PRESETS: Record<string, () => Strategy<any>[]> = {
   // Comparación (no compite en la selección): las mismas 4 sin ningún filtro, para medir cuánto
   // aportan los filtros en vez de suponerlo.
   PB1H_SIN: () => PB1H_TRIGGERS.flatMap((trigger) => PB1H_EXITS.map((exit) => pullback1hStrategy({ trigger, exit, filters: { macro: false, funding: false, exposure: false } }))),
+  // Diagnóstico pre-registrado (§4): sobre la variante que más eligió el walk-forward de PB1H
+  // (ema21 + trailing, 4 de 6 tramos), apagar un filtro por vez. No compite en ninguna selección.
+  PB1H_ABL: () =>
+    (["macro", "funding", "exposure"] as const).map((off) =>
+      pullback1hStrategy({ trigger: "ema21", exit: PB1H_EXITS[1], filters: { ...PB1H_ALL_FILTERS, [off]: false } })
+    ),
+  // Las dos variantes de referencia del diagnóstico (todos los filtros / ninguno), para leer el
+  // detalle de trades de run.ts. Ya cuentan en el registro: no son variantes nuevas.
+  PB1H_REF: () => [true, false].map((on) => pullback1hStrategy({ trigger: "ema21", exit: PB1H_EXITS[1], filters: { macro: on, funding: on, exposure: on } })),
 
   // Cortos evaluados en serio (decisión del usuario): misma comparación de salidas que los largos.
   SHORT_WF: () => [

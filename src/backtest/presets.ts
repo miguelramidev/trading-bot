@@ -2,12 +2,15 @@
 // Se definen ANTES de ver resultados: agregar variantes después de mirar un backtest es filtrar
 // información del futuro. Cada corrida queda en el registro (registry.jsonl) para el Deflated
 // Sharpe, incluidas las que fallen.
-import type { Strategy } from "./engine/types.js";
+import type { AnyStrategy } from "./engine/types.js";
 import type { ExitParams } from "./strategies/common.js";
 import { breakoutStrategy } from "./strategies/breakout.js";
 import { rsi2PullbackStrategy } from "./strategies/rsi2Pullback.js";
 import { rotationStrategy } from "./strategies/rotation.js";
 import { pullback1hStrategy } from "./strategies/pullback1h.js";
+import { positioningStrategy } from "./strategies/positioning.js";
+import { listingShortStrategy } from "./strategies/listing.js";
+import { carryStrategy } from "./strategies/carry.js";
 
 // Los tres modos de salida que se comparan en todas las estrategias de tendencia.
 const BRACKET: ExitParams = { mode: "bracket", stopAtr: 1, m: 2 }; // el actual del bot
@@ -26,7 +29,7 @@ const PB1H_EXITS: ExitParams[] = [
 const PB1H_TRIGGERS = ["rsi2", "ema21"] as const;
 const PB1H_ALL_FILTERS = { macro: true, funding: true, exposure: true };
 
-export const PRESETS: Record<string, () => Strategy<any>[]> = {
+export const PRESETS: Record<string, () => AnyStrategy[]> = {
   // T1: Donchian 1d, long.
   T1: () =>
     [20, 55].flatMap((n) =>
@@ -101,6 +104,15 @@ export const PRESETS: Record<string, () => Strategy<any>[]> = {
   // Las dos variantes de referencia del diagnóstico (todos los filtros / ninguno), para leer el
   // detalle de trades de run.ts. Ya cuentan en el registro: no son variantes nuevas.
   PB1H_REF: () => [true, false].map((on) => pullback1hStrategy({ trigger: "ema21", exit: PB1H_EXITS[1], filters: { macro: on, funding: on, exposure: on } })),
+
+  // --- Tres líneas nuevas (pre-registradas el 2026-10-06, docs/investigacion/2026-10-06-tres-lineas.md) ---
+  // Exactamente 4 variantes por línea; cada línea es su propio pool de walk-forward.
+  // POS: posicionamiento saturado (contrarian), TF 4h, top 30. Correr con --from=2022-02-01.
+  POS: () => (["ls", "combo"] as const).flatMap((measure) => [6, 18].map((holdBars) => positioningStrategy({ measure, holdBars }))),
+  // LIST: cortos a listados nuevos, TF 1d, todos los perpetuos. Correr con --from=2020-03-01.
+  LIST: () => [1, 7].flatMap((delayDays) => [14, 28].map((holdDays) => listingShortStrategy({ delayDays, holdDays }))),
+  // CARRY: spot comprado + perpetuo vendido, diario. Correr con --from=2021-01-01.
+  CARRY: () => [0.15, 0.3].flatMap((tIn) => (["btc_eth", "top30"] as const).map((universe) => carryStrategy({ tIn, universe }))),
 
   // Cortos evaluados en serio (decisión del usuario): misma comparación de salidas que los largos.
   SHORT_WF: () => [

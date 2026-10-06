@@ -14,12 +14,11 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { BACKTESTS_DIR } from "./data/paths.js";
-import { simulate } from "./engine/simulate.js";
 import { DEFAULT_SIM_CONFIG, type SimConfig, type DailyEquity } from "./engine/types.js";
 import { computeMetrics, maxDrawdownPct } from "./metrics.js";
 import { PRESETS } from "./presets.js";
 import { HOLDOUT_START } from "./holdout.js";
-import { loadUniverse, loadMarket, groupByTimeframe } from "./context.js";
+import { loadUniverse, groupByTimeframe, makeRunner } from "./context.js";
 import { deflatedSharpe, bootstrapMaxDrawdown, moments } from "./stats.js";
 
 const IS_MONTHS = 24;
@@ -98,10 +97,10 @@ async function main() {
 
   const runs: { id: string; pnl: { date: number; pnl: number }[]; cost2: { date: number; pnl: number }[]; trades: number; exTop3: number; net: number }[] = [];
   for (const [tfHours, group] of groupByTimeframe(PRESETS[presetName]())) {
-    const { instruments, market } = loadMarket(universe, tfHours, from, to);
+    const runStrategy = makeRunner(universe, tfHours, from, to, group);
     for (const strategy of group) {
-      const r1 = simulate(strategy, instruments, market, universe, { ...base, costMultiplier: 1 });
-      const r2 = simulate(strategy, instruments, market, universe, { ...base, costMultiplier: 2 });
+      const r1 = runStrategy(strategy, { ...base, costMultiplier: 1 });
+      const r2 = runStrategy(strategy, { ...base, costMultiplier: 2 });
       const m1 = computeMetrics(r1);
       runs.push({ id: strategy.id, pnl: dailyPnl(r1.equity), cost2: dailyPnl(r2.equity), trades: m1.trades, exTop3: m1.netPnlExTop3, net: m1.netPnl });
       mkdirSync(BACKTESTS_DIR, { recursive: true });

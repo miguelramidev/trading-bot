@@ -2,9 +2,9 @@
 // derivados de 1h, funding del tramo y MIN_NOTIONAL del par.
 import { existsSync, readFileSync } from "node:fs";
 import { resample, HOUR_MS, DAY_MS, type Candle } from "./candles.js";
-import { loadInstruments, loadFunding } from "./store.js";
+import { loadInstruments, loadFunding, loadMetrics } from "./store.js";
 import { MIN_NOTIONAL_PATH } from "./paths.js";
-import type { InstrumentData, Series } from "../engine/types.js";
+import type { InstrumentData, MetricsSeries, Series } from "../engine/types.js";
 
 /** Pasa velas a columnas. Con `checkOrder` verifica que openTime sea estrictamente creciente. */
 export function toSeries(candles: Candle[], checkOrder = true): Series {
@@ -51,8 +51,9 @@ export const H1_SIGNAL_WARMUP_MS = 60 * DAY_MS;
  * Con `tfHours` = 1 el TF de señal y el de ejecución son la misma serie (un solo objeto, para no
  * duplicar memoria), recortada a `h1From − H1_SIGNAL_WARMUP_MS`.
  */
-export function loadInstrumentData(symbol: string, tfHours: number, h1From: number): InstrumentData[] {
+export function loadInstrumentData(symbol: string, tfHours: number, h1From: number, opts: { metrics?: boolean } = {}): InstrumentData[] {
   const funding = loadFunding(symbol);
+  const metrics = opts.metrics ? loadMetrics(symbol) : null;
   return loadInstruments(symbol).map((inst) => {
     const c = inst.candles1h;
     const first = c[0].openTime;
@@ -71,6 +72,17 @@ export function loadInstrumentData(symbol: string, tfHours: number, h1From: numb
         rate: Float64Array.from(f, (e) => e.rate),
       },
       minNotional: minNotionalOf(symbol),
+      listedAt: first,
+      metrics: metrics ? sliceMetrics(metrics, first, last) : undefined,
     };
   });
+}
+
+/** Métricas dentro de [from, to] (el tramo de un instrumento, por si el ticker se relistó). */
+function sliceMetrics(m: MetricsSeries, from: number, to: number): MetricsSeries {
+  let a = 0;
+  while (a < m.time.length && m.time[a] < from) a++;
+  let b = a;
+  while (b < m.time.length && m.time[b] <= to) b++;
+  return { time: m.time.slice(a, b), lsAccount: m.lsAccount.slice(a, b), openInterest: m.openInterest.slice(a, b) };
 }

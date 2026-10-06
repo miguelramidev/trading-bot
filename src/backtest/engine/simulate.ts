@@ -245,29 +245,38 @@ export function simulate(
       }
 
       // 2b. Entradas.
-      if (snap) {
+      const allUniverse = strategy.universe === "all";
+      if (snap || allUniverse) {
         // Filtro cross-sectional: solo el top K del ranking (calculado sobre todo el universo,
         // incluidas las monedas con posición abierta).
         const topK = strategy.crossSectionalTopK;
         const allowed = csRank && topK ? new Set([...csRank].filter(([, r]) => r <= topK).map(([id]) => id)) : null;
         const maxOpen = Math.min(cfg.maxPositions, strategy.maxPositions ?? Infinity);
 
+        // Con universe "all", los instrumentos fuera del ranking vigente van con rank Infinity
+        // (peor tramo de slippage) y maxRank no aplica.
+        const rankOf = new Map((snap?.ranked ?? []).map((id, k) => [id, k + 1]));
+        const pool: { id: string; rank: number }[] = allUniverse
+          ? [...instruments.keys()].sort().map((id) => ({ id, rank: rankOf.get(id) ?? Infinity }))
+          : snap!.ranked.map((id, k) => ({ id, rank: k + 1 }));
+
         const candidates: { inst: InstrumentData; i: number; score: number; rank: number; side: Side }[] = [];
-        snap.ranked.forEach((id, k) => {
-          if (open.has(id)) return;
-          if (strategy.maxRank !== undefined && k + 1 > strategy.maxRank) return;
-          if (allowed && !allowed.has(id)) return;
+        for (const { id, rank } of pool) {
+          if (open.has(id)) continue;
+          if (!allUniverse && strategy.maxRank !== undefined && rank > strategy.maxRank) continue;
+          if (allowed && !allowed.has(id)) continue;
           const inst = instruments.get(id);
-          if (!inst) return;
+          if (!inst) continue;
           const i = indexAt(inst.tf.openTime, closedBarOpen);
-          if (i < 0) return;
+          if (i < 0) continue;
           const sig = strategy.entry(getPrepared(inst), i);
-          if (!sig) return;
+          if (!sig) continue;
           const side = strategy.side === "both" ? sig.side : strategy.side;
           if (!side) throw new Error(`${strategy.id}: una estrategia "both" tiene que indicar el lado de cada señal`);
-          candidates.push({ inst, i, score: sig.score, rank: k + 1, side });
-        });
-        candidates.sort((a, b) => b.score - a.score || a.rank - b.rank);
+          candidates.push({ inst, i, score: sig.score, rank, side });
+        }
+        // Desempate estable: score, después rank, después id.
+        candidates.sort((a, b) => b.score - a.score || a.rank - b.rank || a.inst.id.localeCompare(b.inst.id));
 
         for (const c of candidates) {
           if (open.size >= maxOpen) {

@@ -9,12 +9,11 @@
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { BACKTESTS_DIR } from "./data/paths.js";
-import { simulate } from "./engine/simulate.js";
 import { DEFAULT_SIM_CONFIG, type SimConfig, type SimResult } from "./engine/types.js";
 import { computeMetrics, type Metrics } from "./metrics.js";
 import { PRESETS } from "./presets.js";
 import { HOLDOUT_START } from "./holdout.js";
-import { loadUniverse, loadMarket, groupByTimeframe } from "./context.js";
+import { loadUniverse, groupByTimeframe, makeRunner } from "./context.js";
 
 function arg(name: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -70,11 +69,11 @@ async function main() {
   const runStamp = new Date().toISOString().replace(/[:.]/g, "-");
 
   for (const [tfHours, group] of groupByTimeframe(PRESETS[presetName]())) {
-    const { instruments, market } = loadMarket(universe, tfHours, from, to);
+    const runStrategy = makeRunner(universe, tfHours, from, to, group);
 
     for (const strategy of group) {
       const t0 = Date.now();
-      const result = simulate(strategy, instruments, market, universe, cfg);
+      const result = runStrategy(strategy, cfg);
       const m = computeMetrics(result);
       const dir = join(BACKTESTS_DIR, `${runStamp}_${presetName}`, `${strategy.id}_cost${cfg.costMultiplier}`);
       writeOutputs(dir, result, m);

@@ -31,6 +31,23 @@ export interface InstrumentData {
   funding: FundingSeries;
   /** MIN_NOTIONAL del par en Binance (USDT). Del exchangeInfo actual; 5 si el símbolo ya no figura. */
   minNotional: number;
+  /** openTime de la primera vela de 1h del instrumento (listado, o relistado si es "SYMBOL~2"). */
+  listedAt?: number;
+  /** Posicionamiento por hora (solo si alguna estrategia del grupo lo pide: `needsMetrics`). */
+  metrics?: MetricsSeries;
+}
+
+/**
+ * Métricas de posicionamiento de Binance llevadas a 1h: para cada hora, la última fila de 5m
+ * conocida a esa hora (`time` = hora a la que ya se conocía, ms). Hay huecos: solo se bajaron los
+ * días en que el símbolo estuvo en el top 30, más un mes de calentamiento.
+ */
+export interface MetricsSeries {
+  time: Float64Array;
+  /** count_long_short_ratio: cuentas en largo / cuentas en corto. */
+  lsAccount: Float64Array;
+  /** sum_open_interest (en contratos de la base). */
+  openInterest: Float64Array;
 }
 
 /** Contexto de mercado común a todos los instrumentos (BTC como referencia de régimen). */
@@ -110,9 +127,33 @@ export interface Strategy<P = unknown> {
   crossSectionalTopK?: number;
   /** Tope de posiciones abiertas propio de la estrategia (además del de la cuenta). */
   maxPositions?: number;
+  /** "ranked" (por defecto): solo el universo point-in-time vigente. "all": cualquier instrumento
+   * cargado que cotice en ese momento (para eventos como listados, que todavía no están en el
+   * ranking). Fuera del ranking el slippage es el del peor tramo y `maxRank` no aplica. */
+  universe?: "ranked" | "all";
+  /** La estrategia usa las métricas de posicionamiento (InstrumentData.metrics). */
+  needsMetrics?: boolean;
   /** Filtro de cartera: se evalúa justo antes de abrir, con las posiciones abiertas en ese
    * momento (incluidas las que se abrieron en la misma hora). false = no se entra. */
   allowEntry?(candidate: EntryCandidate, open: OpenPositionInfo[]): boolean;
+}
+
+/**
+ * Estrategia con simulador propio (por ejemplo el carry de funding, que tiene dos patas y no pasa
+ * por `simulate`). Carga sus propios datos y devuelve el mismo SimResult, así `computeMetrics` y
+ * `validate.ts` la tratan igual que a las demás.
+ */
+export interface CustomStrategy {
+  id: string;
+  family: Strategy["family"];
+  timeframeHours: number;
+  run(cfg: SimConfig): SimResult;
+}
+
+export type AnyStrategy = Strategy<any> | CustomStrategy;
+
+export function isCustom(s: AnyStrategy): s is CustomStrategy {
+  return "run" in s;
 }
 
 export type TradeExitReason = ExitReason | "signal" | "time" | "delisted" | "end";

@@ -36,6 +36,8 @@ class MainScreen extends StatelessWidget {
         body: navigationShell,
         bottomNavigationBar: SelectionContainer.disabled(
           child: BottomNavigationBar(
+            // Con 4 ítems Flutter pasa a "shifting" (colores y etiquetas cambian): se fija el modo.
+            type: BottomNavigationBarType.fixed,
             backgroundColor: DsColors.background,
             selectedItemColor: DsColors.positive,
             unselectedItemColor: DsColors.textSecondary,
@@ -44,6 +46,7 @@ class MainScreen extends StatelessWidget {
             items: const [
               BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Inicio'),
               BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Historial'),
+              BottomNavigationBarItem(icon: Icon(Icons.insights), label: 'Mercado'),
               BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Ajustes'),
             ],
           ),
@@ -63,6 +66,7 @@ class MainScreen extends StatelessWidget {
                 destinations: const [
                   NavigationRailDestination(icon: Icon(Icons.grid_view), label: Text('Inicio')),
                   NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Historial')),
+                  NavigationRailDestination(icon: Icon(Icons.insights), label: Text('Mercado')),
                   NavigationRailDestination(icon: Icon(Icons.tune), label: Text('Ajustes')),
                 ],
               ),
@@ -82,7 +86,7 @@ class MainScreen extends StatelessWidget {
     );
   }
 
-  static const _titles = ['Inicio', 'Historial', 'Configuración'];
+  static const _titles = ['Inicio', 'Historial', 'Mercado', 'Configuración'];
 
   Widget _buildDesktopTopBar(BuildContext context) {
     final title = _titles[navigationShell.currentIndex.clamp(0, _titles.length - 1)];

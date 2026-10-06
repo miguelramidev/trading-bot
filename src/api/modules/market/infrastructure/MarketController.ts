@@ -1,5 +1,12 @@
 import { Hono } from "hono";
 import { parseIndicatorKeys, computeKlineIndicators, dropIncompleteCandle, INDICATOR_WARMUP_CANDLES } from "./klineIndicators.js";
+import { buildPositioningView } from "./positioning.js";
+import { BinancePublic } from "../../../../shadow/binancePublic.js";
+import { scanUniverse, scanPositioning, mapLimit } from "../../../../shadow/runner.js";
+import type { PosCandidate } from "../../../../shadow/logic.js";
+import { db } from "../../../../db/index.js";
+import { shadowSignals } from "../../../../db/schema.js";
+import { internalError } from "../../../core/utils/errors.js";
 
 export const marketRouter = new Hono();
 
@@ -61,5 +68,42 @@ marketRouter.get("/klines", async (c) => {
     return c.json({ candles: visibleCandles, indicators });
   } catch (error) {
     return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+// Tablero de posicionamiento (ver positioning.ts). Escanear el universo pide ~150 llamadas
+// públicas a Binance (~10 s): se cachea 5 minutos por instancia de Lambda. La señal cambia cada
+// 4 h, así que la caché no esconde nada relevante.
+const POSITIONING_TTL_MS = 5 * 60_000;
+let positioningCache: { at: number; market: { cands: PosCandidate[]; funding: Map<string, { time: number; rate: number }[]> } } | null = null;
+
+marketRouter.get("/positioning", async (c) => {
+  try {
+    const now = Date.now();
+    if (!positioningCache || now - positioningCache.at > POSITIONING_TTL_MS) {
+      const client = new BinancePublic();
+      const errors: string[] = [];
+      const safe = async <T>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+        try {
+          return await fn();
+        } catch (e) {
+          errors.push(label);
+          return null;
+        }
+      };
+      const top = await scanUniverse(client, now, safe);
+      const cands = await scanPositioning(client, top, now, safe);
+      const funding = new Map<string, { time: number; rate: number }[]>();
+      await mapLimit(cands, async (cand) => {
+        const f = await safe(`funding ${cand.symbol}`, () => client.fundingRates(cand.symbol, now - 8 * 24 * 3_600_000));
+        if (f) funding.set(cand.symbol, f);
+      });
+      if (errors.length) console.warn(`positioning: ${errors.length} llamadas fallidas`, errors.slice(0, 5));
+      positioningCache = { at: now, market: { cands, funding } };
+    }
+    const shadowRows = await db.select().from(shadowSignals);
+    return c.json(buildPositioningView(positioningCache.market.cands, positioningCache.market.funding, shadowRows, now));
+  } catch (error) {
+    return internalError(c, error, "GET /api/market/positioning");
   }
 });

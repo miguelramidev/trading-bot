@@ -46,7 +46,7 @@ export interface ShadowStore {
   close(id: number, fields: Partial<ShadowRow>): Promise<void>;
 }
 
-async function mapLimit<T, R>(items: T[], fn: (x: T) => Promise<R>): Promise<R[]> {
+export async function mapLimit<T, R>(items: T[], fn: (x: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
   await Promise.all(
@@ -58,6 +58,34 @@ async function mapLimit<T, R>(items: T[], fn: (x: T) => Promise<R>): Promise<R[]
     })
   );
   return out;
+}
+
+
+type Safe = <T>(label: string, fn: () => Promise<T>) => Promise<T | null>;
+
+/** Top 30 por mediana de volumen de 30 días (pre-filtrado por volumen de 24 h). Lo usan el cron y el tablero. */
+export async function scanUniverse(client: BinancePublic, now: number, safe: Safe): Promise<{ symbol: string; rank: number }[]> {
+  const [perps, vols] = await Promise.all([client.perpetuals(), client.quoteVolumes24h()]);
+  const eligible = perps.filter((p) => isEligibleSymbol(p.symbol, p.underlyingType)).map((p) => p.symbol);
+  const pre = eligible.sort((a, b) => (vols.get(b) ?? 0) - (vols.get(a) ?? 0)).slice(0, PRE_UNIVERSE);
+  const daily = new Map<string, Candle[]>();
+  await mapLimit(pre, async (s) => {
+    const k = await safe(`diarias ${s}`, () => client.klines(s, "1d", { limit: 32 }));
+    if (k) daily.set(s, k);
+  });
+  return topByMedianVolume(daily, now);
+}
+
+/** Lectura de POS (zLS, ATR, precio) de cada moneda del universo sobre la última vela de 4h cerrada. */
+export async function scanPositioning(client: BinancePublic, top: { symbol: string; rank: number }[], now: number, safe: Safe): Promise<PosCandidate[]> {
+  const readings = await mapLimit(top, async (t) =>
+    safe(`POS ${t.symbol}`, async () => {
+      const [k4, ratios] = await Promise.all([client.klines(t.symbol, "4h", { limit: 200 }), client.longShortAccountRatio(t.symbol)]);
+      const r = posReading(k4, ratios, now);
+      return r ? ({ ...r, symbol: t.symbol, rank: t.rank } as PosCandidate) : null;
+    })
+  );
+  return readings.filter((r): r is PosCandidate => r !== null);
 }
 
 const pct = (x: number) => x.toFixed(6);
@@ -84,15 +112,7 @@ export async function runShadow(client: BinancePublic, store: ShadowStore, now: 
   };
 
   // 1. Universo.
-  const [perps, vols] = await Promise.all([client.perpetuals(), client.quoteVolumes24h()]);
-  const eligible = perps.filter((p) => isEligibleSymbol(p.symbol, p.underlyingType)).map((p) => p.symbol);
-  const pre = eligible.sort((a, b) => (vols.get(b) ?? 0) - (vols.get(a) ?? 0)).slice(0, PRE_UNIVERSE);
-  const daily = new Map<string, Candle[]>();
-  await mapLimit(pre, async (s) => {
-    const k = await safe(`diarias ${s}`, () => client.klines(s, "1d", { limit: 32 }));
-    if (k) daily.set(s, k);
-  });
-  const top = topByMedianVolume(daily, now);
+  const top = await scanUniverse(client, now, safe);
   summary.universe = top.length;
 
   // 2a. POS: resolver posiciones abiertas.
@@ -117,14 +137,7 @@ export async function runShadow(client: BinancePublic, store: ShadowStore, now: 
   }
 
   // 2b. POS: señales nuevas sobre la vela de 4h que acaba de cerrar.
-  const readings = await mapLimit(top, async (t) =>
-    safe(`POS ${t.symbol}`, async () => {
-      const [k4, ratios] = await Promise.all([client.klines(t.symbol, "4h", { limit: 200 }), client.longShortAccountRatio(t.symbol)]);
-      const r = posReading(k4, ratios, now);
-      return r ? ({ ...r, symbol: t.symbol, rank: t.rank } as PosCandidate) : null;
-    })
-  );
-  const cands = readings.filter((r): r is PosCandidate => r !== null);
+  const cands = await scanPositioning(client, top, now, safe);
   const { enter, noSlot } = decidePosEntries(cands, stillOpen, stillOpen.size);
   const posRow = (e: (typeof enter)[number], status: ShadowRow["status"]): ShadowRow => ({
     strategy: POS_STRATEGY, symbol: e.symbol, side: e.side, rank: e.rank, status,

@@ -1,4 +1,5 @@
 import 'screens/history/history_screen.dart';
+import 'screens/market/market_screen.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:toastification/toastification.dart';
 import 'package:flutter/material.dart';
@@ -148,6 +149,14 @@ final GoRouter _router = GoRouter(
                   }
                 )
               ]
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/market',
+              builder: (context, state) => const MarketScreen(),
             ),
           ],
         ),

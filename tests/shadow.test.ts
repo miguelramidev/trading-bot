@@ -46,7 +46,7 @@ describe("universo y lectura de POS", () => {
 });
 
 describe("decidePosEntries", () => {
-  const cand = (symbol: string, z: number, rank = 5): PosCandidate => ({ symbol, rank, z, atr: 2, barClose: T0, entryOpen: 100 });
+  const cand = (symbol: string, z: number, rank = 5): PosCandidate => ({ symbol, rank, z, ratio: 1, atr: 2, barClose: T0, entryOpen: 100 });
 
   it("largos saturados → corto con stop arriba; cortos saturados → largo; respeta umbral", () => {
     const { enter } = decidePosEntries([cand("A", 2.5), cand("B", -3), cand("C", 1.9)], new Set(), 0);

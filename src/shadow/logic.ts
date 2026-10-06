@@ -36,6 +36,8 @@ export function topByMedianVolume(daily: Map<string, Candle[]>, now: number, top
 
 export interface PosReading {
   z: number;
+  /** Ratio long/short de cuentas al cierre de la vela (cuentas en largo / en corto). */
+  ratio: number;
   atr: number;
   /** Cierre de la vela de 4h evaluada (= momento de la señal). */
   barClose: number;
@@ -51,11 +53,12 @@ export function posReading(klines4h: Candle[], ratios: { time: number; ratio: nu
   const next = klines4h.find((c) => c.openTime === last.openTime + TF_MS);
   if (!next) return null;
   const tf = toSeries(closed);
-  const z = rollingZ(sampleAtClose(tf, 4, Float64Array.from(ratios, (r) => r.time), Float64Array.from(ratios, (r) => r.ratio), MAX_METRIC_AGE_MS));
+  const sampled = sampleAtClose(tf, 4, Float64Array.from(ratios, (r) => r.time), Float64Array.from(ratios, (r) => r.ratio), MAX_METRIC_AGE_MS);
+  const z = rollingZ(sampled);
   const a = atr(tf.high, tf.low, tf.close, 14);
   const i = closed.length - 1;
   if (!Number.isFinite(z[i]) || !(a[i] > 0)) return null;
-  return { z: z[i], atr: a[i], barClose: last.openTime + TF_MS, entryOpen: next.open };
+  return { z: z[i], ratio: sampled[i], atr: a[i], barClose: last.openTime + TF_MS, entryOpen: next.open };
 }
 
 export interface PosCandidate extends PosReading {

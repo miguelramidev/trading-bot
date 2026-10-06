@@ -25,3 +25,12 @@ export function isEligibleSymbol(symbol: string, underlyingType?: string): boole
 export function looksLikeStablecoin(medianClose: number): boolean {
   return medianClose > 0.97 && medianClose < 1.03;
 }
+
+/** Spot equivalente de un perpetuo: mismo nombre, o sin el prefijo de escala (1000, 1000000, 1M). */
+export function spotFor(perp: string, spotSymbols: Set<string>): { spot: string; factor: number } | null {
+  if (spotSymbols.has(perp)) return { spot: perp, factor: 1 };
+  const m = /^(1000000|10000|1000|1M)(.+USDT)$/.exec(perp);
+  if (!m) return null;
+  const factor = m[1] === "1M" ? 1_000_000 : Number(m[1]);
+  return spotSymbols.has(m[2]) ? { spot: m[2], factor } : null;
+}

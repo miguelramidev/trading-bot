@@ -146,3 +146,34 @@ export const orphanPositionAlerts = pgTable("orphan_position_alerts", {
 }, (table) => [
   unique().on(table.userId, table.symbol),
 ]);
+
+// Modo sombra (src/shadow/): señales de las estrategias candidatas registradas en vivo SIN
+// operar, para acumular resultados fuera de muestra (docs/investigacion/2026-10-06-tres-lineas.md).
+// Tabla independiente: no la lee ni la escribe nada del trading real. Precios y % como text,
+// igual que el resto del schema.
+export const shadowSignals = pgTable("shadow_signals", {
+  id: serial("id").primaryKey(),
+  strategy: text("strategy").notNull(), // 'POS_ls_h18' | 'CARRY_t15_top30'
+  symbol: text("symbol").notNull(),
+  side: text("side").notNull(), // 'long' | 'short' (CARRY: 'short' = perpetuo vendido + spot comprado)
+  rank: integer("rank").notNull(), // rank de volumen (mediana 30 días) al momento de la señal
+  status: text("status").notNull(), // 'abierta' | 'cerrada' | 'sin_cupo'
+  signalTime: timestamp("signal_time").notNull(), // cierre de la vela evaluada
+  signalValue: text("signal_value"), // POS: zLS · CARRY: funding anualizado de 7 días
+  entryTime: timestamp("entry_time").notNull(),
+  entryPrice: text("entry_price").notNull(), // perpetuo, sin slippage
+  spotEntryPrice: text("spot_entry_price"), // solo CARRY (en la escala del perpetuo)
+  stopPrice: text("stop_price"), // solo POS
+  exitDue: timestamp("exit_due"), // solo POS (entrada + 72 h)
+  exitTime: timestamp("exit_time"),
+  exitPrice: text("exit_price"),
+  spotExitPrice: text("spot_exit_price"),
+  exitReason: text("exit_reason"), // POS: 'stop' | 'time' · CARRY: 'signal'
+  grossPct: text("gross_pct"),
+  costPct: text("cost_pct"),
+  fundingPct: text("funding_pct"),
+  netPct: text("net_pct"), // neto en % del nocional
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique().on(table.strategy, table.symbol, table.signalTime),
+]);

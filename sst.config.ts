@@ -70,6 +70,18 @@ export default $config({
       }
     });
 
+    // Modo sombra (src/shadow/): registra en vivo, SIN operar, las señales de las estrategias
+    // candidatas (POS cada 4 h, CARRY una vez por día) en la tabla shadow_signals. Solo usa datos
+    // públicos de Binance: no lleva claves de Binance ni de Telegram. 3 min después de cada cierre de 4h.
+    new sst.aws.Cron("Shadow4h", {
+      schedule: "cron(3 0/4 * * ? *)",
+      job: {
+        handler: "src/shadow/handler.handler",
+        timeout: "120 seconds",
+        link: [DATABASE_URL]
+      }
+    });
+
     // Retorna las URLs para integraciones
     return {
       WebhookUrl: webhookApi.url,

@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { DAY_MS } from "./candles.js";
 import { METRICS_DIR, SPOT_DIR, SPOT_MAP_PATH, UNIVERSE_PATH } from "./paths.js";
 import { arg, listS3, downloadVerified, pool } from "./binanceVision.js";
+import { spotFor } from "./symbols.js";
 import type { UniverseSnapshot } from "../universe.js";
 
 const METRICS_START = Date.parse("2021-12-01T00:00:00Z");
@@ -41,15 +42,6 @@ function daysInTop(topN: number, from: number): Map<string, Set<number>> {
 }
 
 const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
-
-/** Spot equivalente de un perpetuo: mismo nombre, o sin el prefijo de escala (1000, 1000000, 1M). */
-export function spotFor(perp: string, spotSymbols: Set<string>): { spot: string; factor: number } | null {
-  if (spotSymbols.has(perp)) return { spot: perp, factor: 1 };
-  const m = /^(1000000|10000|1000|1M)(.+USDT)$/.exec(perp);
-  if (!m) return null;
-  const factor = m[1] === "1M" ? 1_000_000 : Number(m[1]);
-  return spotSymbols.has(m[2]) ? { spot: m[2], factor } : null;
-}
 
 async function main() {
   const dataset = arg("dataset");

@@ -20,7 +20,10 @@ export const Z_WINDOW = 180;
 export const Z_MIN_VALID = 120;
 export const OI_CHANGE_BARS = 18;
 export const MAX_METRIC_AGE_MS = HOUR_MS;
-const STOP_ATR = 2.5;
+/** Stop duro en ATR(14) de 4h y umbrales de saturación (los usa también el modo sombra). */
+export const POS_STOP_ATR = 2.5;
+export const POS_THRESHOLD = { ls: 2.0, combo: 1.5 } as const;
+const STOP_ATR = POS_STOP_ATR;
 const TF_HOURS = 4;
 
 export interface PositioningParams {
@@ -86,7 +89,7 @@ export function recentFundingMean(tf: Series, tfHours: number, funding: Instrume
 export function positioningStrategy(params: PositioningParams): Strategy<PositioningPrepared> {
   const { measure, holdBars } = params;
   const lagMs = (params.lagMinutes ?? 0) * 60_000;
-  const threshold = measure === "ls" ? 2.0 : 1.5;
+  const threshold = POS_THRESHOLD[measure];
   return {
     id: `POS_${measure}_h${holdBars}${lagMs ? `_lag${params.lagMinutes}m` : ""}`,
     family: "reversion",

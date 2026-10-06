@@ -1,4 +1,5 @@
-// Simulador de cartera: una sola cuenta compartida, recorrida hora por hora.
+// Simulador de cartera: una sola cuenta compartida, recorrida hora por hora. Una estrategia puede
+// operar un solo lado o los dos (`side: "both"`): el lado es de cada posición.
 //
 // Orden de cada hora H (todas las horas son límites de vela de 1h):
 //   1. Funding: cada posición abierta en H paga/cobra los eventos de funding de esa hora.
@@ -13,13 +14,16 @@
 // Margen fijo por operación (como `montoOperacion` del bot, sin interés compuesto): los
 // resultados en % se leen contra `initialEquity`.
 import { processBar, initExitState, liquidationPrice, type ExitState } from "./exits.js";
-import type { InstrumentData, MarketData, SimConfig, SimResult, Strategy, Trade, DailyEquity, TradeExitReason, PositionView } from "./types.js";
+import type { InstrumentData, MarketData, SimConfig, SimResult, Strategy, Trade, DailyEquity, TradeExitReason, PositionView, Side } from "./types.js";
 import { universeAt, type UniverseSnapshot } from "../universe.js";
 import { HOUR_MS, DAY_MS } from "../data/candles.js";
 
 interface Position {
   inst: InstrumentData;
   prepared: unknown;
+  side: Side;
+  /** +1 long, −1 short. */
+  sign: number;
   rank: number;
   entryTime: number;
   entryPrice: number;
@@ -91,7 +95,6 @@ export function simulate(
 ): SimResult {
   const tfMs = strategy.timeframeHours * HOUR_MS;
   const fee = cfg.feeRate * cfg.costMultiplier;
-  const sideSign = strategy.side === "long" ? 1 : -1;
 
   const prepared = new Map<string, unknown>();
   const getPrepared = (inst: InstrumentData) => {
@@ -110,9 +113,10 @@ export function simulate(
   let skippedNoSlot = 0;
   let skippedNoMargin = 0;
   let skippedMinNotional = 0;
+  let skippedFiltered = 0;
 
   const view = (pos: Position): PositionView => ({
-    side: strategy.side,
+    side: pos.side,
     entryPrice: pos.entryPrice,
     entryTfIndex: pos.entryTfIndex,
     stop: pos.exit.stop,
@@ -124,13 +128,13 @@ export function simulate(
     let slip = slippageBps(cfg, pos.rank) * (isStopLike ? cfg.stopSlippageMult : 1);
     if (reason === "end") slip = 0;
     if (reason === "liquidation") slip = 0;
-    let price = rawPrice * (1 - sideSign * slip);
-    if (reason === "delisted") price = rawPrice * (1 - sideSign * cfg.delistPenalty);
+    let price = rawPrice * (1 - pos.sign * slip);
+    if (reason === "delisted") price = rawPrice * (1 - pos.sign * cfg.delistPenalty);
     // Liquidación en aislado: se pierde todo el margen de la posición (lo que sobre lo absorbe
     // el fondo de seguro), sin comisión de salida a cargo del usuario.
     const liquidated = reason === "liquidation";
     const exitFee = liquidated ? 0 : pos.qty * price * fee;
-    const gross = liquidated ? -pos.margin : sideSign * pos.qty * (price - pos.entryPrice);
+    const gross = liquidated ? -pos.margin : pos.sign * pos.qty * (price - pos.entryPrice);
     const fees = pos.fees + exitFee;
     const net = gross - fees + pos.funding;
     const risk = pos.qty * Math.abs(pos.entryPrice - pos.initialStop);
@@ -138,7 +142,7 @@ export function simulate(
     trades.push({
       strategyId: strategy.id,
       instrument: pos.inst.id,
-      side: strategy.side,
+      side: pos.side,
       rankAtEntry: pos.rank,
       entryTime: pos.entryTime,
       entryPrice: pos.entryPrice,
@@ -162,7 +166,7 @@ export function simulate(
 
   const markToMarket = () => {
     let unrealized = 0;
-    for (const pos of open.values()) unrealized += sideSign * pos.qty * (pos.lastClose - pos.entryPrice) + pos.funding - pos.fees;
+    for (const pos of open.values()) unrealized += pos.sign * pos.qty * (pos.lastClose - pos.entryPrice) + pos.funding - pos.fees;
     return cfg.initialEquity + realized + unrealized;
   };
 
@@ -188,7 +192,7 @@ export function simulate(
         const t = f.time[pos.fundingIndex];
         if (t === H && t > pos.entryTime) {
           // Los longs pagan funding positivo; los shorts lo cobran. Notional al precio actual (≈ mark).
-          pos.funding -= sideSign * pos.qty * pos.lastClose * f.rate[pos.fundingIndex];
+          pos.funding -= pos.sign * pos.qty * pos.lastClose * f.rate[pos.fundingIndex];
         }
         pos.fundingIndex++;
       }
@@ -237,7 +241,7 @@ export function simulate(
           continue;
         }
         const newStop = strategy.updateStop?.(p, i, v);
-        if (newStop !== undefined && sideSign * newStop > sideSign * pos.exit.stop) pos.exit.stop = newStop;
+        if (newStop !== undefined && pos.sign * newStop > pos.sign * pos.exit.stop) pos.exit.stop = newStop;
       }
 
       // 2b. Entradas.
@@ -248,7 +252,7 @@ export function simulate(
         const allowed = csRank && topK ? new Set([...csRank].filter(([, r]) => r <= topK).map(([id]) => id)) : null;
         const maxOpen = Math.min(cfg.maxPositions, strategy.maxPositions ?? Infinity);
 
-        const candidates: { inst: InstrumentData; i: number; score: number; rank: number }[] = [];
+        const candidates: { inst: InstrumentData; i: number; score: number; rank: number; side: Side }[] = [];
         snap.ranked.forEach((id, k) => {
           if (open.has(id)) return;
           if (strategy.maxRank !== undefined && k + 1 > strategy.maxRank) return;
@@ -258,7 +262,10 @@ export function simulate(
           const i = indexAt(inst.tf.openTime, closedBarOpen);
           if (i < 0) return;
           const sig = strategy.entry(getPrepared(inst), i);
-          if (sig) candidates.push({ inst, i, score: sig.score, rank: k + 1 });
+          if (!sig) return;
+          const side = strategy.side === "both" ? sig.side : strategy.side;
+          if (!side) throw new Error(`${strategy.id}: una estrategia "both" tiene que indicar el lado de cada señal`);
+          candidates.push({ inst, i, score: sig.score, rank: k + 1, side });
         });
         candidates.sort((a, b) => b.score - a.score || a.rank - b.rank);
 
@@ -267,6 +274,14 @@ export function simulate(
             skippedNoSlot++;
             continue;
           }
+          if (strategy.allowEntry) {
+            const openInfo = [...open.values()].map((o) => ({ instrument: o.inst.id, side: o.side, prepared: o.prepared, entryTfIndex: o.entryTfIndex }));
+            if (!strategy.allowEntry({ instrument: c.inst.id, side: c.side, prepared: getPrepared(c.inst), i: c.i }, openInfo)) {
+              skippedFiltered++;
+              continue;
+            }
+          }
+          const sign = c.side === "long" ? 1 : -1;
           const leverage = regla1Leverage(cfg.marginPerTrade, c.inst.minNotional, cfg);
           if (leverage === null) {
             skippedMinNotional++;
@@ -281,15 +296,17 @@ export function simulate(
           const j = indexAt(c.inst.h1.openTime, H);
           if (j < 0) continue;
           const slip = slippageBps(cfg, c.rank);
-          const entryPrice = c.inst.h1.open[j] * (1 + sideSign * slip);
+          const entryPrice = c.inst.h1.open[j] * (1 + sign * slip);
           const p = getPrepared(c.inst);
-          const plan = strategy.plan(p, c.i, entryPrice);
+          const plan = strategy.plan(p, c.i, entryPrice, c.side);
           // Un plan sin distancia de stop válida no se opera (equivale a un rechazo de executeTrade).
-          if (!(sideSign * (entryPrice - plan.stop) > 0)) continue;
+          if (!(sign * (entryPrice - plan.stop) > 0)) continue;
           const qty = (cfg.marginPerTrade * leverage) / entryPrice;
           open.set(c.inst.id, {
             inst: c.inst,
             prepared: p,
+            side: c.side,
+            sign,
             rank: c.rank,
             entryTime: H,
             entryPrice,
@@ -301,12 +318,12 @@ export function simulate(
             fees: qty * entryPrice * fee,
             funding: 0,
             exit: initExitState(
-              strategy.side,
+              c.side,
               entryPrice,
               plan.stop,
               plan.takeProfit,
               plan.trailing,
-              liquidationPrice(strategy.side, entryPrice, leverage, cfg.maintenanceMarginRate)
+              liquidationPrice(c.side, entryPrice, leverage, cfg.maintenanceMarginRate)
             ),
             ambiguous: false,
             h1Index: j,
@@ -334,5 +351,5 @@ export function simulate(
   for (const pos of [...open.values()]) close(pos, pos.lastClose, cfg.end, "end");
   equity.push({ date: Math.floor((cfg.end - 1) / DAY_MS) * DAY_MS, equity: markToMarket(), openPositions: 0 });
 
-  return { config: cfg, strategyId: strategy.id, trades, equity, skippedNoSlot, skippedNoMargin, skippedMinNotional };
+  return { config: cfg, strategyId: strategy.id, trades, equity, skippedNoSlot, skippedNoMargin, skippedMinNotional, skippedFiltered };
 }

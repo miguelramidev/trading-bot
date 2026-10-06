@@ -176,6 +176,69 @@ describe("simulate", () => {
   });
 });
 
+describe("simulate con largos y cortos en la misma cuenta (side: both)", () => {
+  /** Entra en la vela de 4h #1 con el lado indicado por instrumento; stop/TP en precio. */
+  function bothStrategy(sides: Record<string, "long" | "short">, levels: Record<string, { stop: number; tp?: number }>): Strategy<{ id: string }> {
+    return {
+      id: "both",
+      family: "baseline",
+      timeframeHours: 4,
+      side: "both",
+      prepare: (inst) => ({ id: inst.id }),
+      entry: (p, i) => (i === 1 && sides[p.id] ? { score: 1, side: sides[p.id] } : null),
+      plan: (p) => ({ stop: levels[p.id].stop, takeProfit: levels[p.id].tp }),
+    };
+  }
+
+  it("un corto gana cuando el precio baja, con el TP y el stop del lado correcto", () => {
+    const price = (h: number) => (h < 12 ? 100 : 80);
+    const a = instrument("A", hours(72, price), 4);
+    const res = simulate(bothStrategy({ A: "short" }, { A: { stop: 110, tp: 90 } }), new Map([["A", a]]), { btcDaily: a.daily }, universe(["A"]), cfg());
+    const t = res.trades[0];
+    expect(t.side).toBe("short");
+    expect(t.exitReason).toBe("take_profit");
+    expect(t.exitPrice).toBe(90);
+    expect(t.grossPnl).toBeCloseTo(1 * (100 - 90), 10);
+  });
+
+  it("un largo y un corto conviven y el funding se cobra con el signo de cada lado", () => {
+    const funding = [{ time: T0 + 16 * HOUR_MS, rate: 0.01 }];
+    const a = instrument("A", hours(72, () => 100), 4, funding);
+    const b = instrument("B", hours(72, () => 100), 4, funding);
+    const res = simulate(
+      bothStrategy({ A: "long", B: "short" }, { A: { stop: 50 }, B: { stop: 150 } }),
+      new Map([["A", a], ["B", b]]),
+      { btcDaily: a.daily },
+      universe(["A", "B"]),
+      cfg()
+    );
+    const byId = Object.fromEntries(res.trades.map((t) => [t.instrument, t]));
+    expect(byId.A.side).toBe("long");
+    expect(byId.B.side).toBe("short");
+    expect(byId.A.funding).toBeCloseTo(-1, 10); // el long paga
+    expect(byId.B.funding).toBeCloseTo(1, 10); // el short cobra
+  });
+
+  it("un plan con el stop del lado equivocado para ese lado no se opera", () => {
+    const a = instrument("A", hours(72, () => 100), 4);
+    const res = simulate(bothStrategy({ A: "short" }, { A: { stop: 90 } }), new Map([["A", a]]), { btcDaily: a.daily }, universe(["A"]), cfg());
+    expect(res.trades).toHaveLength(0);
+  });
+
+  it("allowEntry ve las posiciones ya abiertas (incluidas las de la misma hora) y puede bloquear", () => {
+    const ids = ["A", "B", "C"];
+    const insts = new Map(ids.map((id) => [id, instrument(id, hours(72, () => 100), 4)]));
+    const strat: Strategy<{ id: string }> = {
+      ...bothStrategy({ A: "long", B: "long", C: "short" }, { A: { stop: 50 }, B: { stop: 50 }, C: { stop: 150 } }),
+      // Una sola posición por lado.
+      allowEntry: (c, open) => !open.some((o) => o.side === c.side),
+    };
+    const res = simulate(strat, insts, { btcDaily: insts.get("A")!.daily }, universe(ids), cfg());
+    expect(res.trades.map((t) => `${t.instrument}:${t.side}`).sort()).toEqual(["A:long", "C:short"]);
+    expect(res.skippedFiltered).toBe(1);
+  });
+});
+
 describe("regla1Leverage (mismo algoritmo que Trader.executeTrade)", () => {
   const rango = (leverageMin: number, leverageMax: number) => ({ leverageMin, leverageMax, notionalFloor: 10 });
 

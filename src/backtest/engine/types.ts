@@ -1,5 +1,7 @@
 import type { NativeTrailing, Side, ExitReason } from "./exits.js";
 
+export type { Side };
+
 /** Serie de velas en columnas (más liviana que un array de objetos para ~50k velas de 1h). */
 export interface Series {
   openTime: Float64Array;
@@ -34,11 +36,31 @@ export interface InstrumentData {
 /** Contexto de mercado común a todos los instrumentos (BTC como referencia de régimen). */
 export interface MarketData {
   btcDaily: Series;
+  /** Velas de 1h de BTC (solo se cargan para estrategias de TF 1h: correlación por retornos). */
+  btcH1?: Series;
 }
 
 export interface EntrySignal {
   /** Prioridad cuando hay más señales que cupos: mayor primero (desempate: rank de volumen). */
   score: number;
+  /** Lado de la entrada. Obligatorio si la estrategia es `side: "both"`; si no, se ignora. */
+  side?: Side;
+}
+
+/** Posición abierta tal como la ve un filtro de cartera (`allowEntry`). */
+export interface OpenPositionInfo {
+  instrument: string;
+  side: Side;
+  prepared: unknown;
+  entryTfIndex: number;
+}
+
+/** Entrada candidata que el motor está por abrir. */
+export interface EntryCandidate {
+  instrument: string;
+  side: Side;
+  prepared: unknown;
+  i: number;
 }
 
 export interface ExitPlan {
@@ -66,11 +88,12 @@ export interface Strategy<P = unknown> {
   id: string;
   family: "tendencia" | "reversion" | "cross_sectional" | "baseline";
   timeframeHours: number;
-  side: Side;
+  /** "both": largos y cortos en la misma cuenta; cada señal trae su lado (EntrySignal.side). */
+  side: Side | "both";
   prepare(inst: InstrumentData, market: MarketData): P;
   entry(p: P, i: number): EntrySignal | null;
   /** Niveles de salida fijados en la entrada. `i` es la vela de señal; `entryPrice`, el fill real. */
-  plan(p: P, i: number, entryPrice: number): ExitPlan;
+  plan(p: P, i: number, entryPrice: number, side: Side): ExitPlan;
   /** Stop gestionado por el bot (referencia, no nativo): se evalúa al cierre de cada vela del TF
    * y solo puede mejorar el stop vigente. Devuelve undefined si no aplica. */
   updateStop?(p: P, i: number, pos: PositionView): number | undefined;
@@ -87,6 +110,9 @@ export interface Strategy<P = unknown> {
   crossSectionalTopK?: number;
   /** Tope de posiciones abiertas propio de la estrategia (además del de la cuenta). */
   maxPositions?: number;
+  /** Filtro de cartera: se evalúa justo antes de abrir, con las posiciones abiertas en ese
+   * momento (incluidas las que se abrieron en la misma hora). false = no se entra. */
+  allowEntry?(candidate: EntryCandidate, open: OpenPositionInfo[]): boolean;
 }
 
 export type TradeExitReason = ExitReason | "signal" | "time" | "delisted" | "end";
@@ -190,4 +216,6 @@ export interface SimResult {
   skippedNoMargin: number;
   /** Señales rechazadas por la Regla 1: ni con leverageMax se llega al notional mínimo. */
   skippedMinNotional: number;
+  /** Señales bloqueadas por el filtro de cartera de la estrategia (allowEntry). */
+  skippedFiltered: number;
 }

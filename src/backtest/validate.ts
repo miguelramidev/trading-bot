@@ -75,8 +75,15 @@ function trialStats(extraSharpes: { id: string; sharpe: number }[]): { n: number
   for (const e of extraSharpes) byId.set(e.id, e.sharpe);
   const daily = [...byId.values()].filter(Number.isFinite).map((s) => s / Math.sqrt(365));
   const m = moments(daily);
-  return { n: byId.size, srVariance: m.std * m.std };
+  return { n: byId.size + PRIOR_LOST_TRIALS, srVariance: m.std * m.std };
 }
+
+/**
+ * Variantes de la tanda 4h/1d del 2026-10-05 (docs §14) que no están en el registry.jsonl actual:
+ * ese registro vivía en data_dl/ y se perdió al rehacer los datos. Se prueban sobre los mismos
+ * años, así que siguen contando para el Deflated Sharpe.
+ */
+const PRIOR_LOST_TRIALS = 44;
 
 async function main() {
   const presetName = arg("preset");

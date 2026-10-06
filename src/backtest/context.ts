@@ -28,7 +28,8 @@ export function loadMarket(
     }
   }
   const btc = loadInstrumentData("BTCUSDT", tfHours, from)[0];
-  return { instruments, market: { btcDaily: btc.daily } };
+  // Con TF de 1h, la serie de BTC en 1h (para la correlación por retornos de cada moneda).
+  return { instruments, market: { btcDaily: btc.daily, btcH1: tfHours === 1 ? btc.tf : undefined } };
 }
 
 /** Agrupa estrategias por TF para cargar los datos una sola vez por TF. */

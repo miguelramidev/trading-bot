@@ -7,6 +7,7 @@ import type { ExitParams } from "./strategies/common.js";
 import { breakoutStrategy } from "./strategies/breakout.js";
 import { rsi2PullbackStrategy } from "./strategies/rsi2Pullback.js";
 import { rotationStrategy } from "./strategies/rotation.js";
+import { pullback1hStrategy } from "./strategies/pullback1h.js";
 
 // Los tres modos de salida que se comparan en todas las estrategias de tendencia.
 const BRACKET: ExitParams = { mode: "bracket", stopAtr: 1, m: 2 }; // el actual del bot
@@ -15,6 +16,15 @@ const BOT_TRAIL: ExitParams = { mode: "bot_trail", stopAtr: 2.5, m: 3 }; // chan
 const EXITS = [BRACKET, NATIVE_TRAIL, BOT_TRAIL];
 // Trailing nativo que se activa recién a +2 ATR: hasta ahí protege solo el stop inicial.
 const NATIVE_TRAIL_ACTIVATED: ExitParams = { mode: "native_trail", stopAtr: 2.5, m: 3, activateAtr: 2 };
+
+// Estrategia de 1h: SL 1,5 ATR y TP 3 ATR (la misma relación 1:2 de hoy, con ATR de 1h) contra
+// el trailing del bot por ATR (mismo stop inicial, chandelier de 3 ATR movido cada hora).
+const PB1H_EXITS: ExitParams[] = [
+  { mode: "bracket", stopAtr: 1.5, m: 3 },
+  { mode: "bot_trail", stopAtr: 1.5, m: 3 },
+];
+const PB1H_TRIGGERS = ["rsi2", "ema21"] as const;
+const PB1H_ALL_FILTERS = { macro: true, funding: true, exposure: true };
 
 export const PRESETS: Record<string, () => Strategy<any>[]> = {
   // T1: Donchian 1d, long.
@@ -75,6 +85,14 @@ export const PRESETS: Record<string, () => Strategy<any>[]> = {
     rotationStrategy({ score: "raw", lookbackDays: 28, topK: 3 }), // R3: tipo de ranking
     rotationStrategy({ score: "residual", lookbackDays: 28, topK: 5 }), // R4: cantidad de monedas
   ],
+  // --- Estrategia de 1h (pre-registrada el 2026-10-06, docs/investigacion/2026-10-06-estrategia-1h.md) ---
+  // Pool del walk-forward: los dos gatillos × las dos salidas que pidió el usuario, con los tres
+  // filtros del bot actual (macro BTC, funding, exposición correlacionada). Exactamente estas 4.
+  PB1H: () => PB1H_TRIGGERS.flatMap((trigger) => PB1H_EXITS.map((exit) => pullback1hStrategy({ trigger, exit, filters: PB1H_ALL_FILTERS }))),
+  // Comparación (no compite en la selección): las mismas 4 sin ningún filtro, para medir cuánto
+  // aportan los filtros en vez de suponerlo.
+  PB1H_SIN: () => PB1H_TRIGGERS.flatMap((trigger) => PB1H_EXITS.map((exit) => pullback1hStrategy({ trigger, exit, filters: { macro: false, funding: false, exposure: false } }))),
+
   // Cortos evaluados en serio (decisión del usuario): misma comparación de salidas que los largos.
   SHORT_WF: () => [
     ...[20, 55].flatMap((n) =>

@@ -340,3 +340,14 @@ Se retoma desde cero: el trabajo anterior (~19 commits sin pushear) se perdió c
 * [ ] **[BAJA] Código muerto en el monitor:** el aviso "Esquivaste una bala / Oportunidad perdida" de `analyze.ts` nunca se dispara, porque los dos caminos de descarte guardan `isActiveTrade: false`.
 * [ ] **[BAJA] Indicadores de `data.ts` con calentamiento en 0** (EMA/ATR/SMA): `precio > EMA200` da verdadero en las primeras velas. En producción no muerde porque se piden 250 velas; los de `src/backtest/indicators.ts` usan `NaN`.
 * [ ] **[BAJA] Textos:** el mensaje de señal dice "~3 min para analizar", pero los cortes reales son 15 min (Telegram) y 60 min (Regla 8).
+
+
+---
+
+## 19. Estado al 2026-10-07: proyecto en pausa hasta el 2027-01-07
+* [x] Estrategias de 15m retiradas (perdían: PF 0,77 real). Base de producción limpiada; el usuario está en pausa.
+* [x] Más de 80 ideas probadas con pre-registro (). Ninguna tiene una ventaja validada con datos nuevos.
+* [x] **Torneo en sombra desplegado:** POS, POS solo cortos, CARRY y TREND ().
+* [ ] **2027-01-07: evaluar el torneo.** Guía paso a paso al final de .
+* [ ] Publicar la pestaña Mercado (Flutter).
+* [ ] Sacar del  las credenciales de producción cuando no se usen.

@@ -7,8 +7,8 @@ import { DAY_MS, HOUR_MS, type Candle } from "../backtest/data/candles.js";
 import { isEligibleSymbol, spotFor } from "../backtest/data/symbols.js";
 import type { BinancePublic } from "./binancePublic.js";
 import {
-  topByMedianVolume, posReading, decidePosEntries, resolvePos, posPnl, carrySignal, decideCarry, carryPnl,
-  POS_STRATEGY, CARRY_STRATEGY, type PosCandidate,
+  topByMedianVolume, posReading, decidePosEntries, resolvePos, posPnl, carrySignal, decideCarry, carryPnl, trendSignal, trendPnl,
+  POS_STRATEGY, CARRY_STRATEGY, TREND_STRATEGY, TREND_SYMBOL, type PosCandidate,
 } from "./logic.js";
 
 /** Pre-filtro por volumen de 24 h antes de pedir 30 días de velas diarias (el top 30 por mediana sale de acá). */
@@ -97,11 +97,13 @@ export interface RunSummary {
   posNoSlot: number;
   carryClosed: number;
   carryOpened: number;
+  /** Qué hizo TREND en la corrida diaria (null en las corridas que no son la de las 00:00 UTC). */
+  trend: "abre" | "cierra" | "sin cambio" | null;
   errors: string[];
 }
 
 export async function runShadow(client: BinancePublic, store: ShadowStore, now: number): Promise<RunSummary> {
-  const summary: RunSummary = { universe: 0, posClosed: 0, posOpened: 0, posNoSlot: 0, carryClosed: 0, carryOpened: 0, errors: [] };
+  const summary: RunSummary = { universe: 0, posClosed: 0, posOpened: 0, posNoSlot: 0, carryClosed: 0, carryOpened: 0, trend: null, errors: [] };
   const safe = async <T>(label: string, fn: () => Promise<T>): Promise<T | null> => {
     try {
       return await fn();
@@ -151,6 +153,31 @@ export async function runShadow(client: BinancePublic, store: ShadowStore, now: 
   // 3. CARRY: solo en la corrida posterior a las 00:00 UTC (decisión diaria, como el backtest).
   const dayStart = Math.floor(now / DAY_MS) * DAY_MS;
   if (now - dayStart < 4 * HOUR_MS) {
+    // 3a. TREND: largo en BTC mientras el cierre diario esté sobre la SMA de 200 días.
+    await safe("TREND", async () => {
+      const t = trendSignal(await client.klines(TREND_SYMBOL, "1d", { limit: 260 }), now);
+      if (!t) return;
+      const [openTrend] = await store.listOpen(TREND_STRATEGY);
+      if (t.above && !openTrend) {
+        await store.insert([{
+          strategy: TREND_STRATEGY, symbol: TREND_SYMBOL, side: "long", rank: 1, status: "abierta",
+          signalTime: new Date(dayStart), signalValue: t.distance.toFixed(4), entryTime: new Date(now), entryPrice: String(await client.perpPrice(TREND_SYMBOL)),
+        }]);
+        summary.trend = "abre";
+      } else if (!t.above && openTrend) {
+        const entryTime = openTrend.entryTime.getTime();
+        const exit = await client.perpPrice(TREND_SYMBOL);
+        const funding = (await client.fundingRates(TREND_SYMBOL, entryTime)).filter((f) => f.time > entryTime && f.time <= now).map((f) => f.rate);
+        const p = trendPnl(Number(openTrend.entryPrice), exit, funding);
+        await store.close(openTrend.id!, {
+          status: "cerrada", exitTime: new Date(now), exitPrice: String(exit), exitReason: "signal",
+          grossPct: pct(p.grossPct), costPct: pct(p.costPct), fundingPct: pct(p.fundingPct), netPct: pct(p.netPct),
+        });
+        summary.trend = "cierra";
+      } else summary.trend = "sin cambio";
+    });
+
+    // 3b. CARRY.
     const spot = await client.spotPrices();
     const spotSymbols = new Set(spot.keys());
     const openCarry = await store.listOpen(CARRY_STRATEGY);

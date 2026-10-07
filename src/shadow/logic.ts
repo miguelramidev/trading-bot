@@ -181,3 +181,27 @@ export function carryPnl(rank: number, perpEntry: number, perpExit: number, spot
   const fundingPct = fundingRates.reduce((a, b) => a + b, 0);
   return { grossPct, costPct, fundingPct, netPct: grossPct - costPct + fundingPct, entryFill: pe, exitFill: px };
 }
+
+// --- TREND (línea base del torneo, docs/investigacion/2026-10-07-torneo.md) ---
+
+export const TREND_STRATEGY = "TREND_BTC_sma200";
+export const TREND_SYMBOL = "BTCUSDT";
+const TREND_SMA = 200;
+
+/**
+ * Filtro de tendencia de BTC con velas diarias CERRADAS a `now`: ¿el último cierre está sobre la
+ * SMA de 200 días? null si no hay historia suficiente. `distance` = cierre / SMA − 1.
+ */
+export function trendSignal(daily: Candle[], now: number): { above: boolean; distance: number } | null {
+  const closed = closedOnly(daily, DAY_MS, now);
+  if (closed.length < TREND_SMA) return null;
+  const last = closed.slice(-TREND_SMA);
+  const sma = last.reduce((s, c) => s + c.close, 0) / TREND_SMA;
+  const close = closed[closed.length - 1].close;
+  return { above: close > sma, distance: close / sma - 1 };
+}
+
+/** PnL de un largo de BTC (perpetuo x1) en % del nocional, con el modelo de costos del simulador. */
+export function trendPnl(rawEntry: number, rawExit: number, fundingRates: number[]): PnlBreakdown {
+  return posPnl("long", 1, rawEntry, rawExit, "time", fundingRates);
+}

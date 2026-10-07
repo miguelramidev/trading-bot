@@ -14,7 +14,9 @@ import 'market_controller.dart';
 
 const _strategyNames = {
   'POS_ls_h18': 'Posicionamiento saturado (72 h)',
+  'POS_ls_h18_cortos': 'Posicionamiento saturado (solo cortos)',
   'CARRY_t15_top30': 'Carry de funding',
+  'TREND_BTC_sma200': 'Tendencia BTC (línea base)',
 };
 
 String _pct(num? v, {int decimals = 2}) {
@@ -192,7 +194,7 @@ Widget buildShadowPositions(MarketController c, {required bool mobile}) {
   }
   Widget line(Map<String, dynamic> s, {required bool closed}) {
     final net = double.tryParse(s['netPct']?.toString() ?? '');
-    final name = s['strategy'] == 'CARRY_t15_top30' ? 'Carry' : 'POS';
+    final name = s['strategy'] == 'CARRY_t15_top30' ? 'Carry' : s['strategy'] == 'TREND_BTC_sma200' ? 'Tendencia BTC' : 'POS';
     final detail = closed
         ? 'Cerró ${_shortDate(s['exitTime'] as String?)} · ${s['exitReason'] == 'stop' ? 'stop' : s['exitReason'] == 'time' ? '72 h' : 'funding bajo'}'
         : (s['exitDue'] != null ? 'Vence ${_shortDate(s['exitDue'] as String?)}' : 'Abierta desde ${_shortDate(s['entryTime'] as String?)}');

@@ -1,11 +1,6 @@
 import { Hono } from "hono";
 import { parseIndicatorKeys, computeKlineIndicators, dropIncompleteCandle, INDICATOR_WARMUP_CANDLES } from "./klineIndicators.js";
-import { buildPositioningView } from "./positioning.js";
-import { BinancePublic } from "../../../../shadow/binancePublic.js";
-import { scanUniverse, scanPositioning, mapLimit } from "../../../../shadow/runner.js";
 import type { PosCandidate } from "../../../../shadow/logic.js";
-import { db } from "../../../../db/index.js";
-import { shadowSignals } from "../../../../db/schema.js";
 import { internalError } from "../../../core/utils/errors.js";
 
 export const marketRouter = new Hono();
@@ -79,6 +74,15 @@ let positioningCache: { at: number; market: { cands: PosCandidate[]; funding: Ma
 
 marketRouter.get("/positioning", async (c) => {
   try {
+    // Carga diferida: el modo sombra, la base y el backtest pesan, y el resto de las rutas de
+    // mercado (velas, ticker) no los necesitan, ni en los tests ni en el arranque en frío.
+    const [{ buildPositioningView }, { BinancePublic }, { scanUniverse, scanPositioning, mapLimit }, { db }, { shadowSignals }] = await Promise.all([
+      import("./positioning.js"),
+      import("../../../../shadow/binancePublic.js"),
+      import("../../../../shadow/runner.js"),
+      import("../../../../db/index.js"),
+      import("../../../../db/schema.js"),
+    ]);
     const now = Date.now();
     if (!positioningCache || now - positioningCache.at > POSITIONING_TTL_MS) {
       const client = new BinancePublic();

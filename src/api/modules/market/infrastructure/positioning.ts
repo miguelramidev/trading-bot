@@ -3,7 +3,16 @@
 // (zLS), el funding y si hay señal de POS, más el resumen del modo sombra. Usa el MISMO cálculo
 // que el cron Shadow4h (src/shadow/), así lo que se ve es lo que el modo sombra registra.
 import { POS_THRESHOLD } from "../../../../backtest/strategies/positioning.js";
-import { carrySignal, CARRY_STRATEGY, CARRY_T_IN, POS_STRATEGY, type PosCandidate } from "../../../../shadow/logic.js";
+import { carrySignal, CARRY_STRATEGY, CARRY_T_IN, POS_STRATEGY, TREND_STRATEGY, type PosCandidate } from "../../../../shadow/logic.js";
+
+/** Candidatas del torneo (docs/investigacion/2026-10-07-torneo.md). "Solo cortos" es un corte de las filas de POS, no otra estrategia. */
+export const POS_SHORTS_ONLY = `${POS_STRATEGY}_cortos`;
+const TOURNAMENT: { strategy: string; pick: (r: ShadowSignalLite) => boolean }[] = [
+  { strategy: POS_STRATEGY, pick: (r) => r.strategy === POS_STRATEGY },
+  { strategy: POS_SHORTS_ONLY, pick: (r) => r.strategy === POS_STRATEGY && r.side === "short" },
+  { strategy: CARRY_STRATEGY, pick: (r) => r.strategy === CARRY_STRATEGY },
+  { strategy: TREND_STRATEGY, pick: (r) => r.strategy === TREND_STRATEGY },
+];
 
 export interface PositioningRow {
   symbol: string;
@@ -82,8 +91,8 @@ export function buildPositioningView(
     })
     .sort((a, b) => Math.abs(b.z) - Math.abs(a.z) || a.rank - b.rank);
 
-  const summaries = [POS_STRATEGY, CARRY_STRATEGY].map((strategy) => {
-    const mine = shadowRows.filter((r) => r.strategy === strategy);
+  const summaries = TOURNAMENT.map(({ strategy, pick }) => {
+    const mine = shadowRows.filter(pick);
     const closed = mine.filter((r) => r.status === "cerrada");
     const nets = closed.map((r) => Number(r.netPct)).filter(Number.isFinite);
     const sum = nets.reduce((a, b) => a + b, 0);

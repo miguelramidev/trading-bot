@@ -4,7 +4,7 @@ import { toSeries } from "../src/backtest/data/load.js";
 import { simulate } from "../src/backtest/engine/simulate.js";
 import { DEFAULT_SIM_CONFIG, type InstrumentData, type Strategy } from "../src/backtest/engine/types.js";
 import {
-  closedOnly, topByMedianVolume, posReading, decidePosEntries, resolvePos, posPnl, decideCarry, carryPnl,
+  closedOnly, topByMedianVolume, posReading, decidePosEntries, resolvePos, posPnl, decideCarry, carryPnl, trendSignal,
   POS_HOLD_MS, POS_STRATEGY, CARRY_STRATEGY, type PosCandidate,
 } from "../src/shadow/logic.js";
 import { runShadow, type ShadowRow, type ShadowStore } from "../src/shadow/runner.js";
@@ -192,5 +192,55 @@ describe("runShadow (de punta a punta con datos falsos)", () => {
     await runShadow(fakeClient(now, { ratioJump: true, funding: 0 }), store, now);
     await runShadow(fakeClient(now + 60_000, { ratioJump: true, funding: 0 }), store, now + 60_000);
     expect(rows.filter((r) => r.strategy === POS_STRATEGY)).toHaveLength(1);
+  });
+});
+
+describe("TREND (línea base del torneo)", () => {
+  const days = (n: number, price: (d: number) => number, endDay: number) =>
+    Array.from({ length: n }, (_, k) => {
+      const d = endDay - (n - 1 - k);
+      const p = price(k);
+      return bar(d * DAY_MS, p, p, p, p);
+    });
+
+  it("trendSignal usa solo velas diarias cerradas y exige 200 días", () => {
+    const today = Math.floor(Date.parse("2026-10-07T00:03:00Z") / DAY_MS);
+    const up = days(201, (k) => 100 + k, today); // la última es la de hoy, en curso: no cuenta
+    const sig = trendSignal(up, today * DAY_MS + 3 * 60_000)!;
+    expect(sig.above).toBe(true);
+    expect(trendSignal(days(150, () => 1, today), today * DAY_MS + 60_000)).toBeNull();
+  });
+
+  it("runShadow abre TREND con BTC sobre la SMA200 y lo cierra cuando cae debajo", async () => {
+    const rows: ShadowRow[] = [];
+    const store: ShadowStore = {
+      listOpen: async (s) => rows.filter((r) => r.strategy === s && r.status === "abierta"),
+      insert: async (rs) => { for (const r of rs) rows.push({ ...r, id: rows.length + 1 }); },
+      close: async (id, f) => Object.assign(rows.find((r) => r.id === id)!, f),
+    };
+    const client = (now: number, btc: (k: number) => number) => {
+      const today = Math.floor(now / DAY_MS);
+      return {
+        perpetuals: async () => [],
+        quoteVolumes24h: async () => new Map(),
+        klines: async (s: string, interval: string) => (s === "BTCUSDT" && interval === "1d" ? days(260, btc, today) : []),
+        longShortAccountRatio: async () => [],
+        fundingRates: async (_s: string, start: number) => [{ time: start + 8 * 3_600_000, rate: 0.0001 }],
+        perpPrice: async () => btc(259),
+        spotPrices: async () => new Map(),
+      } as unknown as BinancePublic;
+    };
+    const d1 = Date.parse("2026-10-07T00:03:00Z");
+    const s1 = await runShadow(client(d1, (k) => 100 + k), store, d1);
+    expect(s1.trend).toBe("abre");
+    const d2 = Date.parse("2026-10-20T00:03:00Z");
+    const s2 = await runShadow(client(d2, (k) => (k < 250 ? 100 + k : 50)), store, d2); // desplome: cierra debajo de la SMA
+    expect(s2.trend).toBe("cierra");
+    const t = rows.find((r) => r.strategy === "TREND_BTC_sma200")!;
+    expect(t.status).toBe("cerrada");
+    expect(Number(t.netPct)).toBeLessThan(0);
+    // En una corrida que no es la de las 00:00 UTC, TREND no decide.
+    const noon = Date.parse("2026-10-20T12:03:00Z");
+    expect((await runShadow(client(noon, (k) => 100 + k), store, noon)).trend).toBeNull();
   });
 });

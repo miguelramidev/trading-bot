@@ -43,3 +43,18 @@ describe("buildPositioningView", () => {
     expect(v.shadow.recent).toHaveLength(3);
   });
 });
+
+describe("resumen del torneo", () => {
+  it("incluye las 4 candidatas; 'solo cortos' cuenta solo las filas de corto de POS", () => {
+    const rows = [
+      shadow({ side: "short", netPct: "0.02" }),
+      shadow({ side: "long", netPct: "-0.01" }),
+      shadow({ strategy: "TREND_BTC_sma200", side: "long", status: "abierta", exitTime: null, netPct: null }),
+    ];
+    const v = buildPositioningView([], new Map(), rows, NOW);
+    expect(v.shadow.summaries.map((s) => s.strategy)).toEqual(["POS_ls_h18", "POS_ls_h18_cortos", "CARRY_t15_top30", "TREND_BTC_sma200"]);
+    const shorts = v.shadow.summaries.find((s) => s.strategy === "POS_ls_h18_cortos")!;
+    expect(shorts).toMatchObject({ closed: 1, wins: 1 });
+    expect(v.shadow.summaries.find((s) => s.strategy === "TREND_BTC_sma200")!.open).toBe(1);
+  });
+});

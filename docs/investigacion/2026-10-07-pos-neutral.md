@@ -64,7 +64,7 @@ Ir corto en la moneda con largos saturados y **largo en el mercado por el mismo 
 | Saldo final | 181,31 USDT | 136,84 USDT |
 | Peor caída | 16,0 % | 19,7 % |
 
-**¿Efecto ausente, o mecánica de capital chico?** En la prueba, a medida que bajaba el saldo, la pata de ETH (mínimo de 20 USDT) exigía más apalancamiento: entre 894 y 2.017 señales se rechazaron por la Regla 1, y desde 2024 casi no operó. Para separar las dos explicaciones se corrió la verificación por deciles, que no opera ni depende del capital, sobre las monedas 31–60 (, 238 mil observaciones):
+**¿Efecto ausente, o mecánica de capital chico?** En la prueba, a medida que bajaba el saldo, la pata de ETH (mínimo de 20 USDT) exigía más apalancamiento: entre 894 y 2.017 señales se rechazaron por la Regla 1, y desde 2024 casi no operó. Para separar las dos explicaciones se corrió la verificación por deciles, que no opera ni depende del capital, sobre las monedas 31–60 (`posDeciles.ts --rank-from=31 --rank-to=60`, 238 mil observaciones):
 
 | | Top 30 | Monedas 31–60 |
 |---|---|---|

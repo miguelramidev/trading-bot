@@ -4,3 +4,7 @@ allowBuilds:
   ccxt: true
   esbuild: true
   protobufjs: true
+
+# Dependencias planas (como npm): el esbuild del binario de SST no sigue los junctions que pnpm
+# crea en Windows y el deploy fallaba con "Could not resolve" (2026-10-07).
+nodeLinker: hoisted

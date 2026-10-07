@@ -46,6 +46,8 @@ export interface MetricsSeries {
   time: Float64Array;
   /** count_long_short_ratio: cuentas en largo / cuentas en corto. */
   lsAccount: Float64Array;
+  /** count_toptrader_long_short_ratio: cuentas grandes (top traders) en largo / en corto. */
+  topAccount: Float64Array;
   /** sum_open_interest (en contratos de la base). */
   openInterest: Float64Array;
 }

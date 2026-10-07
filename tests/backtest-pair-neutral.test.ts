@@ -25,7 +25,7 @@ function instrument(id: string, candles: Candle[], ratio?: (h: number) => number
     funding: { time: new Float64Array(0), rate: new Float64Array(0) },
     minNotional,
     metrics: ratio
-      ? { time: Float64Array.from({ length: n }, (_, h) => T0 + (h + 1) * HOUR_MS), lsAccount: Float64Array.from({ length: n }, (_, h) => ratio(h + 1)), openInterest: new Float64Array(n).fill(1) }
+      ? { time: Float64Array.from({ length: n }, (_, h) => T0 + (h + 1) * HOUR_MS), lsAccount: Float64Array.from({ length: n }, (_, h) => ratio(h + 1)), openInterest: new Float64Array(n).fill(1), topAccount: new Float64Array(n).fill(1) }
       : undefined,
   };
 }

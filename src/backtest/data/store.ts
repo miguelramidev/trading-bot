@@ -49,7 +49,7 @@ function parseUtc(s: string): number {
  * create_time ≤ H. Filas con valores vacíos o no positivos se descartan.
  */
 export function loadMetrics(symbol: string): MetricsSeries {
-  const byHour = new Map<number, { t: number; ls: number; oi: number }>();
+  const byHour = new Map<number, { t: number; ls: number; oi: number; top: number }>();
   for (const text of readZips(join(METRICS_DIR, symbol))) {
     for (const line of text.split(/\r?\n/)) {
       if (!/^\d{4}-/.test(line)) continue;
@@ -57,16 +57,18 @@ export function loadMetrics(symbol: string): MetricsSeries {
       const t = parseUtc(c[0]);
       const oi = Number(c[2]);
       const ls = Number(c[6]);
+      const top = Number(c[4]);
       if (!Number.isFinite(t) || !(oi > 0) || !(ls > 0)) continue;
       const hour = Math.ceil(t / HOUR_MS) * HOUR_MS;
       const prev = byHour.get(hour);
-      if (!prev || t > prev.t) byHour.set(hour, { t, ls, oi });
+      if (!prev || t > prev.t) byHour.set(hour, { t, ls, oi, top: top > 0 ? top : NaN });
     }
   }
   const hours = [...byHour.keys()].sort((a, b) => a - b);
   return {
     time: Float64Array.from(hours),
     lsAccount: Float64Array.from(hours, (h) => byHour.get(h)!.ls),
+    topAccount: Float64Array.from(hours, (h) => byHour.get(h)!.top),
     openInterest: Float64Array.from(hours, (h) => byHour.get(h)!.oi),
   };
 }

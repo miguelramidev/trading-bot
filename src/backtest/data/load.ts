@@ -84,5 +84,5 @@ function sliceMetrics(m: MetricsSeries, from: number, to: number): MetricsSeries
   while (a < m.time.length && m.time[a] < from) a++;
   let b = a;
   while (b < m.time.length && m.time[b] <= to) b++;
-  return { time: m.time.slice(a, b), lsAccount: m.lsAccount.slice(a, b), openInterest: m.openInterest.slice(a, b) };
+  return { time: m.time.slice(a, b), lsAccount: m.lsAccount.slice(a, b), topAccount: m.topAccount.slice(a, b), openInterest: m.openInterest.slice(a, b) };
 }

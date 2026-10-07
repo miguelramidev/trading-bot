@@ -237,3 +237,33 @@ Decisión del usuario: usar el holdout en **POS `ls`, 72 h**, como excepción al
 **Qué sigue:**
 - **Si pasa:** construir la ejecución (salida por tiempo, sizing por fracción en `RULES.md` con tests) mientras el modo sombra suma 4–8 semanas, y recién después operar real con una regla de corte.
 - **Si falla:** no se opera esta estrategia.
+
+## Prueba en el holdout — resultado (2026-10-07)
+
+**No pasa.** Falla el criterio 3: la peor caída con costos ×2 fue de 51,4 %, sobre un límite de 50 %. Según lo pre-registrado, no se opera esta estrategia y no se prueba nada más en este período.
+
+| | Costos ×1 | Costos ×2 |
+|---|---|---|
+| Saldo final (desde 33 USDT) | 40,68 USDT (+23 %) | 50,25 USDT (+52 %) |
+| Sin el mejor trade | 33,25 USDT (+0,8 %) | 41,12 USDT |
+| Peor caída | 48,5 % (dic 2025 → feb 2026) | **51,4 %** |
+| Saldo mínimo | 27,68 USDT | 25,90 USDT |
+| Operaciones | 144 (2,8 por semana) | 146 |
+| Ganadas | 44,4 % | 41,8 % |
+| Sharpe | 0,30 | 0,58 |
+
+**Criterios:**
+1. Saldo final > 33 con costos ×2: ✅.
+2. Saldo final > 33 sin el mejor trade: ✅, por 0,25 USDT.
+3. Peor caída ≤ 50 % en los dos escenarios: ❌ (48,5 % / 51,4 %).
+
+**Lectura:**
+- **El rendimiento se degradó respecto del período de selección.** El Sharpe bajó de 1,11 a 0,30–0,58. Sin el mejor trade, el año queda prácticamente en cero.
+- **La caída de casi 50 % llegó en los primeros cuatro meses.** El usuario fijó el 50 % pensando que estaba "bastante alejado del máximo en las pruebas" (36 % in-sample). Fuera de muestra se llegó a ese límite enseguida.
+- **El resultado es frágil.** Con costos ×2 el saldo final fue *mayor* que con costos ×1 (50 contra 41). Con una sola posición, un cambio mínimo en los costos cambia qué trades se toman (146 contra 144), y eso mueve el final un 25 %. El camino depende de pocos trades.
+- **La ventaja de largos saturados puede seguir existiendo**, como mostró la verificación por deciles. Pero esta forma de operarla (una posición, 25 % del saldo, los dos lados) no alcanza el criterio de riesgo con datos nuevos.
+
+**Qué sigue:**
+- No se opera POS con dinero real.
+- El modo sombra sigue corriendo: no cuesta nada y junta datos nuevos.
+- El holdout queda gastado. Cualquier idea nueva se valida en modo sombra o con datos posteriores a 2026-10.

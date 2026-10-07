@@ -346,8 +346,8 @@ Se retoma desde cero: el trabajo anterior (~19 commits sin pushear) se perdió c
 
 ## 19. Estado al 2026-10-07: proyecto en pausa hasta el 2027-01-07
 * [x] Estrategias de 15m retiradas (perdían: PF 0,77 real). Base de producción limpiada; el usuario está en pausa.
-* [x] Más de 80 ideas probadas con pre-registro (). Ninguna tiene una ventaja validada con datos nuevos.
-* [x] **Torneo en sombra desplegado:** POS, POS solo cortos, CARRY y TREND ().
-* [ ] **2027-01-07: evaluar el torneo.** Guía paso a paso al final de .
+* [x] Más de 80 ideas probadas con pre-registro (`docs/investigacion/`). Ninguna tiene una ventaja validada con datos nuevos.
+* [x] **Torneo en sombra desplegado:** POS, POS solo cortos, CARRY y TREND (`docs/investigacion/2026-10-07-torneo.md`).
+* [ ] **2027-01-07: evaluar el torneo.** Guía paso a paso al final de `docs/investigacion/2026-10-07-torneo.md`.
 * [ ] Publicar la pestaña Mercado (Flutter).
-* [ ] Sacar del  las credenciales de producción cuando no se usen.
+* [ ] Sacar del `.env` las credenciales de producción cuando no se usen.

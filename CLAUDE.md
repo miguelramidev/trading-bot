@@ -12,7 +12,9 @@ Guía para Claude Code (claude.ai/code) al trabajar en este repositorio.
 
 ## Resumen del proyecto
 
-Bot cuantitativo serverless para **Binance USDT Perpetual Futures**. Un cron corre cada 15 minutos: clasifica cada uno de los 100 pares de mayor volumen en un régimen de mercado (tendencia vs. rango), aplica cuatro estrategias en capas (incluyendo inversiones por funding rate / caza de liquidez e inversiones por breakout macro de BTC) y envía las señales por Telegram y push FCM. Cuando el usuario aprueba, el bot coloca órdenes reales de mercado + Stop Loss + Take Profit en Binance ("Sniper OCO" semi-automatizado).
+Bot cuantitativo serverless para **Binance USDT Perpetual Futures**. Cuando el usuario aprueba una señal, el bot coloca órdenes reales de mercado + Stop Loss + Take Profit en Binance ("Sniper OCO" semi-automatizado).
+
+**Estado (2026-10-07): sin estrategia activa.** Las estrategias de 15m (tendencia/rango y Cazador de Ruptura Macro) se retiraron porque perdían (PF 0,77 en operación real). Ninguna candidata pasó todavía una validación limpia (ver `docs/investigacion/`). Las candidatas se registran sin operar en modo sombra (`src/shadow/`, cron `Shadow4h`). El cron de 15m sigue corriendo solo para conciliar y monitorear las posiciones abiertas.
 
 - `CONTEXT.md`: pipeline algorítmico completo. Leerlo cuando haga falta.
 - `RULES.md`: reglas de negocio. **La lógica de escalado de apalancamiento y validación de balance es la autoridad y no debe regresionarse.** Leerlo cuando haga falta.
@@ -42,7 +44,7 @@ npx tsx <archivo>.ts   # ⚠️ scripts de prueba ad-hoc: pueden operar contra B
 
 - API Gateway `TelegramWebhook` → `src/telegram/webhook.handler` (comandos de Telegram + callbacks de botones inline)
 - API Gateway `AppApi` (ruta `$default`) → `src/api/server.handler` (app Hono que sirve al front-end Flutter)
-- `Cron15m` (cada 15 min) → `src/cron/analyze.handler15m` (loop principal de análisis + monitoreo de trades)
+- `Cron15m` (cada 15 min) → `src/cron/analyze.handler15m` (limpieza de órdenes huérfanas, conciliación y monitoreo de trades abiertos; ya no genera señales)
 - `DailyReport` (02:00 UTC = 23:00 PYT) → `src/cron/report.handler` (snapshot diario de PnL)
 - `Shadow4h` (cada 4 h, minuto 3) → `src/shadow/handler.handler` (modo sombra: registra **sin operar** las señales de las estrategias candidatas POS y CARRY en `shadow_signals`; solo usa endpoints públicos de Binance y se linkea únicamente a `DATABASE_URL`)
 
@@ -56,7 +58,7 @@ Tampoco están en `ALL_SECRETS` las listas de permitidos, que se leen con el mis
 
 **Estructura del backend (`src/`):**
 
-- `cron/analyze.ts` — el corazón del sistema (~660 líneas): monitorea trades abiertos por SL/TP y luego corre todo el pipeline de estrategias. Empezar acá para la lógica de señales.
+- `cron/analyze.ts` — monitoreo de trades abiertos por SL/TP, limpieza de órdenes huérfanas y conciliación. Hasta el 2026-10-07 también corría el pipeline de estrategias de 15m (retirado; está en el historial de git).
 - `bot/data.ts` — `DataFetcher`: datos de mercado de solo lectura vía CCXT (OHLCV, funding rate, open interest, universo por volumen, balance).
 - `bot/trader.ts` — `Trader`: ejecución autenticada vía CCXT. `executeTrade()` implementa el algoritmo de escalado de apalancamiento de `RULES.md` Regla 1 (parte de `leverageMin`, sube hasta `leverageMax` para cumplir el `minNotional` de Binance; si no, rechaza — nunca un fallback con `Math.min`). `cleanOrphanOrders()` cancela órdenes SL/TP huérfanas cuya posición ya cerró.
 - `telegram/webhook.ts` — bot Telegraf: `/start`, `/pause`, `/resume`, `/leverage` y el callback `[✅ Ejecutar Sniper]` que dispara la ejecución real.

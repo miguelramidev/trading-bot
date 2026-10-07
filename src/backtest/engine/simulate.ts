@@ -291,14 +291,26 @@ export function simulate(
             }
           }
           const sign = c.side === "long" ? 1 : -1;
-          const leverage = regla1Leverage(cfg.marginPerTrade, c.inst.minNotional, cfg);
+          const equityNow = markToMarket();
+          // Margen de esta operación: fijo, o todo el saldo libre (interés compuesto). En fullEquity
+          // se reserva lo justo para la comisión de entrada, que Binance cobra aparte del margen.
+          const free = equityNow - usedMargin();
+          let margin = cfg.marginPerTrade;
+          if (cfg.sizing === "fullEquity") {
+            if (!(free > 0)) {
+              skippedNoMargin++;
+              continue;
+            }
+            const lev0 = regla1Leverage(free, c.inst.minNotional, cfg) ?? cfg.leverageMax;
+            margin = free / (1 + fee * lev0);
+          }
+          const leverage = regla1Leverage(margin, c.inst.minNotional, cfg);
           if (leverage === null) {
             skippedMinNotional++;
             continue;
           }
           // Regla 2: el margen libre tiene que cubrir el margen configurado (nunca se achica la orden).
-          const equityNow = markToMarket();
-          if (usedMargin() + cfg.marginPerTrade > equityNow) {
+          if (usedMargin() + margin > equityNow) {
             skippedNoMargin++;
             continue;
           }
@@ -310,7 +322,7 @@ export function simulate(
           const plan = strategy.plan(p, c.i, entryPrice, c.side);
           // Un plan sin distancia de stop válida no se opera (equivale a un rechazo de executeTrade).
           if (!(sign * (entryPrice - plan.stop) > 0)) continue;
-          const qty = (cfg.marginPerTrade * leverage) / entryPrice;
+          const qty = (margin * leverage) / entryPrice;
           open.set(c.inst.id, {
             inst: c.inst,
             prepared: p,
@@ -323,7 +335,7 @@ export function simulate(
             initialStop: plan.stop,
             qty,
             leverage,
-            margin: cfg.marginPerTrade,
+            margin,
             fees: qty * entryPrice * fee,
             funding: 0,
             exit: initExitState(

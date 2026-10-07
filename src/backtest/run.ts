@@ -4,7 +4,7 @@
 // Protección del holdout: por defecto NO simula nada posterior a HOLDOUT_START. El tramo
 // reservado se usa una sola vez, al final, con --holdout (docs §8.5).
 //
-// Correr: npx tsx src/backtest/run.ts --preset=T1 [--from=2021-01-01] [--to=2025-10-01] [--cost=1|2]
+// Correr: npx tsx src/backtest/run.ts --preset=T1 [--from=2021-01-01] [--to=2025-10-01] [--cost=1|2] [--sizing=full]
 //         [--equity=300] [--margin=6] [--lev-min=1] [--lev-max=10] [--max-positions=5]
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
@@ -63,8 +63,9 @@ async function main() {
     leverageMin: Number(arg("lev-min") ?? DEFAULT_SIM_CONFIG.leverageMin),
     leverageMax: Number(arg("lev-max") ?? DEFAULT_SIM_CONFIG.leverageMax),
     maxPositions: Number(arg("max-positions") ?? DEFAULT_SIM_CONFIG.maxPositions),
+    sizing: arg("sizing") === "full" ? "fullEquity" : "fixed",
   };
-  console.log(`Capital ${cfg.initialEquity} USDT | margen ${cfg.marginPerTrade} | x${cfg.leverageMin}–x${cfg.leverageMax} | máx. ${cfg.maxPositions} posiciones | costos ×${cfg.costMultiplier}`);
+  console.log(`Capital ${cfg.initialEquity} USDT | margen ${cfg.sizing === "fullEquity" ? "todo el saldo (compuesto)" : cfg.marginPerTrade} | x${cfg.leverageMin}–x${cfg.leverageMax} | máx. ${cfg.maxPositions} posiciones | costos ×${cfg.costMultiplier}`);
 
   const runStamp = new Date().toISOString().replace(/[:.]/g, "-");
 
@@ -92,6 +93,7 @@ async function main() {
           maxPositions: cfg.maxPositions,
           initialEquity: cfg.initialEquity,
           marginPerTrade: cfg.marginPerTrade,
+          sizing: cfg.sizing,
           leverageRange: [cfg.leverageMin, cfg.leverageMax],
           trades: m.trades,
           sharpe: m.sharpe,

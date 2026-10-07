@@ -193,6 +193,10 @@ export interface SimConfig {
   initialEquity: number;
   /** Margen fijo por operación (como `montoOperacion` del bot). */
   marginPerTrade: number;
+  /** "fixed" (por defecto, como el bot hoy): cada operación usa `marginPerTrade`.
+   * "fullEquity": cada operación usa como margen TODO el saldo libre (equity − margen ya usado), así
+   * las ganancias y pérdidas se acumulan en el tamaño de la siguiente (interés compuesto). */
+  sizing?: "fixed" | "fullEquity";
   /** Rango de apalancamiento de la Regla 1 de RULES.md: arranca en leverageMin y sube de a 1
    * hasta leverageMax mientras el notional (margen × apalancamiento) no alcance el mínimo. */
   leverageMin: number;

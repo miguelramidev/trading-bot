@@ -176,6 +176,35 @@ describe("simulate", () => {
   });
 });
 
+describe("sizing fullEquity: cada operación usa todo el saldo libre (interés compuesto)", () => {
+  /** Entra en las velas de 4h indicadas; stop lejos y TP fijo en precio. */
+  function multiEntry(bars: number[], stop: number, tp: number): Strategy<{ id: string }> {
+    return { id: "full", family: "baseline", timeframeHours: 4, side: "long", prepare: (inst) => ({ id: inst.id }), entry: (_p, i) => (bars.includes(i) ? { score: 1 } : null), plan: () => ({ stop, takeProfit: tp }) };
+  }
+
+  it("la segunda operación usa como margen el saldo que dejó la primera", () => {
+    // 100 → TP en 110 (+10 %); vuelve a 100 y repite.
+    const price = (h: number) => (h < 9 ? 100 : h < 12 ? 110 : h < 33 ? 100 : 110);
+    const a = instrument("A", hours(72, price), 4);
+    const res = simulate(multiEntry([1, 7], 50, 110), new Map([["A", a]]), { btcDaily: a.daily }, universe(["A"]),
+      cfg({ initialEquity: 100, marginPerTrade: 0, leverageMin: 1, leverageMax: 10, maxPositions: 1, sizing: "fullEquity" }));
+    expect(res.trades).toHaveLength(2);
+    const [t1, t2] = res.trades;
+    // x1 con todo el saldo, reservando la comisión de entrada (margen = saldo / (1 + comisión)).
+    expect(t1.notional).toBeCloseTo(100 / 1.0005, 10);
+    expect(t2.notional).toBeCloseTo((100 + t1.netPnl) / 1.0005, 10); // el saldo ya incluye la ganancia neta del primero
+    expect(res.equity.at(-1)!.equity).toBeCloseTo(100 + t1.netPnl + t2.netPnl, 10);
+  });
+
+  it("Regla 1: si el saldo no alcanza el notional mínimo ni con leverageMax, no opera", () => {
+    const a = instrument("A", hours(72, () => 100), 4, [], 50);
+    const res = simulate(multiEntry([1], 50, 200), new Map([["A", a]]), { btcDaily: a.daily }, universe(["A"]),
+      cfg({ initialEquity: 4, marginPerTrade: 0, leverageMin: 1, leverageMax: 10, maxPositions: 1, sizing: "fullEquity" }));
+    expect(res.trades).toHaveLength(0);
+    expect(res.skippedMinNotional).toBe(1);
+  });
+});
+
 describe("simulate con largos y cortos en la misma cuenta (side: both)", () => {
   /** Entra en la vela de 4h #1 con el lado indicado por instrumento; stop/TP en precio. */
   function bothStrategy(sides: Record<string, "long" | "short">, levels: Record<string, { stop: number; tp?: number }>): Strategy<{ id: string }> {

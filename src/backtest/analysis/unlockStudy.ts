@@ -3,17 +3,19 @@
 // ("cliff") y el resultado de la prueba pre-registrada: corto desde el cierre del día −8 al del +7,
 // con funding y 0,3 % de costos.
 //
-// Cruce token → perpetuo por ticker (DefiLlama coins), validado por precio: el precio de DefiLlama
-// en el día −8 tiene que coincidir ±15 % con el cierre del perpetuo (descarta tickers homónimos).
+// Cruce token → perpetuo por ticker (DefiLlama coins), validado por precio una vez por proyecto: el precio de DefiLlama
+// en el día −8 de su primer evento con datos tiene que coincidir ±15 % con el cierre del perpetuo (descarta tickers homónimos).
 //
 // Correr: npx tsx src/backtest/analysis/unlockStudy.ts (antes: data/downloadUnlocks.ts)
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { UNLOCKS_DIR, UNLOCK_SYMBOLS_PATH } from "../data/downloadUnlocks.js";
+
 import { loadInstruments, loadFunding } from "../data/store.js";
 import { resample, DAY_MS } from "../data/candles.js";
-import { SYMBOLS_PATH } from "../data/paths.js";
+import { SYMBOLS_PATH, UNLOCKS_DIR, UNLOCK_SYMBOLS_PATH } from "../data/paths.js";
 import { fetchRetry } from "../data/binanceVision.js";
+import { loadUniverse } from "../context.js";
+import { universeAt } from "../universe.js";
 
 const FROM = Date.parse("2022-01-01T00:00:00Z");
 const TO = Date.parse("2025-10-01T00:00:00Z");
@@ -90,16 +92,22 @@ async function main() {
   // 3. Validación por precio (DefiLlama día −8 contra el cierre del perpetuo) y mediciones.
   const rows: { e: Event; w: Record<string, number>; trade: number }[] = [];
   let noData = 0, badPrice = 0;
+  const validated = new Map<string, boolean>();
   for (const e of events) {
     const m = loadDaily(e.perp);
     const keys = [-31, -8, -1, 0, 7, 30].map((k) => closeAt(m, e.day, k));
     const bk = [-31, -8, -1, 0, 7, 30].map((k) => closeAt(btc, e.day, k));
     if (keys.some((x) => !(x! > 0)) || bk.some((x) => !(x! > 0))) { noData++; continue; }
-    const tRef = Math.floor((e.day - 7 * DAY_MS) / 1000);
-    const res = await fetchRetry(`https://coins.llama.fi/prices/historical/${tRef}/${encodeURIComponent(e.token)}?searchWidth=12h`);
-    const llama = res.ok ? Number((await res.json())?.coins?.[e.token]?.price) : NaN;
-    const perpPx = keys[1]! / e.factor;
-    if (!(llama > 0) || Math.abs(llama / perpPx - 1) > 0.15) { badPrice++; continue; }
+    // El cruce por ticker es una propiedad del proyecto: se valida una vez, en su primer evento con
+    // datos, y el resultado vale para todos sus eventos.
+    if (!validated.has(e.slug)) {
+      const tRef = Math.floor((e.day - 7 * DAY_MS) / 1000);
+      const res = await fetchRetry(`https://coins.llama.fi/prices/historical/${tRef}/${encodeURIComponent(e.token)}?searchWidth=12h`);
+      const llama = res.ok ? Number((await res.json())?.coins?.[e.token]?.price) : NaN;
+      const perpPx = keys[1]! / e.factor;
+      validated.set(e.slug, llama > 0 && Math.abs(llama / perpPx - 1) <= 0.15);
+    }
+    if (!validated.get(e.slug)) { badPrice++; continue; }
     const [c31, c8, c1, c0, c7, c30] = keys as number[];
     const [b31, b8, b1, b0, b7, b30] = bk as number[];
     const adj = (ca: number, cb: number, ba: number, bb: number) => Math.log(cb / ca) - Math.log(bb / ba);
@@ -110,7 +118,7 @@ async function main() {
     const trade = -adj(c8, c7, b8, b7) + fundingSum(e.perp, a, b) - fundingSum("BTCUSDT", a, b) - COST;
     rows.push({ e, w, trade });
   }
-  console.log(`Validados: ${rows.length} | sin datos de precio en la ventana: ${noData} | descartados por precio distinto (ticker homónimo): ${badPrice}`);
+  console.log(`Validados: ${rows.length} eventos | sin datos de precio en la ventana: ${noData} | descartados por precio distinto (ticker homónimo): ${badPrice} | proyectos válidos ${[...validated.values()].filter(Boolean).length} de ${validated.size}`);
 
   // 4. Resultados.
   const pct = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(2)}%`;
@@ -135,6 +143,47 @@ async function main() {
   report("Grandes, equipo e inversores", rows.filter((r) => r.e.size >= 0.01 && r.e.team));
   report("Grandes, resto de categorías", rows.filter((r) => r.e.size >= 0.01 && !r.e.team));
   report("CHICOS (< 1 %)", rows.filter((r) => r.e.size < 0.01));
+
+  // 5. Grupo de control (agregado el 2026-10-07, después de ver que hasta los desbloqueos chicos
+  // "ganaban"): el MISMO corto, en la MISMA ventana, sobre las monedas del top 100 vigente que no
+  // tienen ningún desbloqueo de golpe a ±15 días. Si los desbloqueos no le ganan a su control, el
+  // resultado viene de que las altcoins rindieron menos que BTC en el período, no del desbloqueo.
+  const universe = loadUniverse();
+  const eventDays = new Map<string, number[]>();
+  for (const e of events) eventDays.set(e.perp, [...(eventDays.get(e.perp) ?? []), e.day]);
+  const nearEvent = (perp: string, day: number) => (eventDays.get(perp) ?? []).some((d) => Math.abs(d - day) <= 15 * DAY_MS);
+  const controlCache = new Map<number, number | null>();
+  const controlAt = (day: number): number | null => {
+    if (controlCache.has(day)) return controlCache.get(day)!;
+    const snap = universeAt(universe, day);
+    const vals: number[] = [];
+    const b8 = closeAt(btc, day, -8), b7 = closeAt(btc, day, 7);
+    for (const id of snap?.ranked ?? []) {
+      if (id.includes("~")) continue;
+      if (id === "BTCUSDT" || nearEvent(id, day)) continue;
+      const m = loadDaily(id);
+      const c8 = closeAt(m, day, -8), c7 = closeAt(m, day, 7);
+      if (!(c8! > 0 && c7! > 0 && b8! > 0 && b7! > 0)) continue;
+      const a = day - 7 * DAY_MS, b = day + 8 * DAY_MS;
+      vals.push(-(Math.log(c7! / c8!) - Math.log(b7! / b8!)) + fundingSum(id, a, b) - fundingSum("BTCUSDT", a, b) - COST);
+    }
+    const v = vals.length >= 10 ? vals.reduce((s, x) => s + x, 0) / vals.length : null;
+    controlCache.set(day, v);
+    return v;
+  };
+  const excessReport = (title: string, sel: typeof rows) => {
+    const xs = sel.map((r) => ({ e: r.e, c: controlAt(r.e.day), trade: r.trade })).filter((x) => x.c !== null) as { e: Event; c: number; trade: number }[];
+    if (!xs.length) return;
+    const ex = monthT(xs.map((x) => ({ e: x.e, v: x.trade - x.c })));
+    const ctl = xs.reduce((s, x) => s + x.c, 0) / xs.length;
+    const halves = [0, 1].map((h) => xs.filter((x) => (h === 0 ? x.e.day < SPLIT : x.e.day >= SPLIT)));
+    const exTop3 = xs.map((x) => x.trade - x.c).sort((a, b) => b - a).slice(3);
+    console.log(`\n== CONTROL · ${title} (N = ${xs.length})`);
+    console.log(`  corto en el evento ${pct(xs.reduce((s, x) => s + x.trade, 0) / xs.length)} | mismo corto en monedas sin desbloqueo ${pct(ctl)} | EXCESO ${pct(ex.mean)} (t por mes ${ex.t.toFixed(2)}) | mitades ${halves.map((h) => (h.length ? pct(h.reduce((s, x) => s + x.trade - x.c, 0) / h.length) : "—")).join(" / ")} | exceso sin top 3 ${pct(exTop3.reduce((s, x) => s + x, 0) / Math.max(exTop3.length, 1))}`);
+  };
+  excessReport("grandes", rows.filter((r) => r.e.size >= 0.01));
+  excessReport("grandes, equipo e inversores", rows.filter((r) => r.e.size >= 0.01 && r.e.team));
+  excessReport("chicos", rows.filter((r) => r.e.size < 0.01));
 }
 
 main().catch((e) => {

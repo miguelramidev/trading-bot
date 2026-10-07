@@ -77,3 +77,36 @@ Script: `src/backtest/analysis/presentScreens.ts`, con ~960 mil observaciones po
 - **VOLSPIKE D1** (volumen alto con caída → sigue cayendo a 24 h) tiene el mismo signo en los dos grupos y en las dos mitades, pero es chico (−0,12 a −0,16 %) y con t ≈ −1. Se anota y **no** se convierte en candidata.
 - **A escala de 1 hora, el flujo de órdenes y el volumen no anticipan nada operable.** Si el efecto existe, vive a escala de segundos, el terreno de la alta frecuencia.
 - **BOOK no se corre:** el pre-registro lo condicionaba a que FLOW o VOLSPIKE mostraran algo.
+
+---
+
+## Resultado A · desbloqueos (2026-10-07)
+
+Script: `src/backtest/analysis/unlockStudy.ts`.
+
+**Eventos:**
+- 10.425 desbloqueos de golpe entre 2022 y 2025 con perpetuo en Binance.
+- **7.559 medibles**, de 89 proyectos. El cruce de ticker se validó por precio una vez por proyecto, y ningún proyecto se descartó por ticker homónimo.
+- 2.866 eventos sin precio en la ventana.
+
+**Con los criterios pre-registrados, pasa:**
+
+| Grandes (≥ 1 %), N = 703 | Resultado | Exigido |
+|---|---|---|
+| Corto de −8 a +7, con funding y 0,3 % de costos | **+4,94 %**, t (por mes) 2,97 | > 0 y t > 2 ✅ |
+| Mitades | +1,66 % (2022–23) / +6,23 % (2024–25) | ambas > 0 ✅ |
+| Sin los 3 mejores | +4,56 % | > 0 ✅ |
+
+**Pero no es un efecto de los desbloqueos.** La señal de alarma: los desbloqueos **chicos** (< 1 %), que según la tesis no mueven el precio, daban casi lo mismo (+3,46 %), y todas las ventanas eran negativas contra BTC, incluso a +30 días.
+
+El pre-registro **no incluía un grupo de control**, y fue un error de diseño. Se agregó después, como prueba **más exigente**: el mismo corto, en la misma ventana, sobre las monedas del top 100 sin desbloqueos de golpe a ±15 días.
+
+| | Corto en el evento | Mismo corto sin desbloqueo (control) | **Exceso** |
+|---|---|---|---|
+| Grandes (N = 703) | +4,94 % | +4,30 % | **+0,65 %** (t 0,40; mitades −0,73 % / +1,19 %) |
+| Grandes, equipo e inversores (N = 512) | +5,03 % | +4,64 % | **+0,39 %** (t 0,01) |
+| Chicos (N = 6.856) | +3,46 % | +3,68 % | **−0,22 %** (t −0,99) |
+
+**Conclusión: UNLOCK se descarta.** La ganancia aparente se explica porque entre 2022 y 2025 casi cualquier altcoin rindió menos que BTC (la dominancia de BTC subió de forma sostenida). El desbloqueo agrega, como mucho, una fracción de punto que no se distingue de cero.
+
+**Observación a posteriori, no candidata:** "corto en altcoins contra BTC" ganó ~4 % cada 15 días en 2022–2025. Es una tendencia de régimen, no una ventaja. Se medió en un período de dominancia de BTC en alza y deja afuera 2021 (temporada de altcoins), cuando habría perdido fuerte. Para considerarla habría que pre-registrarla con 2020–2021 incluidos y un filtro de régimen, y validarla en sombra.

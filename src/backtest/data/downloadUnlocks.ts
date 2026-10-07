@@ -8,11 +8,9 @@
 // Correr: npx tsx src/backtest/data/downloadUnlocks.ts
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DATA_ROOT } from "./paths.js";
+import { UNLOCKS_DIR, UNLOCK_SYMBOLS_PATH } from "./paths.js";
 import { fetchRetry, pool } from "./binanceVision.js";
 
-export const UNLOCKS_DIR = join(DATA_ROOT, "unlocks");
-export const UNLOCK_SYMBOLS_PATH = join(UNLOCKS_DIR, "symbols.json");
 const BASE = "https://defillama-datasets.llama.fi";
 
 async function main() {

@@ -22,3 +22,7 @@ export const METRICS_DIR = join(RAW_DIR, "metrics");
 export const SPOT_DIR = join(RAW_DIR, "spot_1d");
 /** perpetuo → { spot, factor }: "1000PEPEUSDT" → { spot: "PEPEUSDT", factor: 1000 }. */
 export const SPOT_MAP_PATH = join(UM_DIR, "spot_map.json");
+
+/** Calendario de desbloqueos de DefiLlama (downloadUnlocks.ts). */
+export const UNLOCKS_DIR = join(DATA_ROOT, "unlocks");
+export const UNLOCK_SYMBOLS_PATH = join(UNLOCKS_DIR, "symbols.json");

@@ -7,7 +7,7 @@
 // zLS: retorno crudo y ajustado por mercado (menos el promedio del top 30 en esa misma vela), con
 // error estándar agrupado por fecha (las observaciones de una misma vela no son independientes).
 //
-// Correr: npx tsx src/backtest/analysis/posDeciles.ts [--from=2022-02-01] [--to=2025-10-01] [--h=18]
+// Correr: npx tsx src/backtest/analysis/posDeciles.ts [--from=2022-02-01] [--to=2025-10-01] [--h=18] [--rank-from=1] [--rank-to=30]
 import { loadUniverse, loadMarket } from "../context.js";
 import { universeAt } from "../universe.js";
 import { HOUR_MS } from "../data/candles.js";
@@ -15,6 +15,8 @@ import { rollingZ, sampleAtClose, MAX_METRIC_AGE_MS } from "../strategies/positi
 import { arg } from "../data/binanceVision.js";
 
 const TF = 4;
+const RANK_FROM = Number(arg("rank-from") ?? 1);
+const RANK_TO = Number(arg("rank-to") ?? 30);
 
 interface Obs {
   date: number;
@@ -42,7 +44,7 @@ function main() {
       if (close < from || close >= to || !Number.isFinite(z[i])) continue;
       const snap = universeAt(universe, close);
       const rank = snap ? snap.ranked.indexOf(inst.id) + 1 : 0;
-      if (rank < 1 || rank > 30) continue;
+      if (rank < RANK_FROM || rank > RANK_TO) continue;
       // Entrada al open de la vela siguiente (i+1), salida al open de i+1+H (≈ cierre de i+H).
       const entry = tf.open[i + 1];
       const exit = tf.close[i + H];

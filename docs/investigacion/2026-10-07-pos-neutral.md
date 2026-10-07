@@ -1,6 +1,6 @@
 # POS neutral al mercado — pre-registro
 
-**Fecha:** 2026-10-07 · **Estado:** pre-registrada antes de correr.
+**Fecha:** 2026-10-07 · **Estado:** corrida. **No pasa: el efecto no aparece fuera del top 30.**
 
 ## Por qué
 
@@ -49,4 +49,32 @@ Ir corto en la moneda con largos saturados y **largo en el mercado por el mismo 
 
 ## Resultados
 
-*(vacío hasta correr)*
+**No pasa.** Falla los tres criterios en la muestra de prueba (monedas 31–60).
+
+| Monedas 31–60 (decide) | Costos ×1 | Costos ×2 |
+|---|---|---|
+| Saldo final (desde 33 USDT) | 15,58 USDT (−53 %) | 15,79 USDT (−52 %) |
+| Sin el mejor trade | 12,62 USDT | 12,63 USDT |
+| Peor caída | 66,7 % | 62,1 % |
+| Operaciones | 312 (1,6 por semana) | 225 |
+| Apalancamiento medio | x5,3 | x6,6 |
+
+| Top 30 (solo referencia) | Costos ×1 | Costos ×2 |
+|---|---|---|
+| Saldo final | 181,31 USDT | 136,84 USDT |
+| Peor caída | 16,0 % | 19,7 % |
+
+**¿Efecto ausente, o mecánica de capital chico?** En la prueba, a medida que bajaba el saldo, la pata de ETH (mínimo de 20 USDT) exigía más apalancamiento: entre 894 y 2.017 señales se rechazaron por la Regla 1, y desde 2024 casi no operó. Para separar las dos explicaciones se corrió la verificación por deciles, que no opera ni depende del capital, sobre las monedas 31–60 (, 238 mil observaciones):
+
+| | Top 30 | Monedas 31–60 |
+|---|---|---|
+| D10 (largos más saturados), ajustado por mercado | −0,75 % | **−0,03 %** |
+| zLS > +2, ajustado por mercado | −0,96 % | **−0,11 %** (t −1,3 sin corregir por superposición: no significativo) |
+
+**El efecto no existe en las monedas 31–60.** No fue la mecánica del capital: fuera del top 30, la señal no predice nada.
+
+Hay dos lecturas posibles:
+- **Sobreajuste:** lo del top 30 fue suerte de la muestra en la que se descubrió.
+- **Efecto propio de las monedas más líquidas:** el ratio de cuentas sería más informativo donde opera más gente.
+
+La segunda es una explicación a posteriori, y con los datos 2022–2025 no se puede distinguir de la primera. La única prueba limpia que queda es el **modo sombra** (POS en el top 30, datos desde 2026-10), que ya está corriendo. **POS neutral queda descartada.**

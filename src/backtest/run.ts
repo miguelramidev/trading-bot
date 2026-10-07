@@ -4,7 +4,7 @@
 // Protección del holdout: por defecto NO simula nada posterior a HOLDOUT_START. El tramo
 // reservado se usa una sola vez, al final, con --holdout (docs §8.5).
 //
-// Correr: npx tsx src/backtest/run.ts --preset=T1 [--from=2021-01-01] [--to=2025-10-01] [--cost=1|2] [--sizing=full | --fraction=0.18]
+// Correr: npx tsx src/backtest/run.ts --preset=T1 [--from=2021-01-01] [--to=2025-10-01] [--cost=1|2] [--sizing=full | --fraction=0.18] [--fee=0.0002]
 //         [--equity=300] [--margin=6] [--lev-min=1] [--lev-max=10] [--max-positions=5]
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
@@ -65,6 +65,8 @@ async function main() {
     maxPositions: Number(arg("max-positions") ?? DEFAULT_SIM_CONFIG.maxPositions),
     sizing: arg("sizing") === "full" ? "fullEquity" : arg("fraction") ? "fraction" : "fixed",
     equityFraction: arg("fraction") ? Number(arg("fraction")) : undefined,
+    // --fee=0.0002: comisión por lado (maker de Binance) en lugar de la taker por defecto.
+    feeRate: arg("fee") ? Number(arg("fee")) : DEFAULT_SIM_CONFIG.feeRate,
   };
   console.log(`Capital ${cfg.initialEquity} USDT | margen ${cfg.sizing === "fullEquity" ? "todo el saldo (compuesto)" : cfg.sizing === "fraction" ? `${(cfg.equityFraction! * 100).toFixed(1)} % del saldo (compuesto)` : cfg.marginPerTrade} | x${cfg.leverageMin}–x${cfg.leverageMax} | máx. ${cfg.maxPositions} posiciones | costos ×${cfg.costMultiplier}`);
 

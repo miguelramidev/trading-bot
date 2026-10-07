@@ -58,3 +58,22 @@ Si pasa, entra a un segundo torneo en sombra: aviso automático N días antes de
 1. El decil extremo (D1 o D10) tiene **|t corregido| > 2,5** en **los dos grupos** (top 30 y 31–60).
 2. El signo es el mismo en los dos grupos y en las dos mitades del período (2022–2023 y 2024–2025).
 3. El efecto, en % por operación, supera **0,2 %** a 4 h o **0,3 %** a 24 h, para que haya margen sobre los costos.
+
+---
+
+## Resultado B · señales del presente (2026-10-07)
+
+Script: `src/backtest/analysis/presentScreens.ts`, con ~960 mil observaciones por grupo y horizonte (cada hora, 2022-02 → 2025-09). Retorno ajustado por mercado del decil extremo, con t corregido por superposición.
+
+| Señal | Horizonte | Top 30 | Monedas 31–60 |
+|---|---|---|---|
+| FLOW (compras agresivas) | 4 h | D1 −0,001 % · D10 −0,012 % (t −0,7) | D1 +0,016 % (t 1,2) · D10 −0,020 % (t −1,2) |
+| FLOW | 24 h | D1 +0,03 % · D10 −0,02 % (t ≤ 0,3) | D1 +0,01 % · D10 −0,03 % (t ≤ 0,3) |
+| VOLSPIKE (volumen × signo) | 4 h | D1 −0,036 % (t −1,2) · D10 +0,008 % | D1 −0,018 % · D10 −0,050 % (t −2,0) |
+| VOLSPIKE | 24 h | D1 −0,157 % (t −1,0) · D10 −0,008 % | D1 −0,118 % (t −0,9) · D10 −0,180 % (t −1,3) |
+
+**No pasa ninguna.** Ningún decil extremo llega a |t| > 2,5, y todos los efectos quedan muy por debajo del mínimo pre-registrado (0,2 % a 4 h, 0,3 % a 24 h).
+
+- **VOLSPIKE D1** (volumen alto con caída → sigue cayendo a 24 h) tiene el mismo signo en los dos grupos y en las dos mitades, pero es chico (−0,12 a −0,16 %) y con t ≈ −1. Se anota y **no** se convierte en candidata.
+- **A escala de 1 hora, el flujo de órdenes y el volumen no anticipan nada operable.** Si el efecto existe, vive a escala de segundos, el terreno de la alta frecuencia.
+- **BOOK no se corre:** el pre-registro lo condicionaba a que FLOW o VOLSPIKE mostraran algo.

@@ -2,11 +2,14 @@
 // operaciones (por día, semana, mes y año), evolución anual del saldo, caída máxima y cuánto
 // dependió el resultado de los mejores trades.
 //
-// Correr: npx tsx src/backtest/analysis/compoundReport.ts <carpeta de la estrategia en data_dl/backtests/...>
+// Correr: npx tsx src/backtest/analysis/compoundReport.ts <carpeta de la estrategia en data_dl/backtests/...> [fracción del saldo, 1 = todo]
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const dir = process.argv[2];
+/** Fracción del saldo usada como margen (1 = todo el saldo). Con una posición a la vez, el saldo al
+ * entrar es margen / fracción, y el retorno de cada trade sobre la cuenta es neto / ese saldo. */
+const fraction = Number(process.argv[3] ?? 1);
 if (!dir) throw new Error("Falta la carpeta de la corrida (…/<estrategia>_cost1)");
 
 const parse = (file: string) => {
@@ -56,8 +59,8 @@ for (const y of years) {
 const rets = trades.map((t) => ({ t, r: t.netPnl / t.notional })).sort((a, b) => b.r - a.r);
 console.log("\nMejores 3 trades (retorno sobre el nocional):", rets.slice(0, 3).map((x) => `${x.t.instrument} ${x.t.side} ${(x.r * 100).toFixed(0)} %`).join(", "));
 const lev = trades.reduce((s, t) => s + t.leverage, 0) / trades.length;
-// Saldo final sin el mejor trade: compuesto de los retornos sobre el saldo (netPnl / margen) menos ese.
+// Saldo final sin el mejor trade: compuesto de los retornos sobre el saldo al entrar, menos el mejor.
 const compound = (xs: number[]) => xs.reduce((g, r) => g * (1 + r), 1);
-const all = trades.map((t) => (t.netPnl / t.notional) * t.leverage);
+const all = trades.map((t) => (t.netPnl * fraction * t.leverage) / t.notional);
 const withoutBest = [...all].sort((a, b) => b - a).slice(1);
 console.log(`Saldo final aproximado SIN el mejor trade: ${usd(start * compound(withoutBest))} (con todos, por el mismo cálculo: ${usd(start * compound(all))}) | apalancamiento medio x${lev.toFixed(2)}`);

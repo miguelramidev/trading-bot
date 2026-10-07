@@ -303,6 +303,12 @@ export function simulate(
             }
             const lev0 = regla1Leverage(free, c.inst.minNotional, cfg) ?? cfg.leverageMax;
             margin = free / (1 + fee * lev0);
+          } else if (cfg.sizing === "fraction") {
+            margin = (cfg.equityFraction ?? 0) * equityNow;
+            if (!(margin > 0)) {
+              skippedNoMargin++;
+              continue;
+            }
           }
           const leverage = regla1Leverage(margin, c.inst.minNotional, cfg);
           if (leverage === null) {

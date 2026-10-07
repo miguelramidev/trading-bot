@@ -196,6 +196,20 @@ describe("sizing fullEquity: cada operación usa todo el saldo libre (interés c
     expect(res.equity.at(-1)!.equity).toBeCloseTo(100 + t1.netPnl + t2.netPnl, 10);
   });
 
+  it("sizing fraction: el margen es una fracción fija del saldo del momento y la Regla 1 escala el apalancamiento", () => {
+    const price = (h: number) => (h < 9 ? 100 : h < 12 ? 110 : h < 33 ? 100 : 110);
+    const a = instrument("A", hours(72, price), 4);
+    const res = simulate(multiEntry([1, 7], 50, 110), new Map([["A", a]]), { btcDaily: a.daily }, universe(["A"]),
+      cfg({ initialEquity: 33, marginPerTrade: 0, leverageMin: 1, leverageMax: 10, maxPositions: 1, sizing: "fraction", equityFraction: 6 / 33 }));
+    const [t1, t2] = res.trades;
+    // 18 % de 33 = 6 USDT de margen: con x1 no llega al piso de 10, la Regla 1 sube a x2 (nocional 12).
+    expect(t1.leverage).toBe(2);
+    expect(t1.notional).toBeCloseTo(12, 10);
+    // La segunda usa el 18 % del saldo nuevo (33 + neto del primero).
+    const margin2 = (6 / 33) * (33 + t1.netPnl);
+    expect(t2.notional).toBeCloseTo(margin2 * t2.leverage, 10);
+  });
+
   it("Regla 1: si el saldo no alcanza el notional mínimo ni con leverageMax, no opera", () => {
     const a = instrument("A", hours(72, () => 100), 4, [], 50);
     const res = simulate(multiEntry([1], 50, 200), new Map([["A", a]]), { btcDaily: a.daily }, universe(["A"]),

@@ -11,6 +11,7 @@ import { pullback1hStrategy } from "./strategies/pullback1h.js";
 import { positioningStrategy } from "./strategies/positioning.js";
 import { listingShortStrategy } from "./strategies/listing.js";
 import { carryStrategy } from "./strategies/carry.js";
+import { pairNeutralStrategy } from "./strategies/pairNeutral.js";
 
 // Los tres modos de salida que se comparan en todas las estrategias de tendencia.
 const BRACKET: ExitParams = { mode: "bracket", stopAtr: 1, m: 2 }; // el actual del bot
@@ -113,6 +114,11 @@ export const PRESETS: Record<string, () => AnyStrategy[]> = {
   // la variante ls_h18 tal cual y con las métricas atrasadas 1 h, para descartar look-ahead si
   // Binance publica las filas después de su create_time.
   POS_CHECK: () => [positioningStrategy({ measure: "ls", holdBars: 18 }), positioningStrategy({ measure: "ls", holdBars: 18, lagMinutes: 60 })],
+  // POS neutral al mercado (pre-registrada el 2026-10-07, docs/investigacion/2026-10-07-pos-neutral.md).
+  // POSN_TEST decide (monedas 31–60, nunca usadas); POSN_REF es solo referencia (top 30).
+  // Correr con --from=2022-02-01 --equity=33.
+  POSN_TEST: () => [pairNeutralStrategy({ rankFrom: 31, rankTo: 60, fraction: 0.25 })],
+  POSN_REF: () => [pairNeutralStrategy({ rankFrom: 1, rankTo: 30, fraction: 0.25 })],
   // LIST: cortos a listados nuevos, TF 1d, todos los perpetuos. Correr con --from=2020-03-01.
   LIST: () => [1, 7].flatMap((delayDays) => [14, 28].map((holdDays) => listingShortStrategy({ delayDays, holdDays }))),
   // CARRY: spot comprado + perpetuo vendido, diario. Correr con --from=2021-01-01.

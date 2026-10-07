@@ -212,3 +212,28 @@ D10 por año: −0,70 % (2022), −0,65 % (2023), −0,42 % (2024), −1,27 % (2
   - La ventaja de POS está en **ir corto contra los largos saturados**. Los largos de la estrategia viven de otra cosa, o de suerte.
   - Además es una ventaja **relativa al mercado**: la estrategia, que no se cubre, también carga el movimiento de BTC, como en 2022.
   - Una versión "solo cortos" o "cubierta con BTC" sería una variante nueva, inspirada en este resultado. Si se prueba, cuenta como prueba y lo justo es validarla con datos nuevos (modo sombra), no con estos.
+
+---
+
+## Prueba en el holdout — pre-registro (2026-10-07, antes de correr)
+
+Decisión del usuario: usar el holdout en **POS `ls`, 72 h**, como excepción al protocolo (no pasó el walk-forward ni el Deflated Sharpe), con la configuración con la que se operaría de verdad. Es la **única** prueba que se corre en este período. Si falla, no se prueba otra cosa acá.
+
+**Configuración** (fija, sin variantes):
+- Estrategia `POS_ls_h18`, sin cambios: zLS > 2 → corto, < −2 → largo, salida a 72 h y stop de 2,5 ATR(4h), top 30.
+- Capital inicial **33 USDT**, **una posición a la vez**.
+- Margen: el **25 % del saldo del momento** (interés compuesto).
+- Apalancamiento con la Regla 1: x1 a x10, solo lo necesario para el notional mínimo.
+- Período: **2025-10-01 → 2026-10-01** (holdout, nunca simulado).
+- Comando: `run.ts --preset=POS_CHECK --from=2025-10-01 --to=2026-10-01 --holdout --equity=33 --max-positions=1 --fraction=0.25 --cost=1|2`. Se lee solo la fila `POS_ls_h18` (la variante con atraso de métricas no cuenta).
+
+**Pasa si se cumplen los tres criterios:**
+1. Saldo final > 33 USDT **con costos ×2**.
+2. Saldo final > 33 USDT **sin el mejor trade**, con costos ×1, para no depender de un evento como MYX.
+3. Peor caída ≤ **50 %**, con costos ×1 y con costos ×2.
+
+**Advertencia anticipada:** con un año de datos el resultado es ruidoso. Pasar no prueba la ventaja, y fallar no la descarta del todo. Igual es la mejor evidencia limpia disponible, y el criterio no se discute después de verla.
+
+**Qué sigue:**
+- **Si pasa:** construir la ejecución (salida por tiempo, sizing por fracción en `RULES.md` con tests) mientras el modo sombra suma 4–8 semanas, y recién después operar real con una regla de corte.
+- **Si falla:** no se opera esta estrategia.
